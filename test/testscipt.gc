@@ -1,0 +1,7 @@
+let x: int = 1 + 2;
+def lol() -> str {
+    x = "It is \n\"Working";
+    return x
+}
+print(lol())
+x = 3

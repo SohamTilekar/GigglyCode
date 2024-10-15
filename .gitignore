@@ -1,0 +1,9 @@
+.vscode/
+.venv/
+__pycache__/
+*.obj
+*.exe
+llvm/
+build/
+dump/*
+temp*
