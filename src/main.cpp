@@ -8,9 +8,9 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 
-// #define DEBUG_LEXER
+#define DEBUG_LEXER
 #define DEBUG_PARSER
-// #define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
+#define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
 #define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.json"
 
 // Function to read the file content into a string

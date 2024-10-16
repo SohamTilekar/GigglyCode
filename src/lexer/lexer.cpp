@@ -41,6 +41,10 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
         return token::TokenType::Continue;
     } else if(*ident == "struct") {
         return token::TokenType::Struct;
+    } else if(*ident == "enum") {
+        return token::TokenType::Enum;
+    } else if(*ident == "let") {
+        return token::TokenType::Let;
     } else if(*ident == "True") {
         return token::TokenType::True;
     } else if(*ident == "False") {

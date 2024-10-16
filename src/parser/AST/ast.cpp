@@ -1,4 +1,5 @@
 #include "ast.hpp"
+#include "../../lexer/token.hpp"
 
 std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
     switch(type) {

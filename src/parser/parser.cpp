@@ -51,6 +51,9 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseBreakStatement();
     } else if(this->_currentTokenIs(token::TokenType::Continue)) {
         return this->_parseContinueStatement();
+    } else if(this->_currentTokenIs(token::TokenType::Let)) {
+        this->_nextToken();
+        return this->_parseVariableDeclaration();
     // } else if(this->_currentTokenIs(token::TokenType::Struct)) {
     //     return this->_parseStructDeclarationStatement();
     } else
@@ -72,7 +75,7 @@ std::shared_ptr<AST::FunctionStatement> parser::Parser::_parseFunctionStatement(
     std::vector<std::shared_ptr<AST::FunctionParameter>> parameters;
     while(this->current_token->type != token::TokenType::RightParen) {
         if(this->current_token->type == token::TokenType::Identifier) {
-            auto identifier = _parseIdentifier();
+            auto identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
             if(!this->_expectPeek(token::TokenType::Colon)) {
                 return nullptr;
             }
@@ -278,16 +281,7 @@ std::shared_ptr<AST::BaseType> parser::Parser::_parseType() {
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
     std::shared_ptr<AST::Expression> name;
-    if(this->_currentTokenIs(token::TokenType::Integer))
-        name = std::make_shared<AST::IntegerLiteral>(std::stoll(this->current_token->literal));
-    else if(this->_currentTokenIs(token::TokenType::Float))
-        name = std::make_shared<AST::FloatLiteral>(std::stod(this->current_token->literal));
-    else if(this->_currentTokenIs(token::TokenType::String))
-        name = std::make_shared<AST::StringLiteral>(this->current_token->literal);
-    else if(this->_currentTokenIs(token::TokenType::RawString))
-        name = std::make_shared<AST::StringLiteral>(this->current_token->literal);
-    else
-        name = _parseIdentifier();
+    name = _parseIdentifier();
     std::vector<std::shared_ptr<AST::BaseType>> generics;
     if(this->_peekTokenIs(token::TokenType::LeftBracket)) {
         this->_nextToken();

@@ -89,6 +89,8 @@ enum class TokenType {
     Break,    // Break Statement break
     Continue, // Continue Statement continue
     Struct,   // Struct
+    Enum,     // Enum
+    Let,      // Let
     True,     // Boolean true true
     False,    // Boolean false false
     // Maybe,    // Maybe type maybe

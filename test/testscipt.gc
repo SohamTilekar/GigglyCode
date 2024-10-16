@@ -1,7 +1,7 @@
 let x: int = 1 + 2;
-def lol() -> str {
+def lol(op: int, hi: str) -> str {
     x = "It is \n\"Working";
-    return x
+    return x;
 }
-print(lol())
-x = 3
+print(lol(x, "Hello World!"), x);
+x = 3;
