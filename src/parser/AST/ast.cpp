@@ -161,7 +161,7 @@ std::shared_ptr<nlohmann::json> AST::ContinueStatement::toJSON() {
 std::shared_ptr<nlohmann::json> AST::VariableDeclarationStatement::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
-    jsonAst["identifier"] = *this->name->toJSON();
+    jsonAst["name"] = *this->name->toJSON();
     jsonAst["value_type"] = *this->value_type->toJSON();
     jsonAst["value"] = this->value == nullptr ? nullptr : *value->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
@@ -170,7 +170,7 @@ std::shared_ptr<nlohmann::json> AST::VariableDeclarationStatement::toJSON() {
 std::shared_ptr<nlohmann::json> AST::VariableAssignmentStatement::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
-    jsonAst["identifier"] = *this->name->toJSON();
+    jsonAst["name"] = *this->name->toJSON();
     jsonAst["value"] = *value->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
 }
