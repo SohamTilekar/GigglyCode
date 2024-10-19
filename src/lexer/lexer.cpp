@@ -350,10 +350,10 @@ std::shared_ptr<std::string> Lexer::_readString(const std::string& quote) {
     while(true) {
         this->_readChar();
         if(this->current_char == "") {
-            errors::raiseSyntaxError(this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
+            errors::raiseSyntaxError("Invalid Str", this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
                                      "Unterminated string literal", "Add a closing " + quote + " to terminate the string literal");
         } else if(this->current_char == "\n" && quote != "\"\"\"" && quote != "'''") {
-            errors::raiseSyntaxError(this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
+            errors::raiseSyntaxError("Invalid Str", this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
                                      "Unterminated string literal", "Add a closing " + quote + " to terminate the string literal");
         } else if(this->current_char == "\\") {
             this->_readChar();

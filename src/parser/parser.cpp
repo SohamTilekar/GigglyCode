@@ -537,7 +537,7 @@ parser::PrecedenceType parser::Parser::_peekPrecedence() {
 
 void parser::Parser::_peekError(token::TokenType type, token::TokenType expected_type, std::string suggestedFix) {
     std::shared_ptr<errors::SyntaxError> error = std::make_shared<errors::SyntaxError>(
-        this->lexer->source, *peek_token, "Expected to be " + *token::tokenTypeString(expected_type) + ", but got " + *token::tokenTypeString(type),
+        "SyntaxError", this->lexer->source, *peek_token, "Expected to be " + *token::tokenTypeString(expected_type) + ", but got " + *token::tokenTypeString(type),
         suggestedFix);
     this->errors.push_back(error);
 }

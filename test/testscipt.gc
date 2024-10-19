@@ -1,7 +1,10 @@
-let x: int = 1 + 2;
-# def lol(op: int, hi: str) -> str {
-#     x = "It is \n\"Working";
-#     return x;
-# }
-# print(lol(x, "Hello World!"), x);
-# x = 3;
+def lol(op: int, hi: str) -> str {
+    x: str = "It is \n\"Working";
+    return x;
+}
+
+def main() -> int {
+    let x: int = 1 + 2;
+#    print("Hello World!");
+    return x
+}

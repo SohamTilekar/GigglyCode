@@ -7,6 +7,7 @@
 #include "include/cli11.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
+#include "compiler/compiler.hpp"
 
 #define DEBUG_LEXER
 #define DEBUG_PARSER
@@ -63,7 +64,7 @@ int main(int argc, char* argv[]) {
 #ifdef DEBUG_LEXER
     std::cout << "=========== Lexer Debug ===========" << std::endl;
     Lexer debug_lexer(fileContent);
-    if (DEBUG_LEXER_OUTPUT_PATH != "") {
+    if (std::string(DEBUG_LEXER_OUTPUT_PATH) != "") {
         std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
         if (!debugOutput.is_open()) {
             std::cerr << "Error: Could not open debug output file " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
@@ -110,6 +111,16 @@ int main(int argc, char* argv[]) {
         std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
     }
 #endif
+    auto comp = compiler::Compiler(fileContent);
+    comp.compile(program);
+    std::error_code EC;
+    llvm::raw_fd_ostream file(outputFilePath, EC, llvm::sys::fs::OF_None);
+    if(EC) {
+        std::cerr << "Could not open file: " << EC.message() << std::endl;
+        return 1;
+    }
+    comp.llvm_module->print(file, nullptr);
+    file.close();
     // Write the file content to the output file
     std::cout << "Output File: " << outputFilePath << std::endl;
     return 0;

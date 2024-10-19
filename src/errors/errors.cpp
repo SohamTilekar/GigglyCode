@@ -182,7 +182,7 @@ void errors::CompletionError::raise(bool terminate) {
         exit(EXIT_FAILURE);
 }
 
-void errors::raiseSyntaxError(const std::string& source, const token::Token& token, const std::string& message, const std::string& suggestedFix) {
-    SyntaxError error(source, token, message, suggestedFix);
+void errors::raiseSyntaxError(const std::string& type, const std::string& source, const token::Token& token, const std::string& message, const std::string& suggestedFix) {
+    errors::SyntaxError error(type, source, token, message, suggestedFix);
     error.raise();
 }
