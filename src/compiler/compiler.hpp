@@ -16,7 +16,6 @@
 #include <llvm/TargetParser/Host.h>
 #include <memory>
 #include <string>
-#include <unordered_map>
 
 
 namespace compiler {
@@ -54,7 +53,7 @@ class Compiler {
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
     void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
     void _visitWhileStatement(std::shared_ptr<AST::WhileStatement> while_statement);
-    // void _visitClassDeclarationStatement(std::shared_ptr<AST::ClassDeclarationStatement> class_declaration);
+    void _visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement);
 
     std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructType>> _resolveValue(std::shared_ptr<AST::Node> node);
 };

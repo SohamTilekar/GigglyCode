@@ -46,13 +46,13 @@ class RecordStructType : public Record {
   public:
     llvm::Type* stand_alone_type = nullptr;
     llvm::StructType* struct_type = nullptr;
-    std::vector<std::string> variable_names = {};
+    std::vector<std::string> fields = {};
 
     std::unordered_map<std::string, std::shared_ptr<RecordFunction>> methods;
     RecordStructType(std::string name) : Record(RecordType::RecordStructType, name) {};
     RecordStructType(std::string name, llvm::StructType* struct_type, std::vector<std::string> variable_names,
                     std::unordered_map<std::string, std::shared_ptr<RecordFunction>> functions = {})
-        : Record(RecordType::RecordStructType, name), struct_type(struct_type), variable_names(variable_names) {};
+        : Record(RecordType::RecordStructType, name), struct_type(struct_type), fields(variable_names) {};
     RecordStructType(std::string name, llvm::Type* stand_alone_type)
         : Record(RecordType::RecordStructType, name), stand_alone_type(stand_alone_type) {};
 };
@@ -89,6 +89,7 @@ class Enviornment {
     bool is_function(std::string name, bool limit2current_scope = false);
     std::shared_ptr<RecordFunction> get_function(std::string name, bool limit2current_scope = false);
     bool is_struct(std::string name, bool limit2current_scope = false);
-    std::shared_ptr<RecordStructType> get_class(std::string name, bool limit2current_scope = false);
+    std::shared_ptr<RecordStructType> get_struct(std::string
+        name, bool limit2current_scope = false);
 }; // class Environment
 } // namespace enviornment

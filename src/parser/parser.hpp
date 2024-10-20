@@ -119,6 +119,7 @@ class Parser {
     std::shared_ptr<AST::WhileStatement> _parseWhileStatement();
     std::shared_ptr<AST::BreakStatement> _parseBreakStatement();
     std::shared_ptr<AST::ContinueStatement> _parseContinueStatement();
+    std::shared_ptr<AST::StructStatement> _parseStructStatement();
 
     std::shared_ptr<AST::BaseType> _parseType();
 

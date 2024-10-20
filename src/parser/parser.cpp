@@ -1,4 +1,6 @@
 #include "parser.hpp"
+#include "AST/ast.hpp"
+#include <memory>
 
 parser::Parser::Parser(std::shared_ptr<Lexer> lexer) {
     this->lexer = lexer;
@@ -54,8 +56,8 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
     } else if(this->_currentTokenIs(token::TokenType::Let)) {
         this->_nextToken();
         return this->_parseVariableDeclaration();
-    // } else if(this->_currentTokenIs(token::TokenType::Struct)) {
-    //     return this->_parseStructDeclarationStatement();
+    } else if(this->_currentTokenIs(token::TokenType::Struct)) {
+        return this->_parseStructStatement();
     } else
         return this->_parseExpressionStatement();
 }
@@ -321,52 +323,35 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableAssignment(std::sh
     return stmt;
 }
 
-// std::shared_ptr<AST::StructDeclarationStatement> parser::Parser::_parseStructDeclarationStatement() {
-//     int st_line_no = current_token->line_no;
-//     int st_col_no = current_token->col_no;
-//     if(!this->_expectPeek(token::TokenType::Identifier)) {
-//         return nullptr;
-//     }
-//     auto name = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
-//     name->set_meta_data(current_token->line_no, current_token->col_no, current_token->line_no, current_token->end_col_no);
-//     if(!this->_expectPeek(token::TokenType::LeftBrace)) {
-//         return nullptr;
-//     }
-//     this->_nextToken();
-//     std::vector<std::shared_ptr<AST::VariableDeclarationStatement>> variables;
-//     std::vector<std::shared_ptr<AST::FunctionStatement>> methods;
-//     while(this->current_token->type != token::TokenType::RightBrace && this->current_token->type != token::TokenType::EndOfFile) {
-//         if(this->current_token->type == token::TokenType::Def) {
-//             auto method = this->_parseFunctionStatement();
-//             this->_nextToken();
-//             if(method != nullptr) {
-//                 methods.push_back(std::dynamic_pointer_cast<AST::FunctionStatement>(method));
-//             }
-//             else {
-//                 std::cout << "Method is null" << std::endl;
-//                 break;
-//             }
-//         } else if(this->current_token->type == token::TokenType::Identifier) {
-//             auto variable = this->_parseVariableDeclaration();
-//             this->_nextToken();
-//             if(variable != nullptr) {
-//                 variables.push_back(std::dynamic_pointer_cast<AST::VariableDeclarationStatement>(variable));
-//             }
-//             else {
-//                 std::cout << "Variable is null" << std::endl;
-//                 break;
-//             }
-//         } else {
-//             std::cout << "Unexpected token: " << *token::tokenTypeString(this->current_token->type) << std::endl;
-//             break;
-//         }
-//     }
-//     int end_line_no = current_token->line_no;
-//     int end_col_no = current_token->col_no;
-//     auto struct_declaration_statement = std::make_shared<AST::StructDeclarationStatement>(name, std::vector<std::shared_ptr<AST::VariableDeclarationStatement>>{}, std::vector<std::shared_ptr<AST::FunctionStatement>>{});
-//     struct_declaration_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-//     return struct_declaration_statement;
-// };
+std::shared_ptr<AST::StructStatement> parser::Parser::_parseStructStatement() {
+    int st_line_no = current_token->line_no;
+    int st_col_no = current_token->col_no;
+
+    if(!this->_expectPeek(token::TokenType::Identifier)) {
+        return nullptr;
+    }
+    std::shared_ptr<AST::Expression> name = this->_parseIdentifier();
+
+    if(!this->_expectPeek(token::TokenType::LeftBrace)) {
+        return nullptr;
+    }
+    this->_nextToken();
+    std::vector<std::shared_ptr<AST::Statement>> statements;
+
+    while(!this->_currentTokenIs(token::TokenType::RightBrace) && !this->_currentTokenIs(token::TokenType::EndOfFile)) {
+        auto stmt = this->_parseVariableDeclaration();
+        if(stmt != nullptr) {
+            statements.push_back(stmt);
+        }
+        this->_nextToken();
+    }
+    int end_line_no = current_token->line_no;
+    int end_col_no = current_token->col_no;
+
+    auto struct_stmt = std::make_shared<AST::StructStatement>(name, statements);
+    struct_stmt->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    return struct_stmt;
+}
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseExpression(PrecedenceType precedence, std::shared_ptr<AST::Expression> parsed_expression, int st_line_no, int st_col_no) {
     if (parsed_expression == nullptr) {

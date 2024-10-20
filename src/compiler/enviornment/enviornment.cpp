@@ -72,13 +72,13 @@ std::shared_ptr<enviornment::RecordFunction> enviornment::Enviornment::get_funct
     return nullptr;
 };
 
-std::shared_ptr<enviornment::RecordStructType> enviornment::Enviornment::get_class(std::string name, bool limit2current_scope) {
+std::shared_ptr<enviornment::RecordStructType> enviornment::Enviornment::get_struct(std::string name, bool limit2current_scope) {
     if(record_map.find(name) != record_map.end()) {
         if(record_map[name]->type == RecordType::RecordStructType) {
             return std::static_pointer_cast<enviornment::RecordStructType>(record_map[name]);
         }
     } else if(parent != nullptr & !limit2current_scope) {
-        return parent->get_class(name);
+        return parent->get_struct(name);
     }
     return nullptr;
 };

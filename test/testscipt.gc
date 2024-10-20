@@ -1,10 +1,15 @@
-def lol(op: int, hi: str) -> str {
+struct Point {
+    x: int;
+    y: int;
+}
+
+def lol(op: int, hi: str, p: Point) -> str {
     x: str = "It is \n\"Working";
     return x;
 }
 
 def main() -> int {
     let x: int = 1 + 2;
-#    print("Hello World!");
+    print("Hello World!");
     return x
 }

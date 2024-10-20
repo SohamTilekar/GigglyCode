@@ -1,6 +1,7 @@
 
 run:
 	@echo ---------------------------------------------------------
+	cmake --build ./build --config Debug --target all --
 	./build/gigly ./test/testscipt.gc -o ./dump/testscipt.ll
 
 cppcheck:

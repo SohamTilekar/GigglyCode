@@ -25,7 +25,7 @@ enum class NodeType {
     WhileStatement,
     BreakStatement,
     ContinueStatement,
-    StructDecelerationStatement,
+    StructStatement,
 
     // Types
     Type,
@@ -251,6 +251,16 @@ class BooleanLiteral : public Expression {
     bool value;
     inline BooleanLiteral(bool value) : value(value) {}
     inline NodeType type() override { return NodeType::BooleanLiteral; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
+class StructStatement : public Statement {
+  public:
+    std::shared_ptr<Expression> name;
+    std::vector<std::shared_ptr<Statement>> fields;
+    inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields)
+        : name(name), fields(fields) {}
+    inline NodeType type() override { return NodeType::StructStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 } // namespace AST

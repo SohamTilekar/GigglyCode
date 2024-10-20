@@ -1,4 +1,6 @@
 #include "compiler.hpp"
+#include <memory>
+#include <vector>
 
 compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context) {
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
@@ -26,95 +28,123 @@ void compiler::Compiler::_initializeBuiltins() {
 
     // Create the global variable 'true'
     llvm::GlobalVariable* globalTrue =
-        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_class("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
-                                 llvm::ConstantInt::get(this->enviornment.get_class("bool")->stand_alone_type, 1), "True");
+        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
+                                 llvm::ConstantInt::get(this->enviornment.get_struct("bool")->stand_alone_type, 1), "True");
 
     // Create the global variable 'false'
     llvm::GlobalVariable* globalFalse =
-        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_class("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
-                                 llvm::ConstantInt::get(this->enviornment.get_class("bool")->stand_alone_type, 0), "False");
-    auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, this->enviornment.get_class("bool")->stand_alone_type,
-                                                                    nullptr, this->enviornment.get_class("bool"));
+        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
+                                 llvm::ConstantInt::get(this->enviornment.get_struct("bool")->stand_alone_type, 0), "False");
+    auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, this->enviornment.get_struct("bool")->stand_alone_type,
+                                                                    nullptr, this->enviornment.get_struct("bool"));
     this->enviornment.add(recordTrue);
-    auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, this->enviornment.get_class("bool")->stand_alone_type,
-                                                                     nullptr, this->enviornment.get_class("bool"));
+    auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, this->enviornment.get_struct("bool")->stand_alone_type,
+                                                                     nullptr, this->enviornment.get_struct("bool"));
     this->enviornment.add(recordFalse);
+
+    // Create the function type: void puts(const char*)
+    llvm::Type* voidType = llvm::Type::getVoidTy(llvm_context);                          // void return type
+    llvm::FunctionType* putsType = llvm::FunctionType::get(voidType, _string->stand_alone_type, false);
+    auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> putsParams = {{"string", nullptr}};
+
+    // Create the function type: int print(const char*)
+    llvm::Type* returnType = llvm::Type::getInt32Ty(llvm_context);                          // int return type
+    llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, _string->stand_alone_type, false);
+    auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", this->llvm_module.get());
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> params = {{"string", nullptr}};
+    this->enviornment.add(std::make_shared<enviornment::RecordFunction>("print", func, funcType, params, _int));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
+    std::cout << "Compiling node of type: " << *AST::nodeTypeToString(node->type()) << std::endl;
     switch(node->type()) {
     case AST::NodeType::Program:
+        std::cout << "Visiting Program node" << std::endl;
         this->_visitProgram(std::static_pointer_cast<AST::Program>(node));
         break;
     case AST::NodeType::ExpressionStatement: {
+        std::cout << "Visiting ExpressionStatement node" << std::endl;
         this->_visitExpressionStatement(std::static_pointer_cast<AST::ExpressionStatement>(node));
         break;
     }
     case AST::NodeType::InfixedExpression: {
+        std::cout << "Visiting InfixedExpression node" << std::endl;
         this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
         break;
     }
     case AST::NodeType::VariableDeclarationStatement: {
+        std::cout << "Visiting VariableDeclarationStatement node" << std::endl;
         this->_visitVariableDeclarationStatement(std::static_pointer_cast<AST::VariableDeclarationStatement>(node));
         break;
     }
     case AST::NodeType::VariableAssignmentStatement: {
+        std::cout << "Visiting VariableAssignmentStatement node" << std::endl;
         this->_visitVariableAssignmentStatement(std::static_pointer_cast<AST::VariableAssignmentStatement>(node));
         break;
     }
     case AST::NodeType::IfElseStatement: {
+        std::cout << "Visiting IfElseStatement node" << std::endl;
         this->_visitIfElseStatement(std::static_pointer_cast<AST::IfElseStatement>(node));
         break;
     }
     case AST::NodeType::FunctionStatement: {
+        std::cout << "Visiting FunctionStatement node" << std::endl;
         this->_visitFunctionDeclarationStatement(std::static_pointer_cast<AST::FunctionStatement>(node));
         break;
     }
     case AST::NodeType::CallExpression: {
+        std::cout << "Visiting CallExpression node" << std::endl;
         this->_visitCallExpression(std::static_pointer_cast<AST::CallExpression>(node));
         break;
     }
     case AST::NodeType::ReturnStatement: {
+        std::cout << "Visiting ReturnStatement node" << std::endl;
         this->_visitReturnStatement(std::static_pointer_cast<AST::ReturnStatement>(node));
         break;
     }
     case AST::NodeType::BlockStatement: {
+        std::cout << "Visiting BlockStatement node" << std::endl;
         this->_visitBlockStatement(std::static_pointer_cast<AST::BlockStatement>(node));
         break;
     }
     case AST::NodeType::WhileStatement: {
+        std::cout << "Visiting WhileStatement node" << std::endl;
         this->_visitWhileStatement(std::static_pointer_cast<AST::WhileStatement>(node));
         break;
     }
     case AST::NodeType::BreakStatement: {
+        std::cout << "Visiting BreakStatement node" << std::endl;
         if(this->enviornment.loop_end_block.empty()) {
-            // errors::BreakOutsideLoopError(this->source, node->meta_data, "Break statement outside loop").raise();
             std::cout << "Break statement outside loop" << std::endl;
         }
         this->llvm_ir_builder.CreateBr(this->enviornment.loop_end_block.top());
         break;
     }
     case AST::NodeType::ContinueStatement: {
+        std::cout << "Visiting ContinueStatement node" << std::endl;
         if(this->enviornment.loop_condition_block.empty()) {
-            // errors::ContinueOutsideLoopError(this->source, node->meta_data, "Continue statement outside loop").raise();
             std::cout << "Continue statement outside loop" << std::endl;
         }
         this->llvm_ir_builder.CreateBr(this->enviornment.loop_condition_block.top());
         break;
     }
     case AST::NodeType::BooleanLiteral: {
+        std::cout << "Visiting BooleanLiteral node" << std::endl;
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, boolean_literal->value, true));
         break;
     }
-
-    // case AST::NodeType::ClassDeclarationStatement: {
-    //     this->_visitClassDeclarationStatement(std::static_pointer_cast<AST::ClassDeclarationStatement>(node));
-    //     break;
-    // }
+    case AST::NodeType::StructStatement: {
+        std::cout << "Visiting StructStatement node" << std::endl;
+        this->_visitStructStatement(std::static_pointer_cast<AST::StructStatement>(node));
+        break;
+    }
     default:
+        std::cout << "Unknown node type: " << *AST::nodeTypeToString(node->type()) << std::endl;
         errors::CompletionError("Unknown node type", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no,
-                                "Unknown node type: " + *AST::nodeTypeToString(node->type())).raise();
+                                "Unknown node type: " + *AST::nodeTypeToString(node->type()))
+            .raise();
         break;
     }
 };
@@ -155,27 +185,27 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
     }
     if(left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isIntegerTy()) {
         if(op == token::TokenType::Plus) {
-            return {{this->llvm_ir_builder.CreateAdd(left_val, right_val)}, this->enviornment.get_class("int")};
+            return {{this->llvm_ir_builder.CreateAdd(left_val, right_val)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::Dash) {
-            return {{this->llvm_ir_builder.CreateSub(left_val, right_val)}, this->enviornment.get_class("int")};
+            return {{this->llvm_ir_builder.CreateSub(left_val, right_val)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::Asterisk) {
-            return {{this->llvm_ir_builder.CreateMul(left_val, right_val)}, this->enviornment.get_class("int")};
+            return {{this->llvm_ir_builder.CreateMul(left_val, right_val)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::ForwardSlash) {
-            return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val)}, this->enviornment.get_class("int")};
+            return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::Percent) {
-            return {{this->llvm_ir_builder.CreateSRem(left_val, right_val)}, this->enviornment.get_class("int")};
+            return {{this->llvm_ir_builder.CreateSRem(left_val, right_val)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::EqualEqual) {
-            return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val)}, this->enviornment.get_class("bool")};
+            return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::NotEquals) {
-            return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val)}, this->enviornment.get_class("bool")};
+            return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::LessThan) {
-            return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val)}, this->enviornment.get_class("bool")};
+            return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::GreaterThan) {
-            return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val)}, this->enviornment.get_class("bool")};
+            return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::LessThanOrEqual) {
-            return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val)}, this->enviornment.get_class("bool")};
+            return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::GreaterThanOrEqual) {
-            return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val)}, this->enviornment.get_class("bool")};
+            return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val)}, this->enviornment.get_struct("bool")};
         } else {
             // errors::InternalCompilationError("Unknown operator", this->source, infixed_expression->meta_data.st_line_no,
             //                                  infixed_expression->meta_data.end_line_no, "Unknown operator")
@@ -194,13 +224,13 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->name);
     auto var_value = variable_declaration_statement->value;
     if(!this->enviornment.is_struct(std::static_pointer_cast<AST::IdentifierLiteral>(
-                                       std::static_pointer_cast<AST::GenericType>(variable_declaration_statement->value_type)->name)
-                                       ->value)) {
+                                        std::static_pointer_cast<AST::GenericType>(variable_declaration_statement->value_type)->name)
+                                        ->value)) {
         // errors::VariableNotDefinedError(this->source, var_name->meta_data, "Variable not defined").raise();
         std::cout << "Variable not defined" << std::endl;
         exit(1);
     }
-    auto var_type = this->enviornment.get_class(
+    auto var_type = this->enviornment.get_struct(
         std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(variable_declaration_statement->value_type)->name)
             ->value);
     auto [var_value_resolved, _] = this->_resolveValue(var_value);
@@ -250,17 +280,17 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
     case AST::NodeType::IntegerLiteral: {
         auto integer_literal = std::static_pointer_cast<AST::IntegerLiteral>(node);
         auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value, true));
-        return {{value}, this->enviornment.get_class("int")};
+        return {{value}, this->enviornment.get_struct("int")};
     }
     case AST::NodeType::FloatLiteral: {
         auto float_literal = std::static_pointer_cast<AST::FloatLiteral>(node);
         auto value = llvm::ConstantFP::get(llvm_context, llvm::APFloat(float_literal->value));
-        return {{value}, this->enviornment.get_class("float")};
+        return {{value}, this->enviornment.get_struct("float")};
     }
     case AST::NodeType::StringLiteral: {
         auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
         auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
-        return {{value}, this->enviornment.get_class("str")};
+        return {{value}, this->enviornment.get_struct("str")};
     }
     case AST::NodeType::IdentifierLiteral: {
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
@@ -282,7 +312,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
     case AST::NodeType::BooleanLiteral: {
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = boolean_literal->value ? this->enviornment.get_variable("True")->value : this->enviornment.get_variable("False")->value;
-        return {{value}, this->enviornment.get_class("bool")};
+        return {{value}, this->enviornment.get_struct("bool")};
     }
     default: {
         this->compile(node);
@@ -313,18 +343,17 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     std::vector<std::shared_ptr<enviornment::RecordStructType>> param_types_record;
     for(auto param : params) {
         param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
-        param_types.push_back(
-            this->enviornment
-                .get_class(
-                    std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(param->value_type)->name)->value)
-                ->stand_alone_type);
-        param_types_record.push_back(this->enviornment.get_class(
+        auto param_type = this->enviornment
+                              .get_struct(
+                                  std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(param->value_type)->name)->value);
+        param_types.push_back(param_type->stand_alone_type ? param_type->stand_alone_type : param_type->struct_type);
+        param_types_record.push_back(this->enviornment.get_struct(
             std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(param->value_type)->name)->value));
     }
-    auto return_type = this->enviornment.get_class(std::static_pointer_cast<AST::IdentifierLiteral>(
+    auto return_type = this->enviornment.get_struct(std::static_pointer_cast<AST::IdentifierLiteral>(
                                                        std::static_pointer_cast<AST::GenericType>(function_declaration_statement->return_type)->name)
                                                        ->value);
-    auto llvm_return_type = return_type->stand_alone_type;
+    auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type;
     // auto return_type_record =
     //     *this->enviornment.get_class(std::static_pointer_cast<AST::IdentifierLiteral>(function_declaration_statement->return_type)->value);
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
@@ -374,7 +403,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
         auto func_record = this->enviornment.get_function(name);
         auto returnValue = this->llvm_ir_builder.CreateCall(
             llvm::cast<llvm::Function>(func_record->function), args,
-            func_record->function_type->getReturnType() != this->enviornment.get_class("void")->stand_alone_type ? "calltmp" : "");
+            func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
         return {{returnValue}, func_record->return_type};
     }
     errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
@@ -434,4 +463,36 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     this->enviornment.loop_condition_block.pop();
     this->llvm_ir_builder.CreateBr(CondBB);
     this->llvm_ir_builder.SetInsertPoint(ContBB);
+};
+
+void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement) {
+    std::cout << "Entering Struct Statement" << std::endl;
+    std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(struct_statement->name)->value;
+    std::cout << "Struct name: " << struct_name << std::endl;
+    std::vector<llvm::Type*> field_types;
+    auto fields = struct_statement->fields;
+    std::cout << "Number of fields: " << fields.size() << std::endl;
+    auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
+    for(auto field : fields) {
+        auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
+        std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
+        std::string field_type_name = std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(field_decl->value_type)->name)->value;
+        std::cout << "Processing field: " << field_name << std::endl;
+        struct_record->fields.push_back(field_name);
+        auto field_type = this->enviornment.get_struct(field_type_name);
+        if(field_type->stand_alone_type == nullptr) {
+            std::cout << "Field type is a struct type" << std::endl;
+            field_types.push_back(field_type->struct_type);
+        } else {
+            std::cout << "Field type is a standalone type" << std::endl;
+            field_types.push_back(field_type->stand_alone_type);
+        }
+    }
+    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
+    std::cout << "LLVM StructType created" << std::endl;
+    struct_type->setBody(field_types);
+    struct_record->struct_type = struct_type;
+    this->enviornment.add(struct_record);
+    std::cout << "Struct added to environment" << std::endl;
+    std::cout << "Exiting Struct Statement" << std::endl;
 };

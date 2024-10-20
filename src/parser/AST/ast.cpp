@@ -43,9 +43,9 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
         return std::make_shared<std::string>("WhileStatement");
     case NodeType::BreakStatement:
         return std::make_shared<std::string>("BreakStatement");
-    case NodeType::ContinueStatement:    
+    case NodeType::ContinueStatement:
         return std::make_shared<std::string>("ContinueStatement");
-    case NodeType::StructDecelerationStatement:
+    case NodeType::StructStatement:
         return std::make_shared<std::string>("StructDecelerationStatement");
     default:
         return std::make_shared<std::string>("UNKNOWN");
@@ -216,5 +216,16 @@ std::shared_ptr<nlohmann::json> AST::BooleanLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
     jsonAst["value"] = this->value;
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
+std::shared_ptr<nlohmann::json> AST::StructStatement::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["name"] = *this->name->toJSON();
+    jsonAst["fields"] = nlohmann::json::array();
+    for(auto& field : this->fields) {
+        jsonAst["fields"].push_back(*field->toJSON());
+    }
     return std::make_shared<nlohmann::json>(jsonAst);
 }
