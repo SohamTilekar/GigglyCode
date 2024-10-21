@@ -1,5 +1,7 @@
 #include "compiler.hpp"
+#include <llvm/IR/Instructions.h>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context) {
@@ -221,32 +223,51 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
 
 
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
+    std::cout << "Entering _visitVariableDeclarationStatement" << std::endl;
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->name);
+    std::cout << "Variable name: " << var_name->value << std::endl;
     auto var_value = variable_declaration_statement->value;
+    std::cout << "Resolving variable type" << std::endl;
     if(!this->enviornment.is_struct(std::static_pointer_cast<AST::IdentifierLiteral>(
                                         std::static_pointer_cast<AST::GenericType>(variable_declaration_statement->value_type)->name)
                                         ->value)) {
-        // errors::VariableNotDefinedError(this->source, var_name->meta_data, "Variable not defined").raise();
-        std::cout << "Variable not defined" << std::endl;
+        std::cout << "Variable type not defined" << std::endl;
         exit(1);
     }
     auto var_type = this->enviornment.get_struct(
         std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(variable_declaration_statement->value_type)->name)
             ->value);
+    std::cout << "Variable type resolved: " << var_type->name << std::endl;
+    std::cout << "Resolving variable value" << std::endl;
     auto [var_value_resolved, _] = this->_resolveValue(var_value);
     if(var_value_resolved.size() == 1) {
-        auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type, nullptr, var_name->value);
-        this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
-        auto var =
-            std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_type);
-        this->enviornment.add(var);
+        if (var_type->stand_alone_type != nullptr) {
+            std::cout << "Variable value resolved" << std::endl;
+            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type, nullptr, var_name->value);
+            std::cout << "Created alloca for variable: " << var_name->value << std::endl;
+            this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+            std::cout << "Stored value in alloca" << std::endl;
+            auto var =
+                std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_type);
+            this->enviornment.add(var);
+            std::cout << "Variable added to environment: " << var_name->value << std::endl;
+        }
+        else {
+            std::cout << "Variable value resolved" << std::endl;
+            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr, var_name->value);
+            std::cout << "Created alloca for variable: " << var_name->value << std::endl;
+            this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+            std::cout << "Stored value in alloca" << std::endl;
+            auto var =
+                std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_type);
+            this->enviornment.add(var);
+            std::cout << "Variable added to environment: " << var_name->value << std::endl;
+        }
     } else {
-        // errors::InternalCompilationError("Variable declaration with multiple values", this->source, var_name->meta_data.st_line_no,
-        //                                  var_name->meta_data.end_line_no, "Variable declaration with multiple values")
-        //     .raise();
         std::cout << "Variable declaration with multiple values" << std::endl;
         exit(1);
     }
+    std::cout << "Exiting _visitVariableDeclarationStatement" << std::endl;
 }
 
 void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::VariableAssignmentStatement> variable_assignment_statement) {
@@ -274,47 +295,91 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
     }
 };
 
+std::vector<std::string> splitString(const std::string& input) {
+    size_t pos = input.find('.');
+    return {input.substr(0, pos), input.substr(pos + 1)};
+}
+
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructType>> compiler::Compiler::_resolveValue(
     std::shared_ptr<AST::Node> node) {
+    std::cout << "Resolving value for node type: " << *AST::nodeTypeToString(node->type()) << std::endl;
     switch(node->type()) {
     case AST::NodeType::IntegerLiteral: {
+        std::cout << "Node is IntegerLiteral" << std::endl;
         auto integer_literal = std::static_pointer_cast<AST::IntegerLiteral>(node);
         auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value, true));
         return {{value}, this->enviornment.get_struct("int")};
     }
     case AST::NodeType::FloatLiteral: {
+        std::cout << "Node is FloatLiteral" << std::endl;
         auto float_literal = std::static_pointer_cast<AST::FloatLiteral>(node);
         auto value = llvm::ConstantFP::get(llvm_context, llvm::APFloat(float_literal->value));
         return {{value}, this->enviornment.get_struct("float")};
     }
     case AST::NodeType::StringLiteral: {
+        std::cout << "Node is StringLiteral" << std::endl;
         auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
         auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
         return {{value}, this->enviornment.get_struct("str")};
     }
     case AST::NodeType::IdentifierLiteral: {
+        std::cout << "Node is IdentifierLiteral" << std::endl;
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
-        if(!this->enviornment.is_variable(identifier_literal->value)) {
-            errors::CompletionError("Variable not defined", this->source, identifier_literal->meta_data.st_line_no,
-                                    identifier_literal->meta_data.end_line_no, "Variable `" + identifier_literal->value + "` not defined")
-                .raise();
-            return {{nullptr}, nullptr};
+        auto var_name = splitString(std::static_pointer_cast<AST::IdentifierLiteral>(node)->value);
+        std::shared_ptr<enviornment::RecordStructType> currentStructType = nullptr;
+        llvm::Value* alloca = nullptr;
+        for (auto type : var_name) {
+            if (currentStructType == nullptr) {
+                if(!this->enviornment.is_variable(type)) {
+                    std::cout << "Variable not defined: " << type << std::endl;
+                    errors::CompletionError("Variable not defined", this->source, identifier_literal->meta_data.st_line_no,
+                                            identifier_literal->meta_data.end_line_no, "Variable `" + identifier_literal->value + "` not defined")
+                        .raise();
+                    return {{nullptr}, nullptr};
+                }
+                currentStructType = this->enviornment.get_variable(type)->struct_type;
+                alloca = this->enviornment.get_variable(type)->allocainst;
+            }
+            else {
+                int x = 0;
+                for (auto field: currentStructType->fields) {
+                    if (field == type) {
+                        std::cout << "Accessing field: " << field << " in struct: " << currentStructType->name << std::endl;
+                        std::cout << "currentStructType->stand_alone_type: " << (currentStructType->struct_type != nullptr) << std::endl;
+                        std::cout << "Alloca: " << alloca << std::endl;
+                        std::cout << "x: " << x << std::endl;
+                        alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x);
+                        std::cout << "Alloca: " << alloca << std::endl;
+                        currentStructType = currentStructType->sub_types[field];
+                        std::cout << "Current struct type: " << currentStructType->name << std::endl;
+                        break;
+                    }
+                    x++;
+                }
+            }
         }
-        auto var = this->enviornment.get_variable(identifier_literal->value);
-        return {{this->llvm_ir_builder.CreateLoad(var->type, var->allocainst)}, var->class_type};
+        if (alloca) {
+            auto loadedValue = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, alloca);
+            return {{loadedValue}, currentStructType};
+        }
+        return {{nullptr}, nullptr};
     }
     case AST::NodeType::InfixedExpression: {
+        std::cout << "Node is InfixedExpression" << std::endl;
         return this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
     }
     case AST::NodeType::CallExpression: {
+        std::cout << "Node is CallExpression" << std::endl;
         return this->_visitCallExpression(std::static_pointer_cast<AST::CallExpression>(node));
     }
     case AST::NodeType::BooleanLiteral: {
+        std::cout << "Node is BooleanLiteral" << std::endl;
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = boolean_literal->value ? this->enviornment.get_variable("True")->value : this->enviornment.get_variable("False")->value;
         return {{value}, this->enviornment.get_struct("bool")};
     }
     default: {
+        std::cout << "Compiling unknown node type" << std::endl;
         this->compile(node);
         return {{}, nullptr};
     }
@@ -406,6 +471,16 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
             func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
         return {{returnValue}, func_record->return_type};
     }
+    else if (this->enviornment.is_struct(name)) {
+        auto struct_record = this->enviornment.get_struct(name);
+        auto struct_type = struct_record->struct_type;
+        auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+        for (unsigned i = 0; i < args.size(); ++i) {
+            auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
+            this->llvm_ir_builder.CreateStore(args[i], field_ptr);
+        }
+        return {{alloca}, struct_record};
+    }
     errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
                             "Function `" + name + "` not defined")
         .raise();
@@ -487,6 +562,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             std::cout << "Field type is a standalone type" << std::endl;
             field_types.push_back(field_type->stand_alone_type);
         }
+        struct_record->sub_types[field_name] = field_type;
     }
     auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
     std::cout << "LLVM StructType created" << std::endl;

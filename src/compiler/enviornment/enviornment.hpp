@@ -47,6 +47,7 @@ class RecordStructType : public Record {
     llvm::Type* stand_alone_type = nullptr;
     llvm::StructType* struct_type = nullptr;
     std::vector<std::string> fields = {};
+    std::unordered_map<std::string, std::shared_ptr<RecordStructType>> sub_types = {};
 
     std::unordered_map<std::string, std::shared_ptr<RecordFunction>> methods;
     RecordStructType(std::string name) : Record(RecordType::RecordStructType, name) {};
@@ -62,10 +63,10 @@ class RecordVariable : public Record {
     llvm::Value* value;
     llvm::Type* type;
     llvm::AllocaInst* allocainst;
-    std::shared_ptr<RecordStructType> class_type;
+    std::shared_ptr<RecordStructType> struct_type;
     RecordVariable(std::string name) : Record(RecordType::RecordVariable, name) {};
-    RecordVariable(std::string name, llvm::Value* value, llvm::Type* type, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructType> class_type)
-        : Record(RecordType::RecordVariable, name), value(value), type(type), allocainst(allocainst), class_type(class_type) {};
+    RecordVariable(std::string name, llvm::Value* value, llvm::Type* type, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructType> struct_type)
+        : Record(RecordType::RecordVariable, name), value(value), type(type), allocainst(allocainst), struct_type(struct_type) {};
 };
 
 class Enviornment {
