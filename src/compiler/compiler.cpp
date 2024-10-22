@@ -1,5 +1,6 @@
 #include "compiler.hpp"
 #include <iostream>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <memory>
 #include <unordered_map>
@@ -31,6 +32,8 @@ void compiler::Compiler::_initializeBuiltins() {
     this->enviornment.add(_void);
     auto _bool = std::make_shared<enviornment::RecordStructType>("bool", llvm::Type::getInt1Ty(llvm_context));
     this->enviornment.add(_bool);
+    auto _func = std::make_shared<enviornment::RecordStructType>("func", llvm::PointerType::get(llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context), false)->getPointerTo(), 0));
+    this->enviornment.add(_func);
 
     std::cout << "Creating global variables 'True' and 'False'" << std::endl;
     // Create the global variable 'true'
@@ -425,6 +428,10 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
             if (currentStructType == nullptr) {
                 std::cout << "Checking if variable is defined: " << type << std::endl;
                 if(!this->enviornment.is_variable(type)) {
+                    if (this->enviornment.is_function(type)) {
+                        std::cout << "Function found: " << type << std::endl;
+                        return {{this->enviornment.get_function(type)->function}, this->enviornment.get_struct("func")};
+                    }
                     std::cout << "Variable not defined: " << type << std::endl;
                     errors::CompletionError("Variable not defined", this->source, identifier_literal->meta_data.st_line_no,
                                             identifier_literal->meta_data.end_line_no, "Variable `" + identifier_literal->value + "` not defined")
@@ -575,6 +582,20 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
             this->llvm_ir_builder.CreateStore(args[i], field_ptr);
         }
         return {{alloca}, struct_record};
+    }
+    else if (this->enviornment.is_variable(name)) {
+        auto variable_record = this->enviornment.get_variable(name);
+        if (variable_record->struct_type->name == "func") {
+            auto returnValue = this->llvm_ir_builder.CreateCall(
+                llvm::cast<llvm::Function>(variable_record->value), args,
+                llvm::cast<llvm::Function>(variable_record->value)->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+            return {{returnValue}, variable_record->struct_type};
+        }
+        else {
+            errors::CompletionError("Variable not callable", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
+                                    "Variable `" + name + "` is not callable")
+                .raise();
+        }
     }
     errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
                             "Function `" + name + "` not defined")
