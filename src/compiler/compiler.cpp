@@ -1,20 +1,24 @@
 #include "compiler.hpp"
+#include <iostream>
 #include <llvm/IR/Instructions.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
 compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context) {
+    std::cout << "Initializing Compiler with default constructor" << std::endl;
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
     this->_initializeBuiltins();
 }
 
 compiler::Compiler::Compiler(const std::string& source) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source) {
+    std::cout << "Initializing Compiler with source: " << source << std::endl;
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
     this->_initializeBuiltins();
 }
 
 void compiler::Compiler::_initializeBuiltins() {
+    std::cout << "Initializing built-in types" << std::endl;
     auto _int = std::make_shared<enviornment::RecordStructType>("int", llvm::Type::getInt64Ty(llvm_context));
     this->enviornment.add(_int);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
@@ -28,6 +32,7 @@ void compiler::Compiler::_initializeBuiltins() {
     auto _bool = std::make_shared<enviornment::RecordStructType>("bool", llvm::Type::getInt1Ty(llvm_context));
     this->enviornment.add(_bool);
 
+    std::cout << "Creating global variables 'True' and 'False'" << std::endl;
     // Create the global variable 'true'
     llvm::GlobalVariable* globalTrue =
         new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
@@ -44,6 +49,7 @@ void compiler::Compiler::_initializeBuiltins() {
                                                                      nullptr, this->enviornment.get_struct("bool"));
     this->enviornment.add(recordFalse);
 
+    std::cout << "Creating built-in functions 'puts' and 'print'" << std::endl;
     // Create the function type: void puts(const char*)
     llvm::Type* voidType = llvm::Type::getVoidTy(llvm_context);                          // void return type
     llvm::FunctionType* putsType = llvm::FunctionType::get(voidType, _string->stand_alone_type, false);
@@ -169,10 +175,13 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructType>> compiler::Compiler::_visitInfixExpression(
     std::shared_ptr<AST::InfixExpression> infixed_expression) {
+    std::cout << "Entering _visitInfixExpression" << std::endl;
     auto op = infixed_expression->op;
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
+    std::cout << "Resolving left value" << std::endl;
     auto [left_value, left_type] = this->_resolveValue(left);
+    std::cout << "Resolving right value" << std::endl;
     auto [right_value, right_type] = this->_resolveValue(right);
     if(left_value.size() != 1 || right_value.size() != 1) {
         std::cout << "Infix expression with multiple values" << std::endl;
@@ -180,43 +189,91 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
     }
     auto left_val = left_value[0];
     auto right_val = right_value[0];
+    std::cout << "Left type: " << left_type->name << ", Right type: " << right_type->name << std::endl;
+    std::cout << "Left value: " << left_val << ", Right value: " << right_val << std::endl;
+    std::cout << "Left stand_alone_type type: " << left_type->stand_alone_type << ", Right stand_alone_type type: " << right_type->stand_alone_type << std::endl;
+    std::cout << "Left struct_type type: " << left_type->struct_type << ", Right struct_type type: " << right_type->stand_alone_type << std::endl;
     if(left_type->stand_alone_type != right_type->stand_alone_type) {
-        // errors::TypeMismatchError(this->source, infixed_expression->meta_data, "Type mismatch").raise();
         std::cout << "Type mismatch" << std::endl;
         exit(1);
     }
     if(left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isIntegerTy()) {
+        std::cout << "Both types are Integer" << std::endl;
         if(op == token::TokenType::Plus) {
-            return {{this->llvm_ir_builder.CreateAdd(left_val, right_val)}, this->enviornment.get_struct("int")};
+            std::cout << "Operator is Plus" << std::endl;
+            return {{this->llvm_ir_builder.CreateAdd(left_val, right_val, left_type->name + "_plus_" + right_type->name)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::Dash) {
-            return {{this->llvm_ir_builder.CreateSub(left_val, right_val)}, this->enviornment.get_struct("int")};
+            std::cout << "Operator is Dash" << std::endl;
+            return {{this->llvm_ir_builder.CreateSub(left_val, right_val, left_type->name + "_sub_" + right_type->name)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::Asterisk) {
-            return {{this->llvm_ir_builder.CreateMul(left_val, right_val)}, this->enviornment.get_struct("int")};
+            std::cout << "Operator is Asterisk" << std::endl;
+            return {{this->llvm_ir_builder.CreateMul(left_val, right_val, left_type->name + "_mul_" + right_type->name)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::ForwardSlash) {
-            return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val)}, this->enviornment.get_struct("int")};
+            std::cout << "Operator is ForwardSlash" << std::endl;
+            return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val, left_type->name + "_sdiv_" + right_type->name)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::Percent) {
-            return {{this->llvm_ir_builder.CreateSRem(left_val, right_val)}, this->enviornment.get_struct("int")};
+            std::cout << "Operator is Percent" << std::endl;
+            return {{this->llvm_ir_builder.CreateSRem(left_val, right_val, left_type->name + "_srem_" + right_type->name)}, this->enviornment.get_struct("int")};
         } else if(op == token::TokenType::EqualEqual) {
-            return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val)}, this->enviornment.get_struct("bool")};
+            std::cout << "Operator is EqualEqual" << std::endl;
+            return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val, left_type->name + "_ICmpEQ_" + right_type->name)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::NotEquals) {
-            return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val)}, this->enviornment.get_struct("bool")};
+            std::cout << "Operator is NotEquals" << std::endl;
+            return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val, left_type->name + "_ICmpNE_" + right_type->name)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::LessThan) {
-            return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val)}, this->enviornment.get_struct("bool")};
+            std::cout << "Operator is LessThan" << std::endl;
+            return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val, left_type->name + "_ICmpSLT_" + right_type->name)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::GreaterThan) {
-            return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val)}, this->enviornment.get_struct("bool")};
+            std::cout << "Operator is GreaterThan" << std::endl;
+            return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val, left_type->name + "_ICmpSGT_" + right_type->name)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::LessThanOrEqual) {
-            return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val)}, this->enviornment.get_struct("bool")};
+            std::cout << "Operator is LessThanOrEqual" << std::endl;
+            return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val, left_type->name + "_ICmpSLE_" + right_type->name)}, this->enviornment.get_struct("bool")};
         } else if(op == token::TokenType::GreaterThanOrEqual) {
-            return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val)}, this->enviornment.get_struct("bool")};
+            std::cout << "Operator is GreaterThanOrEqual" << std::endl;
+            return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val, left_type->name + "_ICmpSGE_" + right_type->name)}, this->enviornment.get_struct("bool")};
         } else {
-            // errors::InternalCompilationError("Unknown operator", this->source, infixed_expression->meta_data.st_line_no,
-            //                                  infixed_expression->meta_data.end_line_no, "Unknown operator")
-            //     .raise();
+            std::cout << "Unknown operator" << std::endl;
+            exit(1);
+        }
+    } else if(left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isDoubleTy()) {
+        std::cout << "Both types are Double" << std::endl;
+        if(op == token::TokenType::Plus) {
+            std::cout << "Operator is Plus" << std::endl;
+            return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val, left_type->name + "_fadd_" + right_type->name)}, this->enviornment.get_struct("double")};
+        } else if(op == token::TokenType::Dash) {
+            std::cout << "Operator is Dash" << std::endl;
+            return {{this->llvm_ir_builder.CreateFSub(left_val, right_val, left_type->name + "_fsub_" + right_type->name)}, this->enviornment.get_struct("double")};
+        } else if(op == token::TokenType::Asterisk) {
+            std::cout << "Operator is Asterisk" << std::endl;
+            return {{this->llvm_ir_builder.CreateFMul(left_val, right_val, left_type->name + "_fmul_" + right_type->name)}, this->enviornment.get_struct("double")};
+        } else if(op == token::TokenType::ForwardSlash) {
+            std::cout << "Operator is ForwardSlash" << std::endl;
+            return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val, left_type->name + "_fdiv_" + right_type->name)}, this->enviornment.get_struct("double")};
+        } else if(op == token::TokenType::EqualEqual) {
+            std::cout << "Operator is EqualEqual" << std::endl;
+            return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val, left_type->name + "_FCmpOEQ_" + right_type->name)}, this->enviornment.get_struct("bool")};
+        } else if(op == token::TokenType::NotEquals) {
+            std::cout << "Operator is NotEquals" << std::endl;
+            return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val, left_type->name + "_FCmpONE_" + right_type->name)}, this->enviornment.get_struct("bool")};
+        } else if(op == token::TokenType::LessThan) {
+            std::cout << "Operator is LessThan" << std::endl;
+            return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val, left_type->name + "_FCmpOLT_" + right_type->name)}, this->enviornment.get_struct("bool")};
+        } else if(op == token::TokenType::GreaterThan) {
+            std::cout << "Operator is GreaterThan" << std::endl;
+            return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val, left_type->name + "_FCmpOGT_" + right_type->name)}, this->enviornment.get_struct("bool")};
+        } else if(op == token::TokenType::LessThanOrEqual) {
+            std::cout << "Operator is LessThanOrEqual" << std::endl;
+            return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val, left_type->name + "_FCmpOLE_" + right_type->name)}, this->enviornment.get_struct("bool")};
+        } else if(op == token::TokenType::GreaterThanOrEqual) {
+            std::cout << "Operator is GreaterThanOrEqual" << std::endl;
+            return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val, left_type->name + "_FCmpOGE_" + right_type->name)}, this->enviornment.get_struct("bool")};
+        } else {
             std::cout << "Unknown operator" << std::endl;
             exit(1);
         }
     } else {
-        std::cout << "Unknown operator" << std::endl;
+        std::cout << "Unknown Type" << std::endl;
         exit(1);
     }
 };
@@ -270,18 +327,57 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
     std::cout << "Exiting _visitVariableDeclarationStatement" << std::endl;
 }
 
+std::vector<std::string> splitString(const std::string& input) {
+    std::vector<std::string> result;
+    size_t start = 0;
+    size_t end = input.find('.');
+    while (end != std::string::npos) {
+        result.push_back(input.substr(start, end - start));
+        start = end + 1;
+        end = input.find('.', start);
+    }
+    result.push_back(input.substr(start));
+    return result;
+}
+
 void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::VariableAssignmentStatement> variable_assignment_statement) {
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_assignment_statement->name);
     auto var_value = variable_assignment_statement->value;
     auto [value, _] = this->_resolveValue(var_value);
-    if(this->enviornment.is_variable(var_name->value)) {
-        auto var = this->enviornment.get_variable(var_name->value);
+    auto var_name_parts = splitString(var_name->value);
+    std::shared_ptr<enviornment::RecordStructType> currentStructType = nullptr;
+    llvm::Value* alloca = nullptr;
+    for (auto type : var_name_parts) {
+        if (currentStructType == nullptr) {
+            if(!this->enviornment.is_variable(type)) {
+                std::cout << "Variable not defined: " << type << std::endl;
+                errors::CompletionError("Variable not defined", this->source, var_name->meta_data.st_line_no,
+                                        var_name->meta_data.end_line_no, "Variable `" + var_name->value + "` not defined")
+                    .raise();
+                return;
+            }
+            currentStructType = this->enviornment.get_variable(type)->struct_type;
+            alloca = this->enviornment.get_variable(type)->allocainst;
+        }
+        else {
+            int x = 0;
+            for (auto field: currentStructType->fields) {
+                if (field == type) {
+                    std::cout << "Accessing field: " << field << " in struct: " << currentStructType->name << std::endl;
+                    alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x, currentStructType->name + "." + alloca->getName() + "." + std::to_string(x));
+                    std::cout << "Alloca: " << alloca << std::endl;
+                    currentStructType = currentStructType->sub_types[field];
+                    std::cout << "Current struct type: " << currentStructType->name << std::endl;
+                    break;
+                }
+                x++;
+            }
+        }
+    }
+    if (alloca) {
         if(value.size() == 1) {
-            this->llvm_ir_builder.CreateStore(value[0], var->allocainst);
+            this->llvm_ir_builder.CreateStore(value[0], alloca);
         } else {
-            // errors::InternalCompilationError("Variable assignment with multiple values", this->source, var_name->meta_data.st_line_no,
-            //                                  var_name->meta_data.end_line_no, "Variable assignment with multiple values")
-            //     .raise();
             std::cout << "Variable assignment with multiple values" << value.size() << std::endl;
             exit(1);
         }
@@ -289,16 +385,8 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
         errors::CompletionError("Variable not defined", this->source, var_name->meta_data.st_line_no, var_name->meta_data.end_line_no,
                                 "Variable `" + var_name->value + "` not defined")
             .raise();
-        // errors::UndefinedVariableError(this->source, var_name->meta_data, "Assigning to undefine Variable",
-        //                                "Define the variable fist before reassigning")
-        //     .raise();
     }
 };
-
-std::vector<std::string> splitString(const std::string& input) {
-    size_t pos = input.find('.');
-    return {input.substr(0, pos), input.substr(pos + 1)};
-}
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructType>> compiler::Compiler::_resolveValue(
     std::shared_ptr<AST::Node> node) {
@@ -319,17 +407,23 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
     case AST::NodeType::StringLiteral: {
         std::cout << "Node is StringLiteral" << std::endl;
         auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
-        auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
+        auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value, "str");
         return {{value}, this->enviornment.get_struct("str")};
     }
     case AST::NodeType::IdentifierLiteral: {
         std::cout << "Node is IdentifierLiteral" << std::endl;
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
         auto var_name = splitString(std::static_pointer_cast<AST::IdentifierLiteral>(node)->value);
+        std::cout << "Variable name parts: ";
+        for (const auto& part : var_name) {
+            std::cout << part << " ";
+        }
+        std::cout << std::endl;
         std::shared_ptr<enviornment::RecordStructType> currentStructType = nullptr;
         llvm::Value* alloca = nullptr;
         for (auto type : var_name) {
             if (currentStructType == nullptr) {
+                std::cout << "Checking if variable is defined: " << type << std::endl;
                 if(!this->enviornment.is_variable(type)) {
                     std::cout << "Variable not defined: " << type << std::endl;
                     errors::CompletionError("Variable not defined", this->source, identifier_literal->meta_data.st_line_no,
@@ -339,17 +433,15 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
                 }
                 currentStructType = this->enviornment.get_variable(type)->struct_type;
                 alloca = this->enviornment.get_variable(type)->allocainst;
+                std::cout << "Variable found. Struct type: " << currentStructType->name << ", Alloca: " << alloca << std::endl;
             }
             else {
                 int x = 0;
                 for (auto field: currentStructType->fields) {
                     if (field == type) {
                         std::cout << "Accessing field: " << field << " in struct: " << currentStructType->name << std::endl;
-                        std::cout << "currentStructType->stand_alone_type: " << (currentStructType->struct_type != nullptr) << std::endl;
-                        std::cout << "Alloca: " << alloca << std::endl;
-                        std::cout << "x: " << x << std::endl;
-                        alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x);
-                        std::cout << "Alloca: " << alloca << std::endl;
+                        alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x, currentStructType->name + "." + alloca->getName() + "." + std::to_string(x));
+                        std::cout << "Alloca after GEP: " << alloca << std::endl;
                         currentStructType = currentStructType->sub_types[field];
                         std::cout << "Current struct type: " << currentStructType->name << std::endl;
                         break;
@@ -359,9 +451,12 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructT
             }
         }
         if (alloca) {
-            auto loadedValue = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, alloca);
+            std::cout << "Loading value from alloca of type: " << (currentStructType->stand_alone_type ? "standalone" : "struct") << std::endl;
+            auto loadedValue = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type ? currentStructType->stand_alone_type : currentStructType->struct_type, alloca, currentStructType->name + "." + alloca->getName());
+            std::cout << "Loaded value: " << loadedValue << std::endl;
             return {{loadedValue}, currentStructType};
         }
+        std::cout << "Variable not defined: " << identifier_literal->value << std::endl;
         return {{nullptr}, nullptr};
     }
     case AST::NodeType::InfixedExpression: {
