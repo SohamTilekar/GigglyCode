@@ -33,6 +33,7 @@ enum class NodeType {
 
     // Expressions
     InfixedExpression,
+    IndexExpression,
 
     // Literals
     IntegerLiteral,
@@ -40,6 +41,7 @@ enum class NodeType {
     BooleanLiteral,
     StringLiteral,
     IdentifierLiteral,
+    ArrayLiteral
 };
 
 std::shared_ptr<std::string> nodeTypeToString(NodeType type);
@@ -73,15 +75,13 @@ class Statement : public Node {};
 
 class Expression : public Node {};
 
-class BaseType : public Node {};
-
-class GenericType : public BaseType {
+class GenericType : public Node {
   public:
     std::shared_ptr<Expression> name;
-    std::vector<std::shared_ptr<BaseType>> generics;
-    inline GenericType(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<BaseType>> generics) : name(name), generics(generics) {}
-    inline NodeType type() override { return NodeType::Type; };
-    std::shared_ptr<nlohmann::json> toJSON() override;
+    std::vector<std::shared_ptr<GenericType>> generics;
+    inline GenericType(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<GenericType>> generics) : name(name), generics(generics) {}
+    inline NodeType type() { return NodeType::Type; };
+    std::shared_ptr<nlohmann::json> toJSON();
 };
 
 class Program : public Node {
@@ -118,8 +118,8 @@ class ReturnStatement : public Statement {
 class FunctionParameter : public Node {
   public:
     std::shared_ptr<Expression> name;
-    std::shared_ptr<BaseType> value_type;
-    inline FunctionParameter(std::shared_ptr<Expression> name, std::shared_ptr<BaseType> type) : name(name), value_type(type) {}
+    std::shared_ptr<GenericType> value_type;
+    inline FunctionParameter(std::shared_ptr<Expression> name, std::shared_ptr<GenericType> type) : name(name), value_type(type) {}
     inline NodeType type() override { return NodeType::FunctionParameter; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -128,10 +128,10 @@ class FunctionStatement : public Statement {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<FunctionParameter>> parameters;
-    std::shared_ptr<BaseType> return_type;
+    std::shared_ptr<GenericType> return_type;
     std::shared_ptr<BlockStatement> body;
     inline FunctionStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<FunctionParameter>> parameters,
-                             std::shared_ptr<BaseType> return_type, std::shared_ptr<BlockStatement> body)
+                             std::shared_ptr<GenericType> return_type, std::shared_ptr<BlockStatement> body)
         : name(name), parameters(parameters), return_type(return_type), body(body) {}
     inline NodeType type() override { return NodeType::FunctionStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
@@ -183,9 +183,9 @@ class ContinueStatement : public Statement {
 class VariableDeclarationStatement : public Statement {
   public:
     std::shared_ptr<Expression> name;
-    std::shared_ptr<BaseType> value_type;
+    std::shared_ptr<GenericType> value_type;
     std::shared_ptr<Expression> value;
-    inline VariableDeclarationStatement(std::shared_ptr<Expression> name, std::shared_ptr<BaseType> type, std::shared_ptr<Expression> value = nullptr)
+    inline VariableDeclarationStatement(std::shared_ptr<Expression> name, std::shared_ptr<GenericType> type, std::shared_ptr<Expression> value = nullptr)
         : name(name), value_type(type), value(value) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
@@ -211,6 +211,16 @@ class InfixExpression : public Expression {
         this->meta_data.more_data["operator_literal"] = literal;
     }
     inline NodeType type() override { return NodeType::InfixedExpression; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
+class IndexExpression : public Expression {
+  public:
+    std::shared_ptr<Expression> left;
+    std::shared_ptr<Expression> index;
+    inline IndexExpression(std::shared_ptr<Expression> left, std::shared_ptr<Expression> index) : left(left), index(index) {}
+    inline IndexExpression(std::shared_ptr<Expression> left) : left(left), index(nullptr) {}
+    inline NodeType type() override { return NodeType::IndexExpression; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
@@ -261,6 +271,14 @@ class StructStatement : public Statement {
     inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields)
         : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
+class ArrayLiteral : public Expression {
+  public:
+    std::vector<std::shared_ptr<Expression>> elements;
+    inline ArrayLiteral(std::vector<std::shared_ptr<Expression>> elements) : elements(elements) {}
+    inline NodeType type() override { return NodeType::ArrayLiteral; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 } // namespace AST

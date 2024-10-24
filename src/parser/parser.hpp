@@ -16,7 +16,7 @@ enum class PrecedenceType {
     COMPARISION,   // >, <, >=, <=, ==, !=
     SUM,           // +
     PRODUCT,       // *
-    Exponent,      // **
+    Exponent,    // **
     PREFIX,        // -X or !X
     CALL,          // myFunction(X)
     INDEX,         // array[index]
@@ -60,6 +60,7 @@ static const std::unordered_map<token::TokenType, PrecedenceType> token_preceden
     {token::TokenType::AsteriskAsterisk, PrecedenceType::Exponent},
     {token::TokenType::ForwardSlash, PrecedenceType::PRODUCT},
     {token::TokenType::BackwardSlash, PrecedenceType::PRODUCT},
+    {token::TokenType::LeftBracket, PrecedenceType::INDEX},
     {token::TokenType::EndOfFile, PrecedenceType::LOWEST},
 };
 
@@ -77,6 +78,7 @@ class Parser {
         {token::TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},
         {token::TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
         {token::TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)},
+        {token::TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
     };
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>(std::shared_ptr<AST::Expression>)>> infix_parse_Fns = {
         {token::TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
@@ -93,6 +95,7 @@ class Parser {
         {token::TokenType::LessThanOrEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {token::TokenType::EqualEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {token::TokenType::NotEquals, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {token::TokenType::LeftBracket, std::bind(&Parser::_parseIndexExpression, this, std::placeholders::_1)},
     };
     Parser(std::shared_ptr<Lexer> lexer);
     std::shared_ptr<AST::Program> parseProgram();
@@ -121,7 +124,7 @@ class Parser {
     std::shared_ptr<AST::ContinueStatement> _parseContinueStatement();
     std::shared_ptr<AST::StructStatement> _parseStructStatement();
 
-    std::shared_ptr<AST::BaseType> _parseType();
+    std::shared_ptr<AST::GenericType> _parseType();
 
     std::shared_ptr<AST::Expression> _parseExpression(PrecedenceType precedence, std::shared_ptr<AST::Expression> leftNode = nullptr, int st_line_no = -1, int st_col_no = -1);
 
@@ -131,10 +134,12 @@ class Parser {
     std::shared_ptr<AST::Expression> _parseStringLiteral();
     std::shared_ptr<AST::Expression> _parseGroupedExpression();
     std::shared_ptr<AST::Expression> _parseIdentifier();
+    std::shared_ptr<AST::Expression> _parseArrayLiteral();
 
     std::vector<std::shared_ptr<AST::Expression>> _parse_expression_list(token::TokenType end);
 
     std::shared_ptr<AST::Expression> _parseInfixExpression(std::shared_ptr<AST::Expression> leftNode);
+    std::shared_ptr<AST::Expression> _parseIndexExpression(std::shared_ptr<AST::Expression> leftNode);
 }; // class Parser
 } // namespace parser
 #endif // PARSER_HPP

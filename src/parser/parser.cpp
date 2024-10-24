@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include "AST/ast.hpp"
+#include <iostream>
 #include <memory>
 
 parser::Parser::Parser(std::shared_ptr<Lexer> lexer) {
@@ -279,12 +280,12 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::s
     return nullptr;
 }
 
-std::shared_ptr<AST::BaseType> parser::Parser::_parseType() {
+std::shared_ptr<AST::GenericType> parser::Parser::_parseType() {
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
     std::shared_ptr<AST::Expression> name;
     name = _parseIdentifier();
-    std::vector<std::shared_ptr<AST::BaseType>> generics;
+    std::vector<std::shared_ptr<AST::GenericType>> generics;
     if(this->_peekTokenIs(token::TokenType::LeftBracket)) {
         this->_nextToken();
         this->_nextToken();
@@ -422,6 +423,27 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseInfixExpression(std::shar
     return infix_expr;
 }
 
+std::shared_ptr<AST::Expression> parser::Parser::_parseIndexExpression(std::shared_ptr<AST::Expression> leftNode) {
+    int st_line_no = leftNode->meta_data.st_line_no;
+    int st_col_no = leftNode->meta_data.st_col_no;
+    auto index_expr = std::make_shared<AST::IndexExpression>(leftNode);
+    index_expr->meta_data.more_data["index_line_no"] = this->current_token->line_no;
+    index_expr->meta_data.more_data["index_st_col_no"] = this->current_token->col_no;
+    index_expr->meta_data.more_data["index_end_col_no"] = this->current_token->end_col_no;
+    this->_nextToken();
+    index_expr->index = this->_parseExpression(PrecedenceType::INDEX);
+    int end_line_no = index_expr->index->meta_data.end_line_no;
+    int end_col_no = index_expr->index->meta_data.end_col_no;
+    index_expr->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    std::cout << "Current Token: " << this->current_token->literal << std::endl;
+    if(!this->_expectPeek(token::TokenType::RightBracket)) {
+        std::cerr << "Error: Expected RightBracket" << std::endl;
+        std::cout << "Current Token: " << this->current_token->literal << std::endl;
+        return nullptr;
+    }
+    return index_expr;
+}
+
 std::shared_ptr<AST::Expression> parser::Parser::_parseGroupedExpression() {
     this->_nextToken();
     int st_line_no = this->current_token->line_no;
@@ -519,6 +541,22 @@ parser::PrecedenceType parser::Parser::_peekPrecedence() {
         return PrecedenceType::LOWEST;
     }
 }
+
+std::shared_ptr<AST::Expression> parser::Parser::_parseArrayLiteral() {
+    auto elements = std::vector<std::shared_ptr<AST::Expression>>();
+    for (_nextToken(); !_currentTokenIs(token::TokenType::RightBracket); _nextToken()) {
+        if (_currentTokenIs(token::TokenType::Comma)) {
+            continue;
+        }
+        auto expr = _parseExpression(PrecedenceType::LOWEST);
+        if (expr != nullptr) {
+            elements.push_back(expr);
+        }
+    }
+    auto array = std::make_shared<AST::ArrayLiteral>(elements);
+    array->set_meta_data(current_token->line_no, current_token->col_no, current_token->line_no, current_token->end_col_no);
+    return array;
+};
 
 void parser::Parser::_peekError(token::TokenType type, token::TokenType expected_type, std::string suggestedFix) {
     std::shared_ptr<errors::SyntaxError> error = std::make_shared<errors::SyntaxError>(

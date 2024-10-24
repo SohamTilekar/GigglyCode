@@ -7,7 +7,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
-
+#include <vector>
 
 namespace enviornment {
 enum class RecordType { RecordStructType, RecordVariable, RecordFunction };
@@ -48,7 +48,6 @@ class RecordStructType : public Record {
     llvm::StructType* struct_type = nullptr;
     std::vector<std::string> fields = {};
     std::unordered_map<std::string, std::shared_ptr<RecordStructType>> sub_types = {};
-
     std::unordered_map<std::string, std::shared_ptr<RecordFunction>> methods;
     RecordStructType(std::string name) : Record(RecordType::RecordStructType, name) {};
     RecordStructType(std::string name, llvm::StructType* struct_type, std::vector<std::string> variable_names,
@@ -64,6 +63,7 @@ class RecordVariable : public Record {
     llvm::Type* type;
     llvm::AllocaInst* allocainst;
     std::shared_ptr<RecordStructType> struct_type;
+    std::vector<std::shared_ptr<RecordStructType>> generic = {};
     RecordVariable(std::string name) : Record(RecordType::RecordVariable, name) {};
     RecordVariable(std::string name, llvm::Value* value, llvm::Type* type, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructType> struct_type)
         : Record(RecordType::RecordVariable, name), value(value), type(type), allocainst(allocainst), struct_type(struct_type) {};

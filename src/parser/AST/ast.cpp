@@ -47,6 +47,10 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
         return std::make_shared<std::string>("ContinueStatement");
     case NodeType::StructStatement:
         return std::make_shared<std::string>("StructDecelerationStatement");
+    case NodeType::IndexExpression:
+        return std::make_shared<std::string>("IndexExpression");
+    case NodeType::ArrayLiteral:
+        return std::make_shared<std::string>("ArrayLiteral");
     default:
         return std::make_shared<std::string>("UNKNOWN");
     }
@@ -184,6 +188,14 @@ std::shared_ptr<nlohmann::json> AST::InfixExpression::toJSON() {
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
+std::shared_ptr<nlohmann::json> AST::IndexExpression::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["left_node"] = *(left->toJSON());
+    jsonAst["index"] = *(index->toJSON());
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
 std::shared_ptr<nlohmann::json> AST::IntegerLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
@@ -226,6 +238,17 @@ std::shared_ptr<nlohmann::json> AST::StructStatement::toJSON() {
     jsonAst["fields"] = nlohmann::json::array();
     for(auto& field : this->fields) {
         jsonAst["fields"].push_back(*field->toJSON());
+    }
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
+
+std::shared_ptr<nlohmann::json> AST::ArrayLiteral::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["elements"] = nlohmann::json::array();
+    for(auto& element : this->elements) {
+        jsonAst["elements"].push_back(*element->toJSON());
     }
     return std::make_shared<nlohmann::json>(jsonAst);
 }
