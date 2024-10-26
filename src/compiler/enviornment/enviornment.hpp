@@ -28,18 +28,19 @@ class Record {
 
 class RecordVariable;
 class RecordStructType;
+class RecordStructInstance;
 
 class RecordFunction : public Record {
   public:
     llvm::Function* function;
     llvm::FunctionType* function_type;
     std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments;
-    std::shared_ptr<RecordStructType> return_type;
+    std::shared_ptr<RecordStructInstance> return_inst;
     RecordFunction(std::string name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
-                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructType> return_type)
+                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments),
-          return_type(return_type) {};
+          return_inst(return_inst) {};
 };
 
 class RecordStructType : public Record {
@@ -57,13 +58,22 @@ class RecordStructType : public Record {
         : Record(RecordType::RecordStructType, name), stand_alone_type(stand_alone_type) {};
 };
 
+class RecordStructInstance {
+  public:
+    std::shared_ptr<RecordStructType> struct_type;
+    std::vector<std::shared_ptr<RecordStructInstance>> generic = {};
+    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type) : struct_type(struct_type) {};
+    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::vector<std::shared_ptr<RecordStructInstance>> generic)
+        : struct_type(struct_type), generic(generic) {};
+};
+
 class RecordVariable : public Record {
   public:
     llvm::Value* value;
     llvm::Type* type;
     llvm::AllocaInst* allocainst;
     std::shared_ptr<RecordStructType> struct_type;
-    std::vector<std::shared_ptr<RecordStructType>> generic = {};
+    std::shared_ptr<RecordStructInstance> generic = nullptr;
     RecordVariable(std::string name) : Record(RecordType::RecordVariable, name) {};
     RecordVariable(std::string name, llvm::Value* value, llvm::Type* type, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructType> struct_type)
         : Record(RecordType::RecordVariable, name), value(value), type(type), allocainst(allocainst), struct_type(struct_type) {};
