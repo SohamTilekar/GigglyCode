@@ -49,6 +49,7 @@ class Compiler {
     void _visitIfElseStatement(std::shared_ptr<AST::IfElseStatement> if_statement);
 
     void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement);
+    void visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement);
     std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _visitCallExpression(std::shared_ptr<AST::CallExpression>);
     std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _visitArrayLitetal(std::shared_ptr<AST::ArrayLiteral> array_literal);
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
@@ -57,5 +58,7 @@ class Compiler {
     void _visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement);
 
     std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _resolveValue(std::shared_ptr<AST::Node> node);
+
+    std::shared_ptr<enviornment::RecordStructInstance> _parseType(std::shared_ptr<AST::GenericType> type);
 };
 } // namespace compiler

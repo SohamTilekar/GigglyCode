@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace enviornment {
-enum class RecordType { RecordStructType, RecordVariable, RecordFunction };
+enum class RecordType { RecordStructInst, RecordVariable, RecordFunction };
 
 class Record {
   public:
@@ -50,12 +50,12 @@ class RecordStructType : public Record {
     std::vector<std::string> fields = {};
     std::unordered_map<std::string, std::shared_ptr<RecordStructType>> sub_types = {};
     std::unordered_map<std::string, std::shared_ptr<RecordFunction>> methods;
-    RecordStructType(std::string name) : Record(RecordType::RecordStructType, name) {};
+    RecordStructType(std::string name) : Record(RecordType::RecordStructInst, name) {};
     RecordStructType(std::string name, llvm::StructType* struct_type, std::vector<std::string> variable_names,
                     std::unordered_map<std::string, std::shared_ptr<RecordFunction>> functions = {})
-        : Record(RecordType::RecordStructType, name), struct_type(struct_type), fields(variable_names) {};
+        : Record(RecordType::RecordStructInst, name), struct_type(struct_type), fields(variable_names) {};
     RecordStructType(std::string name, llvm::Type* stand_alone_type)
-        : Record(RecordType::RecordStructType, name), stand_alone_type(stand_alone_type) {};
+        : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
 };
 
 class RecordStructInstance {

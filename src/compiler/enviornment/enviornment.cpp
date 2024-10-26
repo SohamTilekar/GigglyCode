@@ -42,7 +42,7 @@ bool enviornment::Enviornment::is_function(std::string name, bool limit2current_
 };
 bool enviornment::Enviornment::is_struct(std::string name, bool limit2current_scope) {
     if(record_map.find(name) != record_map.end()) {
-        return record_map[name]->type == RecordType::RecordStructType;
+        return record_map[name]->type == RecordType::RecordStructInst;
     } else if(parent != nullptr & !limit2current_scope) {
         return parent->is_struct(name);
     } else {
@@ -74,7 +74,7 @@ std::shared_ptr<enviornment::RecordFunction> enviornment::Enviornment::get_funct
 
 std::shared_ptr<enviornment::RecordStructType> enviornment::Enviornment::get_struct(std::string name, bool limit2current_scope) {
     if(record_map.find(name) != record_map.end()) {
-        if(record_map[name]->type == RecordType::RecordStructType) {
+        if(record_map[name]->type == RecordType::RecordStructInst) {
             return std::static_pointer_cast<enviornment::RecordStructType>(record_map[name]);
         }
     } else if(parent != nullptr & !limit2current_scope) {
