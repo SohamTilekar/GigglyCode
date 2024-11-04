@@ -153,12 +153,14 @@ std::shared_ptr<nlohmann::json> AST::WhileStatement::toJSON() {
 std::shared_ptr<nlohmann::json> AST::BreakStatement::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["loopNum"] = this->loopIdx;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::ContinueStatement::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["loopNum"] = this->loopIdx;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 

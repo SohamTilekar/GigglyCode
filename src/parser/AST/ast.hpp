@@ -170,13 +170,17 @@ class WhileStatement : public Statement {
 
 class BreakStatement : public Statement {
   public:
+    int loopIdx = 0;
     inline NodeType type() override { return NodeType::BreakStatement; };
+    BreakStatement(int loopNum) : loopIdx(loopNum) {};
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
 class ContinueStatement : public Statement {
   public:
+    int loopIdx = 0;
     inline NodeType type() override { return NodeType::ContinueStatement; };
+    ContinueStatement(int loopNum) : loopIdx(loopNum) {};
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 

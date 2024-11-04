@@ -140,9 +140,15 @@ std::shared_ptr<AST::BreakStatement> parser::Parser::_parseBreakStatement() {
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
     this->_nextToken();
+    int loopNum = 0;
+    if (this->_currentTokenIs(token::TokenType::Integer)){
+        loopNum = std::stoi(current_token->literal);
+        this->_nextToken();}
+    if (this->_currentTokenIs(token::TokenType::Semicolon))
+        this->_nextToken();
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto break_statement = std::make_shared<AST::BreakStatement>();
+    auto break_statement = std::make_shared<AST::BreakStatement>(loopNum);
     break_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return break_statement;
 }
@@ -151,9 +157,16 @@ std::shared_ptr<AST::ContinueStatement> parser::Parser::_parseContinueStatement(
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
     this->_nextToken();
+    int loopNum = 0;
+    if (this->_currentTokenIs(token::TokenType::Integer)){
+        loopNum = std::stoi(current_token->literal);
+        this->_nextToken();
+    }
+    if (this->_currentTokenIs(token::TokenType::Semicolon))
+        this->_nextToken();
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto continue_statement = std::make_shared<AST::ContinueStatement>();
+    auto continue_statement = std::make_shared<AST::ContinueStatement>(loopNum);
     continue_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return continue_statement;
 }

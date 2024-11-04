@@ -1,4 +1,5 @@
 #include "../../parser/AST/ast.hpp"
+#include <list>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
@@ -84,9 +85,9 @@ class Enviornment {
     std::string name;
     std::unordered_map<std::string, std::shared_ptr<Record>> record_map;
 
-    std::stack<llvm::BasicBlock*> loop_body_block = {};
-    std::stack<llvm::BasicBlock*> loop_end_block = {};
-    std::stack<llvm::BasicBlock*> loop_condition_block = {};
+    std::vector<llvm::BasicBlock*> loop_body_block = {};
+    std::vector<llvm::BasicBlock*> loop_end_block = {};
+    std::vector<llvm::BasicBlock*> loop_condition_block = {};
 
     Enviornment(std::shared_ptr<Enviornment> parent = nullptr, std::unordered_map<std::string, std::shared_ptr<Record>> records = {},
                 std::string name = "unnamed")

@@ -139,7 +139,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
         if(this->enviornment.loop_end_block.empty()) {
             std::cout << "Break statement outside loop" << std::endl;
         }
-        this->llvm_ir_builder.CreateBr(this->enviornment.loop_end_block.top());
+        this->llvm_ir_builder.CreateBr(this->enviornment.loop_end_block.at(this->enviornment.loop_end_block.size() - std::static_pointer_cast<AST::ContinueStatement>(node)->loopIdx - 1));
         break;
     }
     case AST::NodeType::ContinueStatement: {
@@ -147,7 +147,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
         if(this->enviornment.loop_condition_block.empty()) {
             std::cout << "Continue statement outside loop" << std::endl;
         }
-        this->llvm_ir_builder.CreateBr(this->enviornment.loop_condition_block.top());
+        this->llvm_ir_builder.CreateBr(this->enviornment.loop_condition_block.at(this->enviornment.loop_condition_block.size() - std::static_pointer_cast<AST::ContinueStatement>(node)->loopIdx - 1));
         break;
     }
     case AST::NodeType::BooleanLiteral: {
@@ -759,14 +759,14 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     this->llvm_ir_builder.SetInsertPoint(CondBB);
     auto [condition_val, _] = this->_resolveValue(condition);
     this->llvm_ir_builder.CreateCondBr(condition_val[0], BodyBB, ContBB);
+    this->enviornment.loop_body_block.push_back(BodyBB);
+    this->enviornment.loop_end_block.push_back(ContBB);
+    this->enviornment.loop_condition_block.push_back(CondBB);
     this->llvm_ir_builder.SetInsertPoint(BodyBB);
-    this->enviornment.loop_body_block.push(BodyBB);
-    this->enviornment.loop_end_block.push(ContBB);
-    this->enviornment.loop_condition_block.push(CondBB);
     this->compile(body);
-    this->enviornment.loop_body_block.pop();
-    this->enviornment.loop_end_block.pop();
-    this->enviornment.loop_condition_block.pop();
+    this->enviornment.loop_body_block.pop_back();
+    this->enviornment.loop_end_block.pop_back();
+    this->enviornment.loop_condition_block.pop_back();
     this->llvm_ir_builder.CreateBr(CondBB);
     this->llvm_ir_builder.SetInsertPoint(ContBB);
 };
