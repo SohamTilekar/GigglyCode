@@ -220,6 +220,9 @@ std::shared_ptr<AST::BlockStatement> parser::Parser::_parseBlockStatement() {
         }
         this->_nextToken();
     }
+    if (this->_peekTokenIs(token::TokenType::Semicolon)) {
+        this->_nextToken();
+    }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
     auto block_statement = std::make_shared<AST::BlockStatement>(statements);
@@ -340,9 +343,27 @@ std::shared_ptr<AST::StructStatement> parser::Parser::_parseStructStatement() {
     std::vector<std::shared_ptr<AST::Statement>> statements;
 
     while(!this->_currentTokenIs(token::TokenType::RightBrace) && !this->_currentTokenIs(token::TokenType::EndOfFile)) {
+        std::cout << "Current Token: " << this->current_token->literal << std::endl;
+        if (this->_currentTokenIs(token::TokenType::Def)) {
+            std::cout << "Parsing Function Statement" << std::endl;
+            auto stmt = this->_parseFunctionStatement();
+            if(stmt != nullptr) {
+                std::cout << "Function Statement Parsed Successfully" << std::endl;
+                statements.push_back(stmt);
+            } else {
+                std::cout << "Failed to Parse Function Statement" << std::endl;
+            }
+            std::cout << "Current Token: " << this->current_token->literal << std::endl;
+            this->_nextToken();
+            continue;
+        }
+        std::cout << "Parsing Variable Declaration" << std::endl;
         auto stmt = this->_parseVariableDeclaration();
         if(stmt != nullptr) {
+            std::cout << "Variable Declaration Parsed Successfully" << std::endl;
             statements.push_back(stmt);
+        } else {
+            std::cout << "Failed to Parse Variable Declaration" << std::endl;
         }
         this->_nextToken();
     }

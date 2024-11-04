@@ -266,8 +266,8 @@ class BooleanLiteral : public Expression {
 
 class StructStatement : public Statement {
   public:
-    std::shared_ptr<Expression> name;
-    std::vector<std::shared_ptr<Statement>> fields;
+    std::shared_ptr<Expression> name = nullptr;
+    std::vector<std::shared_ptr<Statement>> fields = {};
     inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields)
         : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };

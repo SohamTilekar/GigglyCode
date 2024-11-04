@@ -51,10 +51,10 @@ void compiler::Compiler::_initializeBuiltins() {
         new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
                                  llvm::ConstantInt::get(this->enviornment.get_struct("bool")->stand_alone_type, 0), "False");
     auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, this->enviornment.get_struct("bool")->stand_alone_type,
-                                                                    nullptr, this->enviornment.get_struct("bool"));
+                                                                    nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")));
     this->enviornment.add(recordTrue);
     auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, this->enviornment.get_struct("bool")->stand_alone_type,
-                                                                     nullptr, this->enviornment.get_struct("bool"));
+                                                                     nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")));
     this->enviornment.add(recordFalse);
 
     std::cout << "Creating built-in functions 'puts' and 'print'" << std::endl;
@@ -205,7 +205,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     std::cout << "Left Value: " << left_val << std::endl;
     auto right_val = right_value[0];
     std::cout << "Right Value: " << right_val << std::endl;
-    std::cout << "left_type: " << (left_type == nullptr) << ", right_type: " << (right_type == nullptr) << std::endl;
+
     if(left_type->struct_type->stand_alone_type != right_type->struct_type->stand_alone_type) {
         std::cout << "Type mismatch" << std::endl;
         exit(1);
@@ -332,8 +332,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
             this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
             std::cout << "Stored value in alloca" << std::endl;
             auto var =
-                std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_type);
-            var->generic = var_generic;
+                std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_generic);
             this->enviornment.add(var);
             std::cout << "Variable added to environment: " << var_name->value << std::endl;
         }
@@ -344,7 +343,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
             this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
             std::cout << "Stored value in alloca" << std::endl;
             auto var =
-                std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_type);
+                std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_generic);
             var->generic = var_generic;
             this->enviornment.add(var);
             std::cout << "Variable added to environment: " << var_name->value << std::endl;
@@ -480,6 +479,12 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                         alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x, currentStructType->name + "." + alloca->getName() + "." + std::to_string(x));
                         std::cout << "Alloca after GEP: " << alloca << std::endl;
                         currentStructType = currentStructType->sub_types[field];
+                        if (generics->generic.empty())
+                            generics = std::make_shared<enviornment::RecordStructInstance>(currentStructType);
+                        else
+                            errors::CompletionError("Generic type not supported", this->source, identifier_literal->meta_data.st_line_no,
+                                                    identifier_literal->meta_data.end_line_no, "Generic type not supported")
+                                .raise();
                         std::cout << "Current struct type: " << currentStructType->name << std::endl;
                         break;
                     }
@@ -616,60 +621,15 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     this->llvm_ir_builder.SetInsertPoint(bb);
     auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
     this->enviornment = enviornment::Enviornment(prev_env, {}, name);
-};
-
-void compiler::Compiler::visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement) {
-    std::cout << "Entering _visitFunctionDeclarationStatement" << std::endl;
-    auto name = std::static_pointer_cast<AST::IdentifierLiteral>(function_declaration_statement->name)->value;
-    std::cout << "Function name: " << name << std::endl;
-    auto body = function_declaration_statement->body;
-    auto params = function_declaration_statement->parameters;
-    std::vector<std::string> param_name;
-    std::vector<llvm::Type*> param_types;
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
-    for(auto param : params) {
-        param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
-        auto param_type = this->enviornment
-                              .get_struct(
-                                  std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(param->value_type)->name)->value);
-        std::cout << "Parameter type: " << param_type->name << std::endl;
-        param_types.push_back(param_type->stand_alone_type ? param_type->stand_alone_type : param_type->struct_type);
-        param_inst_record.push_back(std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct(std::static_pointer_cast<AST::IdentifierLiteral>(param->value_type->name)->value)));
-    }
-    auto return_type = this->enviornment.get_struct(std::static_pointer_cast<AST::IdentifierLiteral>(
-                                                       std::static_pointer_cast<AST::GenericType>(function_declaration_statement->return_type)->name)
-                                                       ->value);
-    std::cout << "Return type: " << return_type->name << std::endl;
-    auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type;
-    auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
-    std::cout << "Function created: " << name << std::endl;
-
-    // name the parameters
-    unsigned idx = 0;
-    for(auto& arg : func->args()) {
-        arg.setName(param_name[idx]);
-        std::cout << "Parameter named: " << param_name[idx] << std::endl;
-        idx++;
-    }
-    auto bb = llvm::BasicBlock::Create(llvm_context, name + "_entry", func);
-    this->llvm_ir_builder.SetInsertPoint(bb);
-    std::cout << "Basic block created and insert point set" << std::endl;
-    auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
-    this->enviornment = enviornment::Enviornment(prev_env, {}, name);
-    std::cout << "Environment updated for function scope" << std::endl;
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
     for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
         auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
-        std::cout << "Alloca created for argument: " << arg.getName().str() << std::endl;
         this->llvm_ir_builder.CreateStore(&arg, alloca);
-        std::cout << "Argument stored in alloca: " << arg.getName().str() << std::endl;
         auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
-        arguments.push_back(std::make_tuple(std::string(arg.getName()), record));
+        arguments.push_back({std::string(arg.getName()), record});
         this->enviornment.add(record);
-        std::cout << "Argument added to environment: " << arg.getName().str() << std::endl;
     }
-    auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, std::make_shared<enviornment::RecordStructInstance>(return_type));
+    auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
     func_record->set_meta_data(function_declaration_statement->meta_data.st_line_no, function_declaration_statement->meta_data.st_col_no,
                                function_declaration_statement->meta_data.end_line_no, function_declaration_statement->meta_data.end_col_no);
     func_record->meta_data.more_data["name_line_no"] = function_declaration_statement->name->meta_data.st_line_no;
@@ -684,50 +644,84 @@ void compiler::Compiler::visitFunctionDeclarationStatement(std::shared_ptr<AST::
     this->enviornment = *prev_env;
     this->enviornment.add(func_record);
     std::cout << "Exiting _visitFunctionDeclarationStatement" << std::endl;
-}
+};
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitCallExpression(
     std::shared_ptr<AST::CallExpression> call_expression) {
-    auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
+    auto name = splitString(std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value);
     auto param = call_expression->arguments;
     auto args = std::vector<llvm::Value*>();
     for(auto arg : param) {
         auto [value, _] = this->_resolveValue(arg);
         args.push_back(value[0]);
     }
-    if(this->enviornment.is_function(name)) {
-        auto func_record = this->enviornment.get_function(name);
-        auto returnValue = this->llvm_ir_builder.CreateCall(
-            llvm::cast<llvm::Function>(func_record->function), args,
-            func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
-        return {{returnValue}, func_record->return_inst};
-    }
-    else if (this->enviornment.is_struct(name)) {
-        auto struct_record = this->enviornment.get_struct(name);
-        auto struct_type = struct_record->struct_type;
-        auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
-        for (unsigned i = 0; i < args.size(); ++i) {
-            auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
-            this->llvm_ir_builder.CreateStore(args[i], field_ptr);
-        }
-        return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(struct_record)};
-    }
-    else if (this->enviornment.is_variable(name)) {
-        auto variable_record = this->enviornment.get_variable(name);
-        if (variable_record->struct_type->name == "func") {
+    if (name.size() == 1) {
+        if(this->enviornment.is_function(name[0])) {
+            auto func_record = this->enviornment.get_function(name[0]);
             auto returnValue = this->llvm_ir_builder.CreateCall(
-                llvm::cast<llvm::Function>(variable_record->value), args,
-                llvm::cast<llvm::Function>(variable_record->value)->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
-            return {{returnValue}, variable_record->generic};
+                llvm::cast<llvm::Function>(func_record->function), args,
+                func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+            return {{returnValue}, func_record->return_inst};
         }
-        else {
-            errors::CompletionError("Variable not callable", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
-                                    "Variable `" + name + "` is not callable")
-                .raise();
+        else if (this->enviornment.is_struct(name[0])) {
+            auto struct_record = this->enviornment.get_struct(name[0]);
+            auto struct_type = struct_record->struct_type;
+            auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name[0]);
+            for (unsigned i = 0; i < args.size(); ++i) {
+                auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
+                this->llvm_ir_builder.CreateStore(args[i], field_ptr);
+            }
+            return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(struct_record)};
+        }
+        else if (this->enviornment.is_variable(name[0])) {
+            auto variable_record = this->enviornment.get_variable(name[0]);
+            if (variable_record->struct_type->name == "func") {
+                auto returnValue = this->llvm_ir_builder.CreateCall(
+                    llvm::cast<llvm::Function>(variable_record->value), args,
+                    llvm::cast<llvm::Function>(variable_record->value)->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                return {{returnValue}, variable_record->generic};
+            }
+            else {
+                errors::CompletionError("Variable not callable", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
+                                        "Variable `" + name[0] + "` is not callable")
+                    .raise();
+            }
+        }
+        errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
+                                "Function `" + name[0] + "` not defined")
+            .raise();
+        return {{nullptr}, nullptr};
+    }
+    if (this->enviornment.is_variable(name[0])) {
+        auto var_type = this->enviornment.get_variable(name[0])->struct_type;
+        int x = 1;
+        while (x < (name.size() - 1)) {
+            bool y = true;
+            for (auto field : var_type->fields) {
+                if (field == name[x]) {
+                    var_type = var_type->sub_types[field];
+                    y = false;
+                    break;
+                }
+            }
+            if (y) {
+                errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
+                                        "Function `" + name[0] + "` not defined")
+                    .raise();
+                return {{nullptr}, nullptr};
+            }
+            x++;
+        }
+        if (var_type->methods.find(name[x]) != var_type->methods.end()) {
+            auto func_record = var_type->methods[name[x]];
+            auto returnValue = this->llvm_ir_builder.CreateCall(
+                llvm::cast<llvm::Function>(func_record->function), args,
+                func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+            return {{returnValue}, func_record->return_inst};
         }
     }
-    errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
-                            "Function `" + name + "` not defined")
+    errors::CompletionError("Variable not define", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
+                            "Variable `" + name[0] + "` is not define")
         .raise();
     return {{nullptr}, nullptr};
 };
@@ -793,27 +787,87 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
     auto fields = struct_statement->fields;
     std::cout << "Number of fields: " << fields.size() << std::endl;
     auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
-    for(auto field : fields) {
-        auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
-        std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-        std::string field_type_name = std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(field_decl->value_type)->name)->value;
-        std::cout << "Processing field: " << field_name << std::endl;
-        struct_record->fields.push_back(field_name);
-        auto field_type = this->enviornment.get_struct(field_type_name);
-        if(field_type->stand_alone_type == nullptr) {
-            std::cout << "Field type is a struct type" << std::endl;
-            field_types.push_back(field_type->struct_type);
-        } else {
-            std::cout << "Field type is a standalone type" << std::endl;
-            field_types.push_back(field_type->stand_alone_type);
-        }
-        struct_record->sub_types[field_name] = field_type;
-    }
-    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
-    std::cout << "LLVM StructType created" << std::endl;
-    struct_type->setBody(field_types);
-    struct_record->struct_type = struct_type;
     this->enviornment.add(struct_record);
+    for(auto field : fields) {
+        if (field->type() == AST::NodeType::VariableDeclarationStatement) {
+            auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
+            std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
+            std::string field_type_name = std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(field_decl->value_type)->name)->value;
+            std::cout << "Processing field: " << field_name << std::endl;
+            struct_record->fields.push_back(field_name);
+            auto field_type = this->enviornment.get_struct(field_type_name);
+            if(field_type->stand_alone_type == nullptr) {
+                std::cout << "Field type is a struct type" << std::endl;
+                field_types.push_back(field_type->struct_type);
+            } else {
+                std::cout << "Field type is a standalone type" << std::endl;
+                field_types.push_back(field_type->stand_alone_type);
+            }
+            struct_record->sub_types[field_name] = field_type;
+            auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
+            std::cout << "LLVM StructType created" << std::endl;
+            struct_type->setBody(field_types);
+            struct_record->struct_type = struct_type;
+        }
+        else if (field->type() == AST::NodeType::FunctionStatement) {
+            auto field_decl = std::static_pointer_cast<AST::FunctionStatement>(field);
+            std::cout << "Processing method: " << std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value << std::endl;
+            auto name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
+            std::cout << "Method name: " << name << std::endl;
+            auto body = field_decl->body;
+            auto params = field_decl->parameters;
+            std::vector<std::string> param_name;
+            std::vector<llvm::Type*> param_types;
+            std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
+            for(auto param : params) {
+                std::cout << "Processing parameter: " << std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value << std::endl;
+                param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
+                param_inst_record.push_back(this->_parseType(param->value_type));
+                param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : param_inst_record.back()->struct_type->struct_type);
+            }
+            auto return_type = this->_parseType(field_decl->return_type);
+            std::cout << "Return type parsed" << std::endl;
+            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
+            auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
+            std::cout << "Function type created" << std::endl;
+            auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
+            unsigned idx = 0;
+            for(auto& arg : func->args()) {
+                arg.setName(param_name[idx++]);
+                std::cout << "Set argument name: " << arg.getName().str() << std::endl;
+            }
+            auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
+            std::cout << "Basic block created" << std::endl;
+            this->llvm_ir_builder.SetInsertPoint(bb);
+            auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
+            this->enviornment = enviornment::Enviornment(prev_env, {}, name);
+            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
+            for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
+                auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
+                std::cout << "Alloca created for argument: " << arg.getName().str() << std::endl;
+                this->llvm_ir_builder.CreateStore(&arg, alloca);
+                std::cout << "Stored argument in alloca" << std::endl;
+                auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
+                arguments.push_back({std::string(arg.getName()), record});
+                this->enviornment.add(record);
+                std::cout << "Argument added to environment: " << arg.getName().str() << std::endl;
+            }
+            auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
+            func_record->set_meta_data(field_decl->meta_data.st_line_no, field_decl->meta_data.st_col_no,
+                                       field_decl->meta_data.end_line_no, field_decl->meta_data.end_col_no);
+            func_record->meta_data.more_data["name_line_no"] = field_decl->name->meta_data.st_line_no;
+            func_record->meta_data.more_data["name_st_col_no"] = field_decl->name->meta_data.st_col_no;
+            func_record->meta_data.more_data["name_end_col_no"] = field_decl->name->meta_data.end_col_no;
+            this->enviornment.add(func_record);
+            std::cout << "Method record added to environment" << std::endl;
+            this->current_function = func;
+            std::cout << "Compiling method body" << std::endl;
+            this->compile(body);
+            this->enviornment = *prev_env;
+            struct_record->methods[name] = func_record;
+            std::cout << "Exiting method declaration" << std::endl;
+        }
+    }
     std::cout << "Struct added to environment" << std::endl;
     std::cout << "Exiting Struct Statement" << std::endl;
 };
