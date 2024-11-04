@@ -344,7 +344,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
             std::cout << "Stored value in alloca" << std::endl;
             auto var =
                 std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_generic);
-            var->generic = var_generic;
+            var->variableType = var_generic;
             this->enviornment.add(var);
             std::cout << "Variable added to environment: " << var_name->value << std::endl;
         }
@@ -373,7 +373,7 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
     auto var_value = variable_assignment_statement->value;
     auto [value, _] = this->_resolveValue(var_value);
     auto var_name_parts = splitString(var_name->value);
-    std::shared_ptr<enviornment::RecordStructType> currentStructType = nullptr;
+    std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
     llvm::Value* alloca = nullptr;
     for (auto type : var_name_parts) {
         if (currentStructType == nullptr) {
@@ -384,18 +384,18 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
                     .raise();
                 return;
             }
-            currentStructType = this->enviornment.get_variable(type)->struct_type;
+            currentStructType = this->enviornment.get_variable(type)->variableType;
             alloca = this->enviornment.get_variable(type)->allocainst;
         }
         else {
             int x = 0;
-            for (auto field: currentStructType->fields) {
+            for (auto field: currentStructType->struct_type->fields) {
                 if (field == type) {
-                    std::cout << "Accessing field: " << field << " in struct: " << currentStructType->name << std::endl;
-                    alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x, currentStructType->name + "." + alloca->getName() + "." + std::to_string(x));
+                    std::cout << "Accessing field: " << field << " in struct: " << currentStructType->struct_type->name << std::endl;
+                    alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type->struct_type, alloca, x, currentStructType->struct_type->name + "." + alloca->getName() + "." + std::to_string(x));
                     std::cout << "Alloca: " << alloca << std::endl;
-                    currentStructType = currentStructType->sub_types[field];
-                    std::cout << "Current struct type: " << currentStructType->name << std::endl;
+                    currentStructType = currentStructType->struct_type->sub_types[field];
+                    std::cout << "Current struct type: " << currentStructType->struct_type->name << std::endl;
                     break;
                 }
                 x++;
@@ -449,9 +449,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             std::cout << part << " ";
         }
         std::cout << std::endl;
-        std::shared_ptr<enviornment::RecordStructType> currentStructType = nullptr;
+        std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
         llvm::Value* alloca = nullptr;
-        std::shared_ptr<enviornment::RecordStructInstance> generics = nullptr;
         for (auto type : var_name) {
             if (currentStructType == nullptr) {
                 std::cout << "Checking if variable is defined: " << type << std::endl;
@@ -466,26 +465,19 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                         .raise();
                     return {{nullptr}, nullptr};
                 }
-                currentStructType = this->enviornment.get_variable(type)->struct_type;
+                currentStructType = this->enviornment.get_variable(type)->variableType;
                 alloca = this->enviornment.get_variable(type)->allocainst;
-                generics = this->enviornment.get_variable(type)->generic;
-                std::cout << "Variable found. Struct type: " << currentStructType->name << ", Alloca: " << alloca << std::endl;
+                std::cout << "Variable found. Struct type: " << currentStructType->struct_type->name << ", Alloca: " << alloca << std::endl;
             }
             else {
                 int x = 0;
-                for (auto field: currentStructType->fields) {
+                for (auto field: currentStructType->struct_type->fields) {
                     if (field == type) {
-                        std::cout << "Accessing field: " << field << " in struct: " << currentStructType->name << std::endl;
-                        alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type, alloca, x, currentStructType->name + "." + alloca->getName() + "." + std::to_string(x));
+                        std::cout << "Accessing field: " << field << " in struct: " << currentStructType->struct_type->name << std::endl;
+                        alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type->struct_type, alloca, x, currentStructType->struct_type->name + "." + alloca->getName() + "." + std::to_string(x));
                         std::cout << "Alloca after GEP: " << alloca << std::endl;
-                        currentStructType = currentStructType->sub_types[field];
-                        if (generics->generic.empty())
-                            generics = std::make_shared<enviornment::RecordStructInstance>(currentStructType);
-                        else
-                            errors::CompletionError("Generic type not supported", this->source, identifier_literal->meta_data.st_line_no,
-                                                    identifier_literal->meta_data.end_line_no, "Generic type not supported")
-                                .raise();
-                        std::cout << "Current struct type: " << currentStructType->name << std::endl;
+                        currentStructType = currentStructType->struct_type->sub_types[field];
+                        std::cout << "Current struct type: " << currentStructType->struct_type->name << std::endl;
                         break;
                     }
                     x++;
@@ -493,10 +485,10 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             }
         }
         if (alloca) {
-            std::cout << "Loading value from alloca of type: " << (currentStructType->stand_alone_type ? "standalone" : "struct") << std::endl;
-            auto loadedValue = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type ? currentStructType->stand_alone_type : currentStructType->struct_type, alloca, currentStructType->name + "." + alloca->getName());
+            std::cout << "Loading value from alloca of type: " << (currentStructType->struct_type->stand_alone_type ? "standalone" : "struct") << std::endl;
+            auto loadedValue = this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type ? currentStructType->struct_type->stand_alone_type : currentStructType->struct_type->struct_type, alloca, currentStructType->struct_type->name + "." + alloca->getName());
             std::cout << "Loaded value: " << loadedValue << std::endl;
-            return {{loadedValue}, generics};
+            return {{loadedValue}, currentStructType};
         }
         std::cout << "Variable not defined: " << identifier_literal->value << std::endl;
         return {{nullptr}, nullptr};
@@ -675,11 +667,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         }
         else if (this->enviornment.is_variable(name[0])) {
             auto variable_record = this->enviornment.get_variable(name[0]);
-            if (variable_record->struct_type->name == "func") {
+            if (variable_record->variableType->struct_type->name == "func") {
                 auto returnValue = this->llvm_ir_builder.CreateCall(
                     llvm::cast<llvm::Function>(variable_record->value), args,
                     llvm::cast<llvm::Function>(variable_record->value)->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
-                return {{returnValue}, variable_record->generic};
+                return {{returnValue}, variable_record->variableType};
             }
             else {
                 errors::CompletionError("Variable not callable", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
@@ -693,13 +685,13 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         return {{nullptr}, nullptr};
     }
     if (this->enviornment.is_variable(name[0])) {
-        auto var_type = this->enviornment.get_variable(name[0])->struct_type;
+        auto var_type = this->enviornment.get_variable(name[0])->variableType;
         int x = 1;
         while (x < (name.size() - 1)) {
             bool y = true;
-            for (auto field : var_type->fields) {
+            for (auto field : var_type->struct_type->fields) {
                 if (field == name[x]) {
-                    var_type = var_type->sub_types[field];
+                    var_type = var_type->struct_type->sub_types[field];
                     y = false;
                     break;
                 }
@@ -712,8 +704,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             }
             x++;
         }
-        if (var_type->methods.find(name[x]) != var_type->methods.end()) {
-            auto func_record = var_type->methods[name[x]];
+        if (var_type->struct_type->methods.find(name[x]) != var_type->struct_type->methods.end()) {
+            auto func_record = var_type->struct_type->methods[name[x]];
             auto returnValue = this->llvm_ir_builder.CreateCall(
                 llvm::cast<llvm::Function>(func_record->function), args,
                 func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
@@ -792,16 +784,15 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
         if (field->type() == AST::NodeType::VariableDeclarationStatement) {
             auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
             std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-            std::string field_type_name = std::static_pointer_cast<AST::IdentifierLiteral>(std::static_pointer_cast<AST::GenericType>(field_decl->value_type)->name)->value;
             std::cout << "Processing field: " << field_name << std::endl;
             struct_record->fields.push_back(field_name);
-            auto field_type = this->enviornment.get_struct(field_type_name);
-            if(field_type->stand_alone_type == nullptr) {
+            auto field_type = this->_parseType(field_decl->value_type);
+            if(field_type->struct_type->stand_alone_type == nullptr) {
                 std::cout << "Field type is a struct type" << std::endl;
-                field_types.push_back(field_type->struct_type);
+                field_types.push_back(field_type->struct_type->struct_type);
             } else {
                 std::cout << "Field type is a standalone type" << std::endl;
-                field_types.push_back(field_type->stand_alone_type);
+                field_types.push_back(field_type->struct_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
             auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
