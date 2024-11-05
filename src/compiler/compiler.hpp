@@ -27,7 +27,9 @@ class Compiler {
     std::string source;
     std::filesystem::path file_path;
     enviornment::Enviornment enviornment;
-    llvm::Function* current_function;
+
+    std::vector<llvm::BasicBlock*> function_entery_block = {};
+
     Compiler();
     Compiler(const std::string& source, std::filesystem::path file_path);
 

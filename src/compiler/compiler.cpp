@@ -620,6 +620,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         arg.setName(param_name[idx++]);
     }
     auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
+    this->function_entery_block.push_back(bb);
     this->llvm_ir_builder.SetInsertPoint(bb);
     auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
     this->enviornment = enviornment::Enviornment(prev_env, {}, name);
@@ -640,10 +641,13 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     this->enviornment.add(func_record);
     std::cout << "Function record added to environment" << std::endl;
     // adding the alloca for the parameters
-    this->current_function = func;
     std::cout << "Compiling function body" << std::endl;
     this->compile(body);
     this->enviornment = *prev_env;
+    this->function_entery_block.pop_back();
+    if (!this->function_entery_block.empty()) {
+        this->llvm_ir_builder.SetInsertPoint(this->function_entery_block.at(this->function_entery_block.size() - 1));
+    }
     this->enviornment.add(func_record);
     std::cout << "Exiting _visitFunctionDeclarationStatement" << std::endl;
 };
@@ -838,6 +842,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 std::cout << "Set argument name: " << arg.getName().str() << std::endl;
             }
             auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
+            this->function_entery_block.push_back(bb);
             std::cout << "Basic block created" << std::endl;
             this->llvm_ir_builder.SetInsertPoint(bb);
             auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
@@ -861,10 +866,14 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             func_record->meta_data.more_data["name_end_col_no"] = field_decl->name->meta_data.end_col_no;
             this->enviornment.add(func_record);
             std::cout << "Method record added to environment" << std::endl;
-            this->current_function = func;
             std::cout << "Compiling method body" << std::endl;
             this->compile(body);
             this->enviornment = *prev_env;
+            this->function_entery_block.pop_back();
+            if (!this->function_entery_block.empty()) {
+                std::cout << "func_name :" << name << std::endl;
+                this->llvm_ir_builder.SetInsertPoint(this->function_entery_block.at(this->function_entery_block.size() - 1));
+            }
             struct_record->methods[name] = func_record;
             std::cout << "Exiting method declaration" << std::endl;
         }
