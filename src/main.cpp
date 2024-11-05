@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include <filesystem>
 #include "include/cli11.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
@@ -15,7 +16,7 @@
 #define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.json"
 
 // Function to read the file content into a string
-std::string readFileToString(const std::string& filePath) {
+const std::string readFileToString(const std::string& filePath) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file " << filePath << std::endl;
@@ -86,20 +87,20 @@ int main(int argc, char* argv[]) {
 #endif
     Lexer lexer(fileContent);
 #ifdef DEBUG_PARSER
-    parser::Parser debug_parser(std::make_shared<Lexer>(lexer));
-    auto program = debug_parser.parseProgram();
+    parser::Parser debug_parser(std::make_shared<Lexer>(fileContent));
+    auto debug_program = debug_parser.parseProgram();
     std::cout << "=========== Parser Debug ===========" << std::endl;
     if(!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
         std::ofstream file(DEBUG_PARSER_OUTPUT_PATH,
                             std::ios::trunc); // Open file in append mode
         if(file.is_open()) {
-            file << program->toJSON()->dump(4) << std::endl;
+            file << debug_program->toJSON()->dump(4) << std::endl;
             file.close();
         } else {
             std::cout << "Unable to open file";
         }
     } else {
-        std::cout << program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
+        std::cout << debug_program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
     }
     for(auto& err : debug_parser.errors) {
         err->raise(false);
@@ -111,7 +112,17 @@ int main(int argc, char* argv[]) {
         std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
     }
 #endif
-    auto comp = compiler::Compiler(fileContent);
+    // Parser
+    parser::Parser parsr(std::make_shared<Lexer>(lexer));
+    auto program = parsr.parseProgram();
+    for(auto& err : parsr.errors) {
+        err->raise(false);
+    }
+    if(parsr.errors.size() > 0) {
+        return 1;
+    }
+    // Compiler
+    auto comp = compiler::Compiler(fileContent, std::filesystem::absolute(inputFilePath));
     comp.compile(program);
     std::error_code EC;
     llvm::raw_fd_ostream file(outputFilePath, EC, llvm::sys::fs::OF_None);

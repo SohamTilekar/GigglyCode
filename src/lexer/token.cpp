@@ -1,4 +1,5 @@
 #include "./token.hpp"
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -186,6 +187,8 @@ std::shared_ptr<std::string> token::tokenTypeString(TokenType type) {
         return std::make_shared<std::string>("Let");
     // case TokenType::Maybe:
     //     return std::make_shared<std::string>("Maybe");
+    case TokenType::Import:
+        return std::make_shared<std::string>("Import");
     case TokenType::None:
         return std::make_shared<std::string>("None");
     case TokenType::String:

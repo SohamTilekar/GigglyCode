@@ -1,4 +1,5 @@
 #include "../errors/errors.hpp"
+#include "token.hpp"
 #include "lexer.hpp"
 
 Lexer::Lexer(const std::string& source) {
@@ -45,6 +46,8 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
         return token::TokenType::Enum;
     } else if(*ident == "let") {
         return token::TokenType::Let;
+    } else if(*ident == "import") {
+        return token::TokenType::Import;
     } else if(*ident == "True") {
         return token::TokenType::True;
     } else if(*ident == "False") {

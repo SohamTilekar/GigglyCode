@@ -1,5 +1,6 @@
 #include "../parser/AST/ast.hpp"
 #include "enviornment/enviornment.hpp"
+#include <filesystem>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -23,11 +24,12 @@ class Compiler {
     std::unique_ptr<llvm::Module> llvm_module;
     llvm::IRBuilder<> llvm_ir_builder; // Move the declaration here
 
-    const std::string source;
+    std::string source;
+    std::filesystem::path file_path;
     enviornment::Enviornment enviornment;
     llvm::Function* current_function;
     Compiler();
-    Compiler(const std::string& source);
+    Compiler(const std::string& source, std::filesystem::path file_path);
 
     void compile(std::shared_ptr<AST::Node> node);
 
@@ -56,6 +58,8 @@ class Compiler {
     void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
     void _visitWhileStatement(std::shared_ptr<AST::WhileStatement> while_statement);
     void _visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement);
+
+    void _visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement);
 
     std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _resolveValue(std::shared_ptr<AST::Node> node);
 

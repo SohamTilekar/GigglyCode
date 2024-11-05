@@ -91,6 +91,7 @@ enum class TokenType {
     Struct,   // Struct
     Enum,     // Enum
     Let,      // Let
+    Import,   // import
     True,     // Boolean true true
     False,    // Boolean false false
     // Maybe,    // Maybe type maybe

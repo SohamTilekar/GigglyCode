@@ -2,6 +2,7 @@
 #define AST_HPP
 #include "../../include/json.hpp"
 #include "../../lexer/token.hpp"
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <variant>
@@ -26,6 +27,7 @@ enum class NodeType {
     BreakStatement,
     ContinueStatement,
     StructStatement,
+    ImportStatement,
 
     // Types
     Type,
@@ -184,6 +186,14 @@ class ContinueStatement : public Statement {
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
+class ImportStatement : public Statement {
+  public:
+    std::string relativePath;
+    inline NodeType type() override { return  NodeType::ImportStatement;}
+    ImportStatement(const std::string& relativePath) : relativePath(relativePath) {}
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
 class VariableDeclarationStatement : public Statement {
   public:
     std::shared_ptr<Expression> name;
@@ -285,5 +295,7 @@ class ArrayLiteral : public Expression {
     inline NodeType type() override { return NodeType::ArrayLiteral; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
+
+
 } // namespace AST
 #endif // AST_HPP

@@ -1,5 +1,8 @@
 #include "compiler.hpp"
 #include "../errors/errors.hpp"
+#include "../lexer/lexer.hpp"
+#include "../parser/parser.hpp"
+#include <iostream>
 #include <iostream>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
@@ -14,48 +17,49 @@ compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_buil
     this->_initializeBuiltins();
 }
 
-compiler::Compiler::Compiler(const std::string& source) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source) {
+compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path) {
     std::cout << "Initializing Compiler with source: " << source << std::endl;
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
+    this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
     this->_initializeBuiltins();
 }
 
 void compiler::Compiler::_initializeBuiltins() {
     std::cout << "Initializing built-in types" << std::endl;
     auto _int = std::make_shared<enviornment::RecordStructType>("int", llvm::Type::getInt64Ty(llvm_context));
-    this->enviornment.add(_int);
+    this->enviornment.parent->add(_int);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
-    this->enviornment.add(_float);
+    this->enviornment.parent->add(_float);
     auto _char = std::make_shared<enviornment::RecordStructType>("char", llvm::Type::getInt8Ty(llvm_context));
-    this->enviornment.add(_char);
+    this->enviornment.parent->add(_char);
     auto _string = std::make_shared<enviornment::RecordStructType>("str", llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
-    this->enviornment.add(_string);
+    this->enviornment.parent->add(_string);
     auto _void = std::make_shared<enviornment::RecordStructType>("void", llvm::Type::getVoidTy(llvm_context));
-    this->enviornment.add(_void);
+    this->enviornment.parent->add(_void);
     auto _bool = std::make_shared<enviornment::RecordStructType>("bool", llvm::Type::getInt1Ty(llvm_context));
-    this->enviornment.add(_bool);
+    this->enviornment.parent->add(_bool);
     auto _func = std::make_shared<enviornment::RecordStructType>("func", llvm::PointerType::get(llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context), false)->getPointerTo(), 0));
-    this->enviornment.add(_func);
+    this->enviornment.parent->add(_func);
     // array standalone type
     auto _array = std::make_shared<enviornment::RecordStructType>("array", llvm::PointerType::get(llvm::Type::getVoidTy(llvm_context), 0));
-    this->enviornment.add(_array);
+    this->enviornment.parent->add(_array);
 
     std::cout << "Creating global variables 'True' and 'False'" << std::endl;
     // Create the global variable 'true'
     llvm::GlobalVariable* globalTrue =
-        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
-                                 llvm::ConstantInt::get(this->enviornment.get_struct("bool")->stand_alone_type, 1), "True");
+        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
+            llvm::ConstantInt::get(this->enviornment.parent->get_struct("bool")->stand_alone_type, 1), "True");
 
     // Create the global variable 'false'
     llvm::GlobalVariable* globalFalse =
-        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
-                                 llvm::ConstantInt::get(this->enviornment.get_struct("bool")->stand_alone_type, 0), "False");
-    auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, this->enviornment.get_struct("bool")->stand_alone_type,
-                                                                    nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")));
-    this->enviornment.add(recordTrue);
-    auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, this->enviornment.get_struct("bool")->stand_alone_type,
-                                                                     nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")));
-    this->enviornment.add(recordFalse);
+        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
+            llvm::ConstantInt::get(this->enviornment.parent->get_struct("bool")->stand_alone_type, 0), "False");
+        auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, this->enviornment.parent->get_struct("bool")->stand_alone_type,
+            nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
+        this->enviornment.parent->add(recordTrue);
+        auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, this->enviornment.parent->get_struct("bool")->stand_alone_type,
+            nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
+        this->enviornment.parent->add(recordFalse);
 
     std::cout << "Creating built-in functions 'puts' and 'print'" << std::endl;
     // Create the function type: void puts(const char*)
@@ -63,13 +67,14 @@ void compiler::Compiler::_initializeBuiltins() {
     llvm::FunctionType* putsType = llvm::FunctionType::get(voidType, _string->stand_alone_type, false);
     auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> putsParams = {{"string", nullptr}};
+    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, std::make_shared<enviornment::RecordStructInstance>(_void)));
 
     // Create the function type: int print(const char*)
     llvm::Type* returnType = llvm::Type::getInt32Ty(llvm_context);                          // int return type
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, _string->stand_alone_type, false);
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", this->llvm_module.get());
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> params = {{"string", nullptr}};
-    this->enviornment.add(std::make_shared<enviornment::RecordFunction>("print", func, funcType, params, std::make_shared<enviornment::RecordStructInstance>(_int)));
+    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("print", func, funcType, params, std::make_shared<enviornment::RecordStructInstance>(_int)));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
@@ -159,6 +164,11 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
     case AST::NodeType::StructStatement: {
         std::cout << "Visiting StructStatement node" << std::endl;
         this->_visitStructStatement(std::static_pointer_cast<AST::StructStatement>(node));
+        break;
+    }
+    case AST::NodeType::ImportStatement: {
+        std::cout << "Visiting Import Statemenet Node" << std::endl;
+        this->_visitImportStatement(std::static_pointer_cast<AST::ImportStatement>(node));
         break;
     }
     default:
@@ -861,4 +871,32 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
     }
     std::cout << "Struct added to environment" << std::endl;
     std::cout << "Exiting Struct Statement" << std::endl;
+};
+
+// Function to read the file content into a string
+const std::string readFileToString(const std::string& filePath); // Defined in main.cpp
+
+void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement) {
+    auto file_path = std::filesystem::path(this->file_path.parent_path().string() + "/" + import_statement->relativePath + ".gc");
+    auto source = readFileToString(file_path);
+    auto lexer = std::make_shared<Lexer>(source);
+    parser::Parser parser(lexer);
+    auto program = parser.parseProgram();
+    for(auto& err : parser.errors) {
+        err->raise(false);
+    }
+    if(parser.errors.size() > 0) {
+        exit(1);
+    }
+    auto prev_source = this->source;
+    auto prev_file_path = this->file_path;
+    auto prev_enviornment = this->enviornment;
+    this->source = source;
+    this->file_path = file_path;
+    this->enviornment = enviornment::Enviornment(prev_enviornment.parent, {}, import_statement->relativePath);
+    this->compile(program);
+    this->source = prev_source;
+    this->file_path = prev_file_path;
+    prev_enviornment.record_map.merge(this->enviornment.record_map);
+    this->enviornment = prev_enviornment;
 };

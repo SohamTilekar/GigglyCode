@@ -1,5 +1,6 @@
 #include "ast.hpp"
 #include "../../lexer/token.hpp"
+#include <memory>
 
 std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
     switch(type) {
@@ -45,6 +46,8 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
         return std::make_shared<std::string>("BreakStatement");
     case NodeType::ContinueStatement:
         return std::make_shared<std::string>("ContinueStatement");
+    case NodeType::ImportStatement:
+        return std::make_shared<std::string>("ImportStatement");
     case NodeType::StructStatement:
         return std::make_shared<std::string>("StructDecelerationStatement");
     case NodeType::IndexExpression:
@@ -161,6 +164,13 @@ std::shared_ptr<nlohmann::json> AST::ContinueStatement::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
     jsonAst["loopNum"] = this->loopIdx;
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
+std::shared_ptr<nlohmann::json> AST::ImportStatement::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["path"] = this->relativePath;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
