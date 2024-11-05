@@ -202,6 +202,52 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     auto right = infixed_expression->right;
     std::cout << "Resolving left value" << std::endl;
     auto [left_value, left_type] = this->_resolveValue(left);
+    if (op == token::TokenType::Dot) {
+        std::cout << "Member Acciss Detected" << std::endl;
+        if(left_value.size() != 1) {
+            std::cout << "Member Acciss with multiple values" << std::endl;
+            exit(1);
+        }
+        if (right->type() == AST::NodeType::IdentifierLiteral) {
+            if (left_type->struct_type->stand_alone_type == nullptr && left_type->struct_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
+                unsigned int idx = 0;
+                for (auto field : left_type->struct_type->fields) {
+                    if (field == std::static_pointer_cast<AST::IdentifierLiteral>(right)->value) {
+                        break;
+                    }
+                    idx++;
+                }
+                auto type = left_type->struct_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
+                return {
+                    {
+                        type->struct_type->struct_type ?
+                            this->llvm_ir_builder.CreateStructGEP(
+                                    left_type->struct_type->struct_type,
+                                    left_value[0],
+                                    idx
+                                )
+                            :
+                            this->llvm_ir_builder.CreateLoad(
+                                type->struct_type->stand_alone_type,
+                                this->llvm_ir_builder.CreateStructGEP(
+                                        left_type->struct_type->struct_type,
+                                        left_value[0],
+                                        idx
+                                    )
+                            )
+                    },
+                    type};
+            }
+            else {
+                std::cerr << "Struct Do not have Member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
+                exit(1);
+            }
+        }
+        else {
+            std::cerr << "Memeber access should be Identifier of method" << std::endl;
+            exit(1);
+        }
+    }
     std::cout << "Resolving right value" << std::endl;
     auto [right_value, right_type] = this->_resolveValue(right);
     if(left_value.size() != 1 || right_value.size() != 1) {
@@ -224,8 +270,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__add__")) {
                     auto func_record = left_type->struct_type->methods.at("__add__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -237,8 +282,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__sub__")) {
                     auto func_record = left_type->struct_type->methods.at("__sub__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -250,8 +294,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__mul__")) {
                     auto func_record = left_type->struct_type->methods.at("__mul__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -263,8 +306,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__div__")) {
                     auto func_record = left_type->struct_type->methods.at("__div__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -276,8 +318,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__mod__")) {
                     auto func_record = left_type->struct_type->methods.at("__mod__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -289,8 +330,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__eq__")) {
                     auto func_record = left_type->struct_type->methods.at("__eq__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -302,8 +342,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__neq__")) {
                     auto func_record = left_type->struct_type->methods.at("__neq__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -315,8 +354,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__lt__")) {
                     auto func_record = left_type->struct_type->methods.at("__lt__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -328,8 +366,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__gt__")) {
                     auto func_record = left_type->struct_type->methods.at("__gt__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -341,8 +378,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__lte__")) {
                     auto func_record = left_type->struct_type->methods.at("__lte__");
                     auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                        func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -353,9 +389,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             case token::TokenType::GreaterThanOrEqual: {
                 if (left_type->struct_type->methods.contains("__gte__")) {
                     auto func_record = left_type->struct_type->methods.at("__gte__");
-                    auto returnValue = this->llvm_ir_builder.CreateCall(
-                        func_record->function, {left_value[0], right_value[0]},
-                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -380,47 +414,47 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         switch (op) {
             case (token::TokenType::Plus): {
                 std::cout << "Operator is Plus" << std::endl;
-                return {{this->llvm_ir_builder.CreateAdd(left_val, right_val, left_type->struct_type->name + "_plus_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                return {{this->llvm_ir_builder.CreateAdd(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Dash): {
                 std::cout << "Operator is Dash" << std::endl;
-                return {{this->llvm_ir_builder.CreateSub(left_val, right_val, left_type->struct_type->name + "_sub_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                return {{this->llvm_ir_builder.CreateSub(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Asterisk): {
                 std::cout << "Operator is Asterisk" << std::endl;
-                return {{this->llvm_ir_builder.CreateMul(left_val, right_val, left_type->struct_type->name + "_mul_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                return {{this->llvm_ir_builder.CreateMul(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::ForwardSlash): {
                 std::cout << "Operator is ForwardSlash" << std::endl;
-                return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val, left_type->struct_type->name + "_sdiv_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Percent): {
                 std::cout << "Operator is Percent" << std::endl;
-                return {{this->llvm_ir_builder.CreateSRem(left_val, right_val, left_type->struct_type->name + "_srem_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                return {{this->llvm_ir_builder.CreateSRem(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::EqualEqual): {
                 std::cout << "Operator is EqualEqual" << std::endl;
-                return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val, left_type->struct_type->name + "_ICmpEQ_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::NotEquals): {
                 std::cout << "Operator is NotEquals" << std::endl;
-                return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val, left_type->struct_type->name + "_ICmpNE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::LessThan): {
                 std::cout << "Operator is LessThan" << std::endl;
-                return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val, left_type->struct_type->name + "_ICmpSLT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::GreaterThan): {
                 std::cout << "Operator is GreaterThan" << std::endl;
-                return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val, left_type->struct_type->name + "_ICmpSGT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::LessThanOrEqual): {
                 std::cout << "Operator is LessThanOrEqual" << std::endl;
-                return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val, left_type->struct_type->name + "_ICmpSLE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::GreaterThanOrEqual): {
                 std::cout << "Operator is GreaterThanOrEqual" << std::endl;
-                return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val, left_type->struct_type->name + "_ICmpSGE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             default: {
                 std::cout << "Unknown operator" << std::endl;
@@ -432,43 +466,43 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         switch (op) {
             case (token::TokenType::Plus): {
                 std::cout << "Operator is Plus" << std::endl;
-                return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val, left_type->struct_type->name + "_fadd_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::Dash): {
                 std::cout << "Operator is Dash" << std::endl;
-                return {{this->llvm_ir_builder.CreateFSub(left_val, right_val, left_type->struct_type->name + "_fsub_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                return {{this->llvm_ir_builder.CreateFSub(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::Asterisk): {
                 std::cout << "Operator is Asterisk" << std::endl;
-                return {{this->llvm_ir_builder.CreateFMul(left_val, right_val, left_type->struct_type->name + "_fmul_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                return {{this->llvm_ir_builder.CreateFMul(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::ForwardSlash): {
                 std::cout << "Operator is ForwardSlash" << std::endl;
-                return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val, left_type->struct_type->name + "_fdiv_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::EqualEqual): {
                 std::cout << "Operator is EqualEqual" << std::endl;
-                return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val, left_type->struct_type->name + "_FCmpOEQ_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::NotEquals): {
                 std::cout << "Operator is NotEquals" << std::endl;
-                return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val, left_type->struct_type->name + "_FCmpONE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::LessThan): {
                 std::cout << "Operator is LessThan" << std::endl;
-                return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val, left_type->struct_type->name + "_FCmpOLT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::GreaterThan): {
                 std::cout << "Operator is GreaterThan" << std::endl;
-                return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val, left_type->struct_type->name + "_FCmpOGT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::LessThanOrEqual): {
                 std::cout << "Operator is LessThanOrEqual" << std::endl;
-                return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val, left_type->struct_type->name + "_FCmpOLE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::GreaterThanOrEqual): {
                 std::cout << "Operator is GreaterThanOrEqual" << std::endl;
-                return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val, left_type->struct_type->name + "_FCmpOGE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             default: {
                 std::cout << "Unknown operator" << std::endl;
@@ -496,8 +530,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         std::cout << "Error: Index type is not an int. Index type: " << index_generic->struct_type->name << std::endl;
         exit(1);
     }
-    auto element = this->llvm_ir_builder.CreateGEP(left_generic->struct_type->stand_alone_type, left[0], index[0], "element");
-    return {{element}, left_generic->generic[0]};
+    auto element = this->llvm_ir_builder.CreateGEP(left_generic->generic[0]->struct_type->stand_alone_type ? left_generic->generic[0]->struct_type->stand_alone_type : left_generic->generic[0]->struct_type->struct_type, left[0], index[0], "element");
+    return {{left_generic->generic[0]->struct_type->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->generic[0]->struct_type->stand_alone_type, element) : element}, left_generic->generic[0]};
 };
 
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
@@ -516,7 +550,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
     if(var_value_resolved.size() == 1) {
         if (var_type->struct_type == nullptr) {
             std::cout << "Variable value resolved" << std::endl;
-            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type, nullptr, var_name->value);
+            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type, nullptr);
             std::cout << "Created alloca for variable: " << var_name->value << std::endl;
             this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
             std::cout << "Stored value in alloca" << std::endl;
@@ -527,7 +561,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
         }
         else {
             std::cout << "Variable value resolved" << std::endl;
-            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr, var_name->value);
+            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
             std::cout << "Created alloca for variable: " << var_name->value << std::endl;
             this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
             std::cout << "Stored value in alloca" << std::endl;
@@ -561,37 +595,19 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_assignment_statement->name);
     auto var_value = variable_assignment_statement->value;
     auto [value, _] = this->_resolveValue(var_value);
-    auto var_name_parts = splitString(var_name->value);
+    auto name = var_name->value;
     std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
     llvm::Value* alloca = nullptr;
-    for (auto type : var_name_parts) {
-        if (currentStructType == nullptr) {
-            if(!this->enviornment.is_variable(type)) {
-                std::cout << "Variable not defined: " << type << std::endl;
-                errors::CompletionError("Variable not defined", this->source, var_name->meta_data.st_line_no,
-                                        var_name->meta_data.end_line_no, "Variable `" + var_name->value + "` not defined")
-                    .raise();
-                return;
-            }
-            currentStructType = this->enviornment.get_variable(type)->variableType;
-            alloca = this->enviornment.get_variable(type)->allocainst;
+    if (currentStructType == nullptr) {
+        if(!this->enviornment.is_variable(name)) {
+            std::cout << "Variable not defined: " << name << std::endl;
+            errors::CompletionError("Variable not defined", this->source, var_name->meta_data.st_line_no,
+                                    var_name->meta_data.end_line_no, "Variable `" + var_name->value + "` not defined")
+                .raise();
+            return;
         }
-        else {
-            unsigned int x = 0;
-            for (auto field: currentStructType->struct_type->fields) {
-                if (field == type) {
-                    std::cout << "Accessing field: " << field << " in struct: " << currentStructType->struct_type->name << std::endl;
-                    alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type->struct_type, alloca, x, currentStructType->struct_type->name + "." + alloca->getName() + "." + std::to_string(x));
-                    std::cout << "Alloca: " << alloca << std::endl;
-                    currentStructType = currentStructType->struct_type->sub_types[field];
-                    std::cout << "Current struct type: " << currentStructType->struct_type->name << std::endl;
-                    break;
-                }
-                x++;
-            }
-        }
-    }
-    if (alloca) {
+        currentStructType = this->enviornment.get_variable(name)->variableType;
+        alloca = this->enviornment.get_variable(name)->allocainst;
         if(value.size() == 1) {
             this->llvm_ir_builder.CreateStore(value[0], alloca);
         } else {
@@ -612,7 +628,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     case AST::NodeType::IntegerLiteral: {
         std::cout << "Node is IntegerLiteral" << std::endl;
         auto integer_literal = std::static_pointer_cast<AST::IntegerLiteral>(node);
-        auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value, true));
+        auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value));
         std::cout << "Integer value: " << integer_literal->value << std::endl;
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
     }
@@ -626,60 +642,21 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     case AST::NodeType::StringLiteral: {
         std::cout << "Node is StringLiteral" << std::endl;
         auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
-        auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value, "str");
+        auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("str"))};
     }
     case AST::NodeType::IdentifierLiteral: {
         std::cout << "Node is IdentifierLiteral" << std::endl;
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
-        auto var_name = splitString(std::static_pointer_cast<AST::IdentifierLiteral>(node)->value);
-        std::cout << "Variable name parts: ";
-        for (const auto& part : var_name) {
-            std::cout << part << " ";
-        }
-        std::cout << std::endl;
         std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
-        llvm::Value* alloca = nullptr;
-        for (auto type : var_name) {
-            if (currentStructType == nullptr) {
-                std::cout << "Checking if variable is defined: " << type << std::endl;
-                if(!this->enviornment.is_variable(type)) {
-                    if (this->enviornment.is_function(type)) {
-                        std::cout << "Function found: " << type << std::endl;
-                        return {{this->enviornment.get_function(type)->function}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("func"))};
-                    }
-                    std::cout << "Variable not defined: " << type << std::endl;
-                    errors::CompletionError("Variable not defined", this->source, identifier_literal->meta_data.st_line_no,
-                                            identifier_literal->meta_data.end_line_no, "Variable `" + identifier_literal->value + "` not defined")
-                        .raise();
-                    return {{nullptr}, nullptr};
-                }
-                currentStructType = this->enviornment.get_variable(type)->variableType;
-                alloca = this->enviornment.get_variable(type)->allocainst;
-                std::cout << "Variable found. Struct type: " << currentStructType->struct_type->name << ", Alloca: " << alloca << std::endl;
-            }
-            else {
-                unsigned int x = 0;
-                for (auto field: currentStructType->struct_type->fields) {
-                    if (field == type) {
-                        std::cout << "Accessing field: " << field << " in struct: " << currentStructType->struct_type->name << std::endl;
-                        alloca = this->llvm_ir_builder.CreateStructGEP(currentStructType->struct_type->struct_type, alloca, x, currentStructType->struct_type->name + "." + alloca->getName() + "." + std::to_string(x));
-                        std::cout << "Alloca after GEP: " << alloca << std::endl;
-                        currentStructType = currentStructType->struct_type->sub_types[field];
-                        std::cout << "Current struct type: " << currentStructType->struct_type->name << std::endl;
-                        break;
-                    }
-                    x++;
-                }
-            }
+        if (this->enviornment.is_variable(identifier_literal->value)) {
+            currentStructType = this->enviornment.get_variable(identifier_literal->value)->variableType;
+            return {{this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type ? currentStructType->struct_type->stand_alone_type : currentStructType->struct_type->struct_type, this->enviornment.get_variable(identifier_literal->value)->allocainst)}, currentStructType};
         }
-        if (alloca) {
-            std::cout << "Loading value from alloca of type: " << (currentStructType->struct_type->stand_alone_type ? "standalone" : "struct") << std::endl;
-            auto loadedValue = this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type ? currentStructType->struct_type->stand_alone_type : currentStructType->struct_type->struct_type, alloca, currentStructType->struct_type->name + "." + alloca->getName());
-            std::cout << "Loaded value: " << loadedValue << std::endl;
-            return {{loadedValue}, currentStructType};
+        else if (this->enviornment.is_function(identifier_literal->value)) {
+            return {{this->enviornment.get_function(identifier_literal->value)->function}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("func"))};
         }
-        std::cout << "Variable not defined: " << identifier_literal->value << std::endl;
+        std::cout << "Variable or Function not defined: " << identifier_literal->value << std::endl;
         return {{nullptr}, nullptr};
     }
     case AST::NodeType::InfixedExpression: {
@@ -732,17 +709,17 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 .raise();
             return {{nullptr}, nullptr};
         }
-        values.push_back(value[0]);
+        values.push_back(struct_type->struct_type == nullptr ? value[0] : this->llvm_ir_builder.CreateLoad(struct_type->struct_type, value[0]));
         std::cout << "Added value to array: " << value[0] << std::endl;
     }
     std::cout << "Final values vector size: " << values.size() << std::endl;
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
     std::cout << "Array type created: " << array_type << std::endl;
-    auto array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr, "array");
+    auto array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
     std::cout << "Created array of type: " << struct_type->name << " with size: " << values.size() << std::endl;
     for (int i = 0; i < values.size(); i++) {
         std::cout << "Storing element at index: " << i << std::endl;
-        auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)}, "element");
+        auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
         this->llvm_ir_builder.CreateStore(values[i], element);
         std::cout << "Stored element " << i << " with value: " << values[i] << std::endl;
     }
@@ -760,6 +737,11 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         std::cout << "Return statement with multiple values" << std::endl;
         exit(1);
     }
+    if (this->enviornment.current_function == nullptr) {
+        std::cerr << "Return Outside of function" << std::endl;
+        exit(1);
+    }
+
     this->llvm_ir_builder.CreateRet(return_value[0]);
 };
 
@@ -791,7 +773,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : param_inst_record.back()->struct_type->struct_type);
     }
     auto return_type = this->_parseType(function_declaration_statement->return_type);
-    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : llvm::PointerType::get(return_type->struct_type->struct_type, 0);
+    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
     unsigned idx = 0;
@@ -803,9 +785,10 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     this->llvm_ir_builder.SetInsertPoint(bb);
     auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
     this->enviornment = enviornment::Enviornment(prev_env, {}, name);
+    this->enviornment.current_function = func_type;
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
     for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
-        auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
+        auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr);
         this->llvm_ir_builder.CreateStore(&arg, alloca);
         auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
         arguments.push_back({std::string(arg.getName()), record});
@@ -844,8 +827,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         if(this->enviornment.is_function(name[0])) {
             auto func_record = this->enviornment.get_function(name[0]);
             auto returnValue = this->llvm_ir_builder.CreateCall(
-                llvm::cast<llvm::Function>(func_record->function), args,
-                func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                llvm::cast<llvm::Function>(func_record->function), args);
             return {{returnValue}, func_record->return_inst};
         }
         else if (this->enviornment.is_struct(name[0])) {
@@ -900,8 +882,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         if (var_type->struct_type->methods.find(name[x]) != var_type->struct_type->methods.end()) {
             auto func_record = var_type->struct_type->methods[name[x]];
             auto returnValue = this->llvm_ir_builder.CreateCall(
-                llvm::cast<llvm::Function>(func_record->function), args,
-                func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                llvm::cast<llvm::Function>(func_record->function), args);
             return {{returnValue}, func_record->return_inst};
         }
     }
@@ -988,7 +969,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 field_types.push_back(field_type->struct_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
-            auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
+            auto struct_type = llvm::StructType::create(this->llvm_context, field_types);
             std::cout << "LLVM StructType created" << std::endl;
             struct_type->setBody(field_types);
             struct_record->struct_type = struct_type;
@@ -1011,7 +992,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             }
             auto return_type = this->_parseType(field_decl->return_type);
             std::cout << "Return type parsed" << std::endl;
-            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : llvm::PointerType::get(return_type->struct_type->struct_type, 0);
+            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
             std::cout << "Function type created" << std::endl;
             auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
@@ -1026,9 +1007,10 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             this->llvm_ir_builder.SetInsertPoint(bb);
             auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
             this->enviornment = enviornment::Enviornment(prev_env, {}, name);
+            this->enviornment.current_function = func_type;
             std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
             for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
-                auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
+                auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr);
                 std::cout << "Alloca created for argument: " << arg.getName().str() << std::endl;
                 this->llvm_ir_builder.CreateStore(&arg, alloca);
                 std::cout << "Stored argument in alloca" << std::endl;

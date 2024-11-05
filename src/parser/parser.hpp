@@ -60,6 +60,7 @@ static const std::unordered_map<token::TokenType, PrecedenceType> token_preceden
     {token::TokenType::AsteriskAsterisk, PrecedenceType::Exponent},
     {token::TokenType::ForwardSlash, PrecedenceType::PRODUCT},
     {token::TokenType::BackwardSlash, PrecedenceType::PRODUCT},
+    {token::TokenType::LeftParen, PrecedenceType::CALL},
     {token::TokenType::LeftBracket, PrecedenceType::INDEX},
     {token::TokenType::EndOfFile, PrecedenceType::LOWEST},
 };
@@ -95,6 +96,7 @@ class Parser {
         {token::TokenType::LessThanOrEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {token::TokenType::EqualEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {token::TokenType::NotEquals, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {token::TokenType::Dot, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {token::TokenType::LeftBracket, std::bind(&Parser::_parseIndexExpression, this, std::placeholders::_1)},
     };
     Parser(std::shared_ptr<Lexer> lexer);

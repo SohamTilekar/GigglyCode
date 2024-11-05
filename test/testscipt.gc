@@ -1,5 +1,9 @@
-import "math";
+struct Point {
+    x: int;
+    y: int;
+}
 
 def main() -> int {
-    return 0;
+    x: array[array[Point]] = [[Point(0, 0)], [Point(2, 2), Point(1, 1)]];
+    return x[0][0].x;
 }

@@ -1,6 +1,7 @@
 #include "../../parser/AST/ast.hpp"
 #include <list>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
@@ -85,6 +86,8 @@ class Enviornment {
     std::shared_ptr<Enviornment> parent;
     std::string name;
     std::unordered_map<std::string, std::shared_ptr<Record>> record_map;
+
+    llvm::FunctionType* current_function = nullptr;
 
     std::vector<llvm::BasicBlock*> loop_body_block = {};
     std::vector<llvm::BasicBlock*> loop_end_block = {};
