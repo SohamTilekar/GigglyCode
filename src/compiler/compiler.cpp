@@ -216,6 +216,162 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     auto right_val = right_value[0];
     std::cout << "Right Value: " << right_val << std::endl;
 
+    if (left_type->struct_type->struct_type != nullptr || right_type->struct_type->struct_type != nullptr) {
+        if(left_type->struct_type->struct_type != right_type->struct_type->struct_type) {
+            std::cout << "Type mismatch" << std::endl;
+            exit(1);
+        }
+        switch(op) {
+            case token::TokenType::Plus : {
+                if (left_type->struct_type->methods.contains("__add__")) {
+                    auto func_record = left_type->struct_type->methods.at("__add__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Add 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::Dash: {
+                if (left_type->struct_type->methods.contains("__sub__")) {
+                    auto func_record = left_type->struct_type->methods.at("__sub__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Sub 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::Asterisk: {
+                if (left_type->struct_type->methods.contains("__mul__")) {
+                    auto func_record = left_type->struct_type->methods.at("__mul__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Mul 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::ForwardSlash: {
+                if (left_type->struct_type->methods.contains("__div__")) {
+                    auto func_record = left_type->struct_type->methods.at("__div__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Divide 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::Percent: {
+                if (left_type->struct_type->methods.contains("__mod__")) {
+                    auto func_record = left_type->struct_type->methods.at("__mod__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Modulate 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::EqualEqual: {
+                if (left_type->struct_type->methods.contains("__eq__")) {
+                    auto func_record = left_type->struct_type->methods.at("__eq__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::NotEquals: {
+                if (left_type->struct_type->methods.contains("__neq__")) {
+                    auto func_record = left_type->struct_type->methods.at("__neq__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::LessThan: {
+                if (left_type->struct_type->methods.contains("__lt__")) {
+                    auto func_record = left_type->struct_type->methods.at("__lt__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::GreaterThan: {
+                if (left_type->struct_type->methods.contains("__gt__")) {
+                    auto func_record = left_type->struct_type->methods.at("__gt__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::LessThanOrEqual: {
+                if (left_type->struct_type->methods.contains("__lte__")) {
+                    auto func_record = left_type->struct_type->methods.at("__lte__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            case token::TokenType::GreaterThanOrEqual: {
+                if (left_type->struct_type->methods.contains("__gte__")) {
+                    auto func_record = left_type->struct_type->methods.at("__gte__");
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]},
+                        func_record->function_type->getReturnType() != this->enviornment.get_struct("void")->stand_alone_type ? "calltmp" : "");
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else {
+                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    exit(1);
+                }
+            }
+            default: {
+                std::cout << "Unknown Operator" << std::endl;
+                exit(1);
+            }
+        }
+    }
+
     if(left_type->struct_type->stand_alone_type != right_type->struct_type->stand_alone_type) {
         std::cout << "Type mismatch" << std::endl;
         exit(1);
