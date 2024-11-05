@@ -63,15 +63,13 @@ void compiler::Compiler::_initializeBuiltins() {
 
     std::cout << "Creating built-in functions 'puts' and 'print'" << std::endl;
     // Create the function type: void puts(const char*)
-    llvm::Type* voidType = llvm::Type::getVoidTy(llvm_context);                          // void return type
-    llvm::FunctionType* putsType = llvm::FunctionType::get(voidType, _string->stand_alone_type, false);
+    llvm::FunctionType* putsType = llvm::FunctionType::get(_void->stand_alone_type, _string->stand_alone_type, false);
     auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> putsParams = {{"string", nullptr}};
     this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, std::make_shared<enviornment::RecordStructInstance>(_void)));
 
     // Create the function type: int print(const char*)
-    llvm::Type* returnType = llvm::Type::getInt32Ty(llvm_context);                          // int return type
-    llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, _string->stand_alone_type, false);
+    llvm::FunctionType* funcType = llvm::FunctionType::get(_int->stand_alone_type, _string->stand_alone_type, false);
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", this->llvm_module.get());
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> params = {{"string", nullptr}};
     this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("print", func, funcType, params, std::make_shared<enviornment::RecordStructInstance>(_int)));
@@ -379,78 +377,103 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     std::cout << "Types are same" << std::endl;
     if(left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy()) {
         std::cout << "Both types are Integer" << std::endl;
-        if(op == token::TokenType::Plus) {
-            std::cout << "Operator is Plus" << std::endl;
-            return {{this->llvm_ir_builder.CreateAdd(left_val, right_val, left_type->struct_type->name + "_plus_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
-        } else if(op == token::TokenType::Dash) {
-            std::cout << "Operator is Dash" << std::endl;
-            return {{this->llvm_ir_builder.CreateSub(left_val, right_val, left_type->struct_type->name + "_sub_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
-        } else if(op == token::TokenType::Asterisk) {
-            std::cout << "Operator is Asterisk" << std::endl;
-            return {{this->llvm_ir_builder.CreateMul(left_val, right_val, left_type->struct_type->name + "_mul_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
-        } else if(op == token::TokenType::ForwardSlash) {
-            std::cout << "Operator is ForwardSlash" << std::endl;
-            return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val, left_type->struct_type->name + "_sdiv_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
-        } else if(op == token::TokenType::Percent) {
-            std::cout << "Operator is Percent" << std::endl;
-            return {{this->llvm_ir_builder.CreateSRem(left_val, right_val, left_type->struct_type->name + "_srem_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
-        } else if(op == token::TokenType::EqualEqual) {
-            std::cout << "Operator is EqualEqual" << std::endl;
-            return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val, left_type->struct_type->name + "_ICmpEQ_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::NotEquals) {
-            std::cout << "Operator is NotEquals" << std::endl;
-            return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val, left_type->struct_type->name + "_ICmpNE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::LessThan) {
-            std::cout << "Operator is LessThan" << std::endl;
-            return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val, left_type->struct_type->name + "_ICmpSLT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::GreaterThan) {
-            std::cout << "Operator is GreaterThan" << std::endl;
-            return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val, left_type->struct_type->name + "_ICmpSGT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::LessThanOrEqual) {
-            std::cout << "Operator is LessThanOrEqual" << std::endl;
-            return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val, left_type->struct_type->name + "_ICmpSLE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::GreaterThanOrEqual) {
-            std::cout << "Operator is GreaterThanOrEqual" << std::endl;
-            return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val, left_type->struct_type->name + "_ICmpSGE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else {
-            std::cout << "Unknown operator" << std::endl;
-            exit(1);
+        switch (op) {
+            case (token::TokenType::Plus): {
+                std::cout << "Operator is Plus" << std::endl;
+                return {{this->llvm_ir_builder.CreateAdd(left_val, right_val, left_type->struct_type->name + "_plus_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+            }
+            case(token::TokenType::Dash): {
+                std::cout << "Operator is Dash" << std::endl;
+                return {{this->llvm_ir_builder.CreateSub(left_val, right_val, left_type->struct_type->name + "_sub_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+            }
+            case(token::TokenType::Asterisk): {
+                std::cout << "Operator is Asterisk" << std::endl;
+                return {{this->llvm_ir_builder.CreateMul(left_val, right_val, left_type->struct_type->name + "_mul_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+            }
+            case(token::TokenType::ForwardSlash): {
+                std::cout << "Operator is ForwardSlash" << std::endl;
+                return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val, left_type->struct_type->name + "_sdiv_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+            }
+            case(token::TokenType::Percent): {
+                std::cout << "Operator is Percent" << std::endl;
+                return {{this->llvm_ir_builder.CreateSRem(left_val, right_val, left_type->struct_type->name + "_srem_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+            }
+            case(token::TokenType::EqualEqual): {
+                std::cout << "Operator is EqualEqual" << std::endl;
+                return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val, left_type->struct_type->name + "_ICmpEQ_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case(token::TokenType::NotEquals): {
+                std::cout << "Operator is NotEquals" << std::endl;
+                return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val, left_type->struct_type->name + "_ICmpNE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case(token::TokenType::LessThan): {
+                std::cout << "Operator is LessThan" << std::endl;
+                return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val, left_type->struct_type->name + "_ICmpSLT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case(token::TokenType::GreaterThan): {
+                std::cout << "Operator is GreaterThan" << std::endl;
+                return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val, left_type->struct_type->name + "_ICmpSGT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case(token::TokenType::LessThanOrEqual): {
+                std::cout << "Operator is LessThanOrEqual" << std::endl;
+                return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val, left_type->struct_type->name + "_ICmpSLE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case(token::TokenType::GreaterThanOrEqual): {
+                std::cout << "Operator is GreaterThanOrEqual" << std::endl;
+                return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val, left_type->struct_type->name + "_ICmpSGE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            default: {
+                std::cout << "Unknown operator" << std::endl;
+                exit(1);
+            }
         }
     } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
         std::cout << "Both types are Double" << std::endl;
-        if(op == token::TokenType::Plus) {
-            std::cout << "Operator is Plus" << std::endl;
-            return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val, left_type->struct_type->name + "_fadd_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
-        } else if(op == token::TokenType::Dash) {
-            std::cout << "Operator is Dash" << std::endl;
-            return {{this->llvm_ir_builder.CreateFSub(left_val, right_val, left_type->struct_type->name + "_fsub_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
-        } else if(op == token::TokenType::Asterisk) {
-            std::cout << "Operator is Asterisk" << std::endl;
-            return {{this->llvm_ir_builder.CreateFMul(left_val, right_val, left_type->struct_type->name + "_fmul_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
-        } else if(op == token::TokenType::ForwardSlash) {
-            std::cout << "Operator is ForwardSlash" << std::endl;
-            return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val, left_type->struct_type->name + "_fdiv_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
-        } else if(op == token::TokenType::EqualEqual) {
-            std::cout << "Operator is EqualEqual" << std::endl;
-            return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val, left_type->struct_type->name + "_FCmpOEQ_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::NotEquals) {
-            std::cout << "Operator is NotEquals" << std::endl;
-            return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val, left_type->struct_type->name + "_FCmpONE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::LessThan) {
-            std::cout << "Operator is LessThan" << std::endl;
-            return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val, left_type->struct_type->name + "_FCmpOLT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::GreaterThan) {
-            std::cout << "Operator is GreaterThan" << std::endl;
-            return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val, left_type->struct_type->name + "_FCmpOGT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::LessThanOrEqual) {
-            std::cout << "Operator is LessThanOrEqual" << std::endl;
-            return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val, left_type->struct_type->name + "_FCmpOLE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else if(op == token::TokenType::GreaterThanOrEqual) {
-            std::cout << "Operator is GreaterThanOrEqual" << std::endl;
-            return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val, left_type->struct_type->name + "_FCmpOGE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
-        } else {
-            std::cout << "Unknown operator" << std::endl;
-            exit(1);
+        switch (op) {
+            case (token::TokenType::Plus): {
+                std::cout << "Operator is Plus" << std::endl;
+                return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val, left_type->struct_type->name + "_fadd_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+            }
+            case (token::TokenType::Dash): {
+                std::cout << "Operator is Dash" << std::endl;
+                return {{this->llvm_ir_builder.CreateFSub(left_val, right_val, left_type->struct_type->name + "_fsub_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+            }
+            case (token::TokenType::Asterisk): {
+                std::cout << "Operator is Asterisk" << std::endl;
+                return {{this->llvm_ir_builder.CreateFMul(left_val, right_val, left_type->struct_type->name + "_fmul_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+            }
+            case (token::TokenType::ForwardSlash): {
+                std::cout << "Operator is ForwardSlash" << std::endl;
+                return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val, left_type->struct_type->name + "_fdiv_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+            }
+            case (token::TokenType::EqualEqual): {
+                std::cout << "Operator is EqualEqual" << std::endl;
+                return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val, left_type->struct_type->name + "_FCmpOEQ_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case (token::TokenType::NotEquals): {
+                std::cout << "Operator is NotEquals" << std::endl;
+                return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val, left_type->struct_type->name + "_FCmpONE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case (token::TokenType::LessThan): {
+                std::cout << "Operator is LessThan" << std::endl;
+                return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val, left_type->struct_type->name + "_FCmpOLT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case (token::TokenType::GreaterThan): {
+                std::cout << "Operator is GreaterThan" << std::endl;
+                return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val, left_type->struct_type->name + "_FCmpOGT_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case (token::TokenType::LessThanOrEqual): {
+                std::cout << "Operator is LessThanOrEqual" << std::endl;
+                return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val, left_type->struct_type->name + "_FCmpOLE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            case (token::TokenType::GreaterThanOrEqual): {
+                std::cout << "Operator is GreaterThanOrEqual" << std::endl;
+                return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val, left_type->struct_type->name + "_FCmpOGE_" + right_type->struct_type->name)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+            }
+            default: {
+                std::cout << "Unknown operator" << std::endl;
+                exit(1);
+        }
         }
     } else {
         std::cout << "Unknown Type" << std::endl;
@@ -554,7 +577,7 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
             alloca = this->enviornment.get_variable(type)->allocainst;
         }
         else {
-            int x = 0;
+            unsigned int x = 0;
             for (auto field: currentStructType->struct_type->fields) {
                 if (field == type) {
                     std::cout << "Accessing field: " << field << " in struct: " << currentStructType->struct_type->name << std::endl;
@@ -636,7 +659,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 std::cout << "Variable found. Struct type: " << currentStructType->struct_type->name << ", Alloca: " << alloca << std::endl;
             }
             else {
-                int x = 0;
+                unsigned int x = 0;
                 for (auto field: currentStructType->struct_type->fields) {
                     if (field == type) {
                         std::cout << "Accessing field: " << field << " in struct: " << currentStructType->struct_type->name << std::endl;
@@ -719,7 +742,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     std::cout << "Created array of type: " << struct_type->name << " with size: " << values.size() << std::endl;
     for (int i = 0; i < values.size(); i++) {
         std::cout << "Storing element at index: " << i << std::endl;
-        auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt32(0), this->llvm_ir_builder.getInt32(i)}, "element");
+        auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)}, "element");
         this->llvm_ir_builder.CreateStore(values[i], element);
         std::cout << "Stored element " << i << " with value: " << values[i] << std::endl;
     }
@@ -768,7 +791,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : param_inst_record.back()->struct_type->struct_type);
     }
     auto return_type = this->_parseType(function_declaration_statement->return_type);
-    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
+    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : llvm::PointerType::get(return_type->struct_type->struct_type, 0);
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
     unsigned idx = 0;
@@ -829,7 +852,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             auto struct_record = this->enviornment.get_struct(name[0]);
             auto struct_type = struct_record->struct_type;
             auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name[0]);
-            for (unsigned i = 0; i < args.size(); ++i) {
+            for (unsigned int i = 0; i < args.size(); ++i) {
                 auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
                 this->llvm_ir_builder.CreateStore(args[i], field_ptr);
             }
@@ -988,7 +1011,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             }
             auto return_type = this->_parseType(field_decl->return_type);
             std::cout << "Return type parsed" << std::endl;
-            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
+            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : llvm::PointerType::get(return_type->struct_type->struct_type, 0);
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
             std::cout << "Function type created" << std::endl;
             auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
