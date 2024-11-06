@@ -30,5 +30,11 @@ oir:
 	@echo ---------------------------------------------------------
 	clang -emit-llvm -S -O3 -v ./dump/testscipt.ll -o ./dump/exec.ir
 
+rnir:
+	@echo ---------------------------------------------------------
+	clang ./dump/testscipt.ll -o ./dump/exec
+	@echo ---------------------------------------------------------
+	./dump/exec
+
 cppcheck:
 	cppcheck --enable=all --check-level=exhaustive --error-exitcode=1 src/ -i src/include/json.hpp -I src/ --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unmatchedSuppression
