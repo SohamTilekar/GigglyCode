@@ -8,3 +8,4 @@ build/
 dump/*
 temp*
 .cache/*
+.zed/*
