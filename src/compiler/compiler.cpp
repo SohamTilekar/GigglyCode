@@ -13,20 +13,17 @@
 #include <vector>
 
 compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context) {
-    std::cout << "Initializing Compiler with default constructor" << std::endl;
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
     this->_initializeBuiltins();
 }
 
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path) {
-    std::cout << "Initializing Compiler with source: " << source << std::endl;
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
     this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
     this->_initializeBuiltins();
 }
 
 void compiler::Compiler::_initializeBuiltins() {
-    std::cout << "Initializing built-in types" << std::endl;
     auto _int = std::make_shared<enviornment::RecordStructType>("int", llvm::Type::getInt64Ty(llvm_context));
     this->enviornment.parent->add(_int);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
@@ -45,7 +42,6 @@ void compiler::Compiler::_initializeBuiltins() {
     auto _array = std::make_shared<enviornment::RecordStructType>("array", llvm::PointerType::get(llvm::Type::getVoidTy(llvm_context), 0));
     this->enviornment.parent->add(_array);
 
-    std::cout << "Creating global variables 'True' and 'False'" << std::endl;
     // Create the global variable 'true'
     llvm::GlobalVariable* globalTrue =
         new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
@@ -62,7 +58,6 @@ void compiler::Compiler::_initializeBuiltins() {
             nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
         this->enviornment.parent->add(recordFalse);
 
-    std::cout << "Creating built-in functions 'puts' and 'print'" << std::endl;
     // Create the function type: void puts(const char*)
     llvm::FunctionType* putsType = llvm::FunctionType::get(_void->stand_alone_type, _string->stand_alone_type, false);
     auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
@@ -77,101 +72,84 @@ void compiler::Compiler::_initializeBuiltins() {
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
-    std::cout << "Compiling node of type: " << *AST::nodeTypeToString(node->type()) << std::endl;
     switch(node->type()) {
     case AST::NodeType::Program:
-        std::cout << "Visiting Program node" << std::endl;
         this->_visitProgram(std::static_pointer_cast<AST::Program>(node));
         break;
     case AST::NodeType::ExpressionStatement: {
-        std::cout << "Visiting ExpressionStatement node" << std::endl;
         this->_visitExpressionStatement(std::static_pointer_cast<AST::ExpressionStatement>(node));
         break;
     }
     case AST::NodeType::InfixedExpression: {
-        std::cout << "Visiting InfixedExpression node" << std::endl;
         this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
         break;
     }
     case AST::NodeType::IndexExpression: {
-        std::cout << "Visiting IndexExpression node" << std::endl;
         this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
         break;
     }
     case AST::NodeType::VariableDeclarationStatement: {
-        std::cout << "Visiting VariableDeclarationStatement node" << std::endl;
         this->_visitVariableDeclarationStatement(std::static_pointer_cast<AST::VariableDeclarationStatement>(node));
         break;
     }
     case AST::NodeType::VariableAssignmentStatement: {
-        std::cout << "Visiting VariableAssignmentStatement node" << std::endl;
         this->_visitVariableAssignmentStatement(std::static_pointer_cast<AST::VariableAssignmentStatement>(node));
         break;
     }
     case AST::NodeType::IfElseStatement: {
-        std::cout << "Visiting IfElseStatement node" << std::endl;
         this->_visitIfElseStatement(std::static_pointer_cast<AST::IfElseStatement>(node));
         break;
     }
     case AST::NodeType::FunctionStatement: {
-        std::cout << "Visiting FunctionStatement node" << std::endl;
         this->_visitFunctionDeclarationStatement(std::static_pointer_cast<AST::FunctionStatement>(node));
         break;
     }
     case AST::NodeType::CallExpression: {
-        std::cout << "Visiting CallExpression node" << std::endl;
         this->_visitCallExpression(std::static_pointer_cast<AST::CallExpression>(node));
         break;
     }
     case AST::NodeType::ReturnStatement: {
-        std::cout << "Visiting ReturnStatement node" << std::endl;
         this->_visitReturnStatement(std::static_pointer_cast<AST::ReturnStatement>(node));
         break;
     }
     case AST::NodeType::BlockStatement: {
-        std::cout << "Visiting BlockStatement node" << std::endl;
         this->_visitBlockStatement(std::static_pointer_cast<AST::BlockStatement>(node));
         break;
     }
     case AST::NodeType::WhileStatement: {
-        std::cout << "Visiting WhileStatement node" << std::endl;
         this->_visitWhileStatement(std::static_pointer_cast<AST::WhileStatement>(node));
         break;
     }
     case AST::NodeType::BreakStatement: {
-        std::cout << "Visiting BreakStatement node" << std::endl;
         if(this->enviornment.loop_end_block.empty()) {
-            std::cout << "Break statement outside loop" << std::endl;
+            std::cerr << "Break statement outside loop" << std::endl;
+            exit(1);
         }
         this->llvm_ir_builder.CreateBr(this->enviornment.loop_end_block.at(this->enviornment.loop_end_block.size() - std::static_pointer_cast<AST::ContinueStatement>(node)->loopIdx - 1));
         break;
     }
     case AST::NodeType::ContinueStatement: {
-        std::cout << "Visiting ContinueStatement node" << std::endl;
         if(this->enviornment.loop_condition_block.empty()) {
-            std::cout << "Continue statement outside loop" << std::endl;
+            std::cerr << "Continue statement outside loop" << std::endl;
+            exit(1);
         }
         this->llvm_ir_builder.CreateBr(this->enviornment.loop_condition_block.at(this->enviornment.loop_condition_block.size() - std::static_pointer_cast<AST::ContinueStatement>(node)->loopIdx - 1));
         break;
     }
     case AST::NodeType::BooleanLiteral: {
-        std::cout << "Visiting BooleanLiteral node" << std::endl;
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, boolean_literal->value, true));
         break;
     }
     case AST::NodeType::StructStatement: {
-        std::cout << "Visiting StructStatement node" << std::endl;
         this->_visitStructStatement(std::static_pointer_cast<AST::StructStatement>(node));
         break;
     }
     case AST::NodeType::ImportStatement: {
-        std::cout << "Visiting Import Statemenet Node" << std::endl;
         this->_visitImportStatement(std::static_pointer_cast<AST::ImportStatement>(node));
         break;
     }
     default:
-        std::cout << "Unknown node type: " << *AST::nodeTypeToString(node->type()) << std::endl;
         errors::CompletionError("Unknown node type", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no,
                                 "Unknown node type: " + *AST::nodeTypeToString(node->type()))
             .raise();
@@ -197,16 +175,12 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitInfixExpression(
     std::shared_ptr<AST::InfixExpression> infixed_expression) {
-    std::cout << "Entering _visitInfixExpression" << std::endl;
     auto op = infixed_expression->op;
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
-    std::cout << "Resolving left value" << std::endl;
     auto [left_value, left_type] = this->_resolveValue(left);
     if (op == token::TokenType::Dot) {
-        std::cout << "Member Acciss Detected" << std::endl;
         if(left_value.size() != 1) {
-            std::cout << "Member Acciss with multiple values" << std::endl;
             exit(1);
         }
         if (right->type() == AST::NodeType::IdentifierLiteral) {
@@ -249,21 +223,16 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             exit(1);
         }
     }
-    std::cout << "Resolving right value" << std::endl;
     auto [right_value, right_type] = this->_resolveValue(right);
     if(left_value.size() != 1 || right_value.size() != 1) {
-        std::cout << "Infix expression with multiple values" << std::endl;
         exit(1);
     }
-    std::cout << "Left value: " << left_value[0] << ", Right value: " << right_value[0] << std::endl;
     auto left_val = left_value[0];
-    std::cout << "Left Value: " << left_val << std::endl;
     auto right_val = right_value[0];
-    std::cout << "Right Value: " << right_val << std::endl;
 
     if (left_type->struct_type->struct_type != nullptr || right_type->struct_type->struct_type != nullptr) {
         if(this->_checkType(left_type, right_type)) {
-            std::cout << "Type mismatch" << std::endl;
+            std::cerr << "Type mismatch" << std::endl;
             exit(1);
         }
         switch(op) {
@@ -271,7 +240,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__add__")) {
                     auto func_record = left_type->struct_type->methods.at("__add__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -279,7 +248,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Add 2 Struct" << std::endl;
+                    std::cerr << "Cant Add 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -287,7 +256,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__sub__")) {
                     auto func_record = left_type->struct_type->methods.at("__sub__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -295,7 +264,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Sub 2 Struct" << std::endl;
+                    std::cerr << "Cant Sub 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -303,7 +272,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__mul__")) {
                     auto func_record = left_type->struct_type->methods.at("__mul__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -311,7 +280,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Mul 2 Struct" << std::endl;
+                    std::cerr << "Cant Mul 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -319,7 +288,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__div__")) {
                     auto func_record = left_type->struct_type->methods.at("__div__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -327,7 +296,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Divide 2 Struct" << std::endl;
+                    std::cerr << "Cant Divide 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -335,7 +304,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__mod__")) {
                     auto func_record = left_type->struct_type->methods.at("__mod__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -343,7 +312,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Modulate 2 Struct" << std::endl;
+                    std::cerr << "Cant Modulate 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -351,7 +320,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__eq__")) {
                     auto func_record = left_type->struct_type->methods.at("__eq__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -359,7 +328,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -367,7 +336,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__neq__")) {
                     auto func_record = left_type->struct_type->methods.at("__neq__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -375,7 +344,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -383,7 +352,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__lt__")) {
                     auto func_record = left_type->struct_type->methods.at("__lt__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -391,7 +360,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -399,7 +368,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__gt__")) {
                     auto func_record = left_type->struct_type->methods.at("__gt__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -407,7 +376,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -415,7 +384,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__lte__")) {
                     auto func_record = left_type->struct_type->methods.at("__lte__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -423,7 +392,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -431,148 +400,122 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 if (left_type->struct_type->methods.contains("__gte__")) {
                     auto func_record = left_type->struct_type->methods.at("__gte__");
                     if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cout << "Function Parameter Type Mismatch" << std::endl;
+                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cout << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             default: {
-                std::cout << "Unknown Operator" << std::endl;
+                std::cerr << "Unknown Operator" << std::endl;
                 exit(1);
             }
         }
     }
 
     if(this->_checkType(left_type, right_type)) {
-        std::cout << "Type mismatch" << std::endl;
+        std::cerr << "Type mismatch" << std::endl;
         exit(1);
     }
-    std::cout << "Types are same" << std::endl;
     if(left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy()) {
-        std::cout << "Both types are Integer" << std::endl;
         switch (op) {
             case (token::TokenType::Plus): {
-                std::cout << "Operator is Plus" << std::endl;
                 return {{this->llvm_ir_builder.CreateAdd(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Dash): {
-                std::cout << "Operator is Dash" << std::endl;
                 return {{this->llvm_ir_builder.CreateSub(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Asterisk): {
-                std::cout << "Operator is Asterisk" << std::endl;
                 return {{this->llvm_ir_builder.CreateMul(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::ForwardSlash): {
-                std::cout << "Operator is ForwardSlash" << std::endl;
                 return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Percent): {
-                std::cout << "Operator is Percent" << std::endl;
                 return {{this->llvm_ir_builder.CreateSRem(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::EqualEqual): {
-                std::cout << "Operator is EqualEqual" << std::endl;
                 return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::NotEquals): {
-                std::cout << "Operator is NotEquals" << std::endl;
                 return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::LessThan): {
-                std::cout << "Operator is LessThan" << std::endl;
                 return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::GreaterThan): {
-                std::cout << "Operator is GreaterThan" << std::endl;
                 return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::LessThanOrEqual): {
-                std::cout << "Operator is LessThanOrEqual" << std::endl;
                 return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::GreaterThanOrEqual): {
-                std::cout << "Operator is GreaterThanOrEqual" << std::endl;
                 return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             default: {
-                std::cout << "Unknown operator" << std::endl;
+                std::cerr << "Unknown operator" << std::endl;
                 exit(1);
             }
         }
     } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
-        std::cout << "Both types are Double" << std::endl;
         switch (op) {
             case (token::TokenType::Plus): {
-                std::cout << "Operator is Plus" << std::endl;
                 return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::Dash): {
-                std::cout << "Operator is Dash" << std::endl;
                 return {{this->llvm_ir_builder.CreateFSub(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::Asterisk): {
-                std::cout << "Operator is Asterisk" << std::endl;
                 return {{this->llvm_ir_builder.CreateFMul(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::ForwardSlash): {
-                std::cout << "Operator is ForwardSlash" << std::endl;
                 return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::EqualEqual): {
-                std::cout << "Operator is EqualEqual" << std::endl;
                 return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::NotEquals): {
-                std::cout << "Operator is NotEquals" << std::endl;
                 return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::LessThan): {
-                std::cout << "Operator is LessThan" << std::endl;
                 return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::GreaterThan): {
-                std::cout << "Operator is GreaterThan" << std::endl;
                 return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::LessThanOrEqual): {
-                std::cout << "Operator is LessThanOrEqual" << std::endl;
                 return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::GreaterThanOrEqual): {
-                std::cout << "Operator is GreaterThanOrEqual" << std::endl;
                 return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             default: {
-                std::cout << "Unknown operator" << std::endl;
+                std::cerr << "Unknown operator" << std::endl;
                 exit(1);
         }
         }
     } else {
-        std::cout << "Unknown Type" << std::endl;
+        std::cerr << "Unknown Type" << std::endl;
         exit(1);
     }
 };
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression) {
-    std::cout << "Entering _visitIndexExpression" << std::endl;
-
     auto [left, left_generic] = this->_resolveValue(index_expression->left);
 
     auto [index, index_generic] = this->_resolveValue(index_expression->index);
 
     if(left_generic->struct_type->stand_alone_type == nullptr || !this->_checkType(left_generic, this->enviornment.get_struct("array"))) {
-        std::cout << "Error: Left type is not an array. Left type: " << left_generic->struct_type->name << std::endl;
+        std::cerr << "Error: Left type is not an array. Left type: " << left_generic->struct_type->name << std::endl;
         exit(1);
     }
     if(this->_checkType(index_generic, this->enviornment.get_struct("int"))) {
-        std::cout << "Error: Index type is not an int. Index type: " << index_generic->struct_type->name << std::endl;
+        std::cerr << "Error: Index type is not an int. Index type: " << index_generic->struct_type->name << std::endl;
         exit(1);
     }
     auto element = this->llvm_ir_builder.CreateGEP(left_generic->generic[0]->struct_type->stand_alone_type ? left_generic->generic[0]->struct_type->stand_alone_type : left_generic->generic[0]->struct_type->struct_type, left[0], index[0], "element");
@@ -580,13 +523,10 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
 };
 
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
-    std::cout << "Entering _visitVariableDeclarationStatement" << std::endl;
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->name);
-    std::cout << "Variable name: " << var_name->value << std::endl;
     auto var_value = variable_declaration_statement->value;
-    std::cout << "Resolving variable type" << std::endl;
     if(!this->enviornment.is_struct(std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->value_type->name)->value)) {
-        std::cout << "Variable type not defined" << std::endl;
+        std::cerr << "Variable type not defined" << std::endl;
         exit(1);
     }
     auto var_type = this->enviornment.get_struct(std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->value_type->name)->value);
@@ -595,39 +535,29 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
         std::cerr << "Cannot assign missmatch type" << std::endl;
         exit(1);
     }
-    std::cout << "Variable value resolved" << std::endl;
     if(var_value_resolved.size() == 1) {
         if (var_type->struct_type == nullptr) {
-            std::cout << "Variable value resolved" << std::endl;
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type, nullptr);
-            std::cout << "Created alloca for variable: " << var_name->value << std::endl;
             this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
-            std::cout << "Stored value in alloca" << std::endl;
             auto var =
                 std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_generic);
             this->enviornment.add(var);
-            std::cout << "Variable added to environment: " << var_name->value << std::endl;
         }
         else {
-            std::cout << "Variable value resolved" << std::endl;
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
-            std::cout << "Created alloca for variable: " << var_name->value << std::endl;
             if (var_type->struct_type->isPointerTy())
                 this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved[0]), alloca);
             else
                 this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
-            std::cout << "Stored value in alloca" << std::endl;
             auto var =
                 std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_generic);
             var->variableType = var_generic;
             this->enviornment.add(var);
-            std::cout << "Variable added to environment: " << var_name->value << std::endl;
         }
     } else {
-        std::cout << "Variable declaration with multiple values" << std::endl;
+        std::cerr << "Variable declaration with multiple values" << std::endl;
         exit(1);
     }
-    std::cout << "Exiting _visitVariableDeclarationStatement" << std::endl;
 }
 
 std::vector<std::string> splitString(const std::string& input) {
@@ -652,7 +582,6 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
     llvm::Value* alloca = nullptr;
     if (currentStructType == nullptr) {
         if(!this->enviornment.is_variable(name)) {
-            std::cout << "Variable not defined: " << name << std::endl;
             errors::CompletionError("Variable not defined", this->source, var_name->meta_data.st_line_no,
                                     var_name->meta_data.end_line_no, "Variable `" + var_name->value + "` not defined")
                 .raise();
@@ -667,7 +596,7 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
         if(value.size() == 1) {
             this->llvm_ir_builder.CreateStore(value[0], alloca);
         } else {
-            std::cout << "Variable assignment with multiple values" << value.size() << std::endl;
+            std::cerr << "Variable assignment with multiple values" << value.size() << std::endl;
             exit(1);
         }
     } else {
@@ -679,30 +608,23 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_resolveValue(
     std::shared_ptr<AST::Node> node) {
-    std::cout << "Resolving value for node type: " << *AST::nodeTypeToString(node->type()) << std::endl;
     switch(node->type()) {
     case AST::NodeType::IntegerLiteral: {
-        std::cout << "Node is IntegerLiteral" << std::endl;
         auto integer_literal = std::static_pointer_cast<AST::IntegerLiteral>(node);
         auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value));
-        std::cout << "Integer value: " << integer_literal->value << std::endl;
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
     }
     case AST::NodeType::FloatLiteral: {
-        std::cout << "Node is FloatLiteral" << std::endl;
         auto float_literal = std::static_pointer_cast<AST::FloatLiteral>(node);
         auto value = llvm::ConstantFP::get(llvm_context, llvm::APFloat(float_literal->value));
-        std::cout << "Value: " << value << std::endl;
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
     }
     case AST::NodeType::StringLiteral: {
-        std::cout << "Node is StringLiteral" << std::endl;
         auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
         auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("str"))};
     }
     case AST::NodeType::IdentifierLiteral: {
-        std::cout << "Node is IdentifierLiteral" << std::endl;
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
         std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
         if (this->enviornment.is_variable(identifier_literal->value)) {
@@ -717,33 +639,28 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         else if (this->enviornment.is_function(identifier_literal->value)) {
             return {{this->enviornment.get_function(identifier_literal->value)->function}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("func"))};
         }
-        std::cout << "Variable or Function not defined: " << identifier_literal->value << std::endl;
-        return {{nullptr}, nullptr};
+        std::cerr << "Variable or Function not defined: " << identifier_literal->value << std::endl;
+        return {{}, nullptr};
     }
     case AST::NodeType::InfixedExpression: {
-        std::cout << "Node is InfixedExpression" << std::endl;
         return this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
     }
     case AST::NodeType::IndexExpression: {
-        std::cout << "Node is IndexExpression" << std::endl;
         return this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
     }
     case AST::NodeType::CallExpression: {
-        std::cout << "Node is CallExpression" << std::endl;
         return this->_visitCallExpression(std::static_pointer_cast<AST::CallExpression>(node));
     }
     case AST::NodeType::BooleanLiteral: {
-        std::cout << "Node is BooleanLiteral" << std::endl;
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = boolean_literal->value ? this->enviornment.get_variable("True")->value : this->enviornment.get_variable("False")->value;
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
     }
     case AST::NodeType::ArrayLiteral: {
-        std::cout << "Node is ArrayLiteral" << std::endl;
         return this->_visitArrayLitetal(std::static_pointer_cast<AST::ArrayLiteral>(node));
     }
     default: {
-        std::cout << "Compiling unknown node type" << std::endl;
+        std::cerr << "Compiling unknown node type" << std::endl;
         this->compile(node);
         return {{}, nullptr};
     }
@@ -763,30 +680,21 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             struct_type = generic->struct_type;
             first_generic = generic;
             generics.push_back(generic);
-            std::cout << "Set struct_type to: " << struct_type->name << std::endl;
         }
         if (!_checkType(first_generic, generic)) {
-            std::cout << "Array with multiple types or generics" << std::endl;
             errors::CompletionError("Array with multiple types or generics", this->source, array_literal->meta_data.st_line_no, array_literal->meta_data.end_line_no,
                                     "Array contains elements of different types or generics")
                 .raise();
             return {{nullptr}, nullptr};
         }
         values.push_back(struct_type->struct_type == nullptr ? value[0] : this->llvm_ir_builder.CreateLoad(struct_type->struct_type, value[0]));
-        std::cout << "Added value to array: " << value[0] << std::endl;
     }
-    std::cout << "Final values vector size: " << values.size() << std::endl;
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
-    std::cout << "Array type created: " << array_type << std::endl;
     auto array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
-    std::cout << "Created array of type: " << struct_type->name << " with size: " << values.size() << std::endl;
     for (int i = 0; i < values.size(); i++) {
-        std::cout << "Storing element at index: " << i << std::endl;
         auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
         this->llvm_ir_builder.CreateStore(values[i], element);
-        std::cout << "Stored element " << i << " with value: " << values[i] << std::endl;
     }
-    std::cout << "Exiting _visitArrayLitetal" << std::endl;
     return {{array}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("array"), generics)};
 };
 
@@ -797,7 +705,7 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         // errors::InternalCompilationError("Return statement with multiple values", this->source, return_statement->meta_data.st_line_no,
         //                                  return_statement->meta_data.end_line_no, "Return statement with multiple values")
         //     .raise();
-        std::cout << "Return statement with multiple values" << std::endl;
+        std::cerr << "Return statement with multiple values" << std::endl;
         exit(1);
     }
     if (this->enviornment.current_function == nullptr) {
@@ -806,8 +714,10 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     }
     if (this->enviornment.current_function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
         this->llvm_ir_builder.CreateRet(return_value[0]);
-    else if (this->enviornment.current_function->getReturnType()->isPointerTy() && !return_value[0]->getType()->isPointerTy())
-        std::cout << "Fuck cant Convert non pointer to Pointer" << std::endl;
+    else if (this->enviornment.current_function->getReturnType()->isPointerTy() && !return_value[0]->getType()->isPointerTy()) {
+        std::cerr << "Fuck cant Convert non pointer to Pointer" << std::endl;
+        exit(1);
+    }
     else if (!this->enviornment.current_function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
         this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->getReturnType(), return_value[0]));
     else
@@ -828,9 +738,7 @@ std::shared_ptr<enviornment::RecordStructInstance> compiler::Compiler::_parseTyp
 };
 
 void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement) {
-    std::cout << "Entering _visitFunctionDeclarationStatement" << std::endl;
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(function_declaration_statement->name)->value;
-    std::cout << "Function name: " << name << std::endl;
     auto body = function_declaration_statement->body;
     auto params = function_declaration_statement->parameters;
     std::vector<std::string> param_name;
@@ -878,9 +786,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     func_record->meta_data.more_data["name_st_col_no"] = function_declaration_statement->name->meta_data.st_col_no;
     func_record->meta_data.more_data["name_end_col_no"] = function_declaration_statement->name->meta_data.end_col_no;
     this->enviornment.add(func_record);
-    std::cout << "Function record added to environment" << std::endl;
     // adding the alloca for the parameters
-    std::cout << "Compiling function body" << std::endl;
     this->compile(body);
     this->enviornment = *prev_env;
     this->function_entery_block.pop_back();
@@ -888,7 +794,6 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         this->llvm_ir_builder.SetInsertPoint(this->function_entery_block.at(this->function_entery_block.size() - 1));
     }
     this->enviornment.add(func_record);
-    std::cout << "Exiting _visitFunctionDeclarationStatement" << std::endl;
 };
 
 std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitCallExpression(
@@ -905,7 +810,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     if(this->enviornment.is_function(name)) {
         auto func_record = this->enviornment.get_function(name);
         if (!_checkFunctionParameterType(func_record, params_types)) {
-            std::cout << "Function Parameter Type Mismatch" << std::endl;
+            std::cerr << "Function Parameter Type Mismatch" << std::endl;
             exit(1);
         }
         auto returnValue = this->llvm_ir_builder.CreateCall(
@@ -994,39 +899,30 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
 };
 
 void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement) {
-    std::cout << "Entering Struct Statement" << std::endl;
     std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(struct_statement->name)->value;
-    std::cout << "Struct name: " << struct_name << std::endl;
     std::vector<llvm::Type*> field_types;
     auto fields = struct_statement->fields;
-    std::cout << "Number of fields: " << fields.size() << std::endl;
     auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
     this->enviornment.add(struct_record);
     for(auto field : fields) {
         if (field->type() == AST::NodeType::VariableDeclarationStatement) {
             auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
             std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-            std::cout << "Processing field: " << field_name << std::endl;
             struct_record->fields.push_back(field_name);
             auto field_type = this->_parseType(field_decl->value_type);
             if(field_type->struct_type->stand_alone_type == nullptr) {
-                std::cout << "Field type is a struct type" << std::endl;
                 field_types.push_back(field_type->struct_type->struct_type);
             } else {
-                std::cout << "Field type is a standalone type" << std::endl;
                 field_types.push_back(field_type->struct_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
             auto struct_type = llvm::StructType::create(this->llvm_context, field_types);
-            std::cout << "LLVM StructType created" << std::endl;
             struct_type->setBody(field_types);
             struct_record->struct_type = struct_type;
         }
         else if (field->type() == AST::NodeType::FunctionStatement) {
             auto field_decl = std::static_pointer_cast<AST::FunctionStatement>(field);
-            std::cout << "Processing method: " << std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value << std::endl;
             auto name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-            std::cout << "Method name: " << name << std::endl;
             auto body = field_decl->body;
             auto params = field_decl->parameters;
             std::vector<std::string> param_name;
@@ -1038,10 +934,8 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : param_inst_record.back()->struct_type->struct_type);
             }
             auto return_type = this->_parseType(field_decl->return_type);
-            std::cout << "Return type parsed" << std::endl;
             auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-            std::cout << "Function type created" << std::endl;
             auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
             unsigned idx = 0;
             for(auto& arg : func->args()) {
@@ -1076,21 +970,15 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             func_record->meta_data.more_data["name_st_col_no"] = field_decl->name->meta_data.st_col_no;
             func_record->meta_data.more_data["name_end_col_no"] = field_decl->name->meta_data.end_col_no;
             this->enviornment.add(func_record);
-            std::cout << "Method record added to environment" << std::endl;
-            std::cout << "Compiling method body" << std::endl;
             this->compile(body);
             this->enviornment = *prev_env;
             this->function_entery_block.pop_back();
             if (!this->function_entery_block.empty()) {
-                std::cout << "func_name :" << name << std::endl;
                 this->llvm_ir_builder.SetInsertPoint(this->function_entery_block.at(this->function_entery_block.size() - 1));
             }
             struct_record->methods[name] = func_record;
-            std::cout << "Exiting method declaration" << std::endl;
         }
     }
-    std::cout << "Struct added to environment" << std::endl;
-    std::cout << "Exiting Struct Statement" << std::endl;
 };
 
 // Function to read the file content into a string

@@ -30,7 +30,6 @@ std::shared_ptr<AST::Program> parser::Parser::parseProgram() {
 }
 
 std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
-    std::cout << this->current_token->toString(true) << std::endl;
     if(this->_currentTokenIs(token::TokenType::Identifier)) {
         int st_line_no = current_token->line_no;
         int st_col_no = current_token->col_no;
@@ -63,7 +62,6 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
     } else if(this->_currentTokenIs(token::TokenType::Continue)) {
         return this->_parseContinueStatement();
     } else if(this->_currentTokenIs(token::TokenType::Import)) {
-        std::cout << this->current_token->toString(true) << std::endl;
         return this->_parseImportStatement();
     } else if(this->_currentTokenIs(token::TokenType::Let)) {
         this->_nextToken();
@@ -71,7 +69,6 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
     } else if(this->_currentTokenIs(token::TokenType::Struct)) {
         return this->_parseStructStatement();
     } else {
-        std::cout << this->current_token->toString(true) << std::endl;
         return this->_parseExpressionStatement();
     }
 }
@@ -185,7 +182,6 @@ std::shared_ptr<AST::ContinueStatement> parser::Parser::_parseContinueStatement(
 }
 
 std::shared_ptr<AST::ImportStatement> parser::Parser::_parseImportStatement() {
-    std::cout << "Entered _parseImportStatement" << std::endl;
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
     if (!this->_expectPeek(token::TokenType::String)) {
@@ -386,27 +382,19 @@ std::shared_ptr<AST::StructStatement> parser::Parser::_parseStructStatement() {
     std::vector<std::shared_ptr<AST::Statement>> statements;
 
     while(!this->_currentTokenIs(token::TokenType::RightBrace) && !this->_currentTokenIs(token::TokenType::EndOfFile)) {
-        std::cout << "Current Token: " << this->current_token->literal << std::endl;
         if (this->_currentTokenIs(token::TokenType::Def)) {
-            std::cout << "Parsing Function Statement" << std::endl;
             auto stmt = this->_parseFunctionStatement();
             if(stmt != nullptr) {
-                std::cout << "Function Statement Parsed Successfully" << std::endl;
                 statements.push_back(stmt);
             } else {
-                std::cout << "Failed to Parse Function Statement" << std::endl;
             }
-            std::cout << "Current Token: " << this->current_token->literal << std::endl;
             this->_nextToken();
             continue;
         }
-        std::cout << "Parsing Variable Declaration" << std::endl;
         auto stmt = this->_parseVariableDeclaration();
         if(stmt != nullptr) {
-            std::cout << "Variable Declaration Parsed Successfully" << std::endl;
             statements.push_back(stmt);
         } else {
-            std::cout << "Failed to Parse Variable Declaration" << std::endl;
         }
         this->_nextToken();
     }
@@ -499,10 +487,7 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseIndexExpression(std::shar
     int end_line_no = index_expr->index->meta_data.end_line_no;
     int end_col_no = index_expr->index->meta_data.end_col_no;
     index_expr->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-    std::cout << "Current Token: " << this->current_token->literal << std::endl;
     if(!this->_expectPeek(token::TokenType::RightBracket)) {
-        std::cerr << "Error: Expected RightBracket" << std::endl;
-        std::cout << "Current Token: " << this->current_token->literal << std::endl;
         return nullptr;
     }
     return index_expr;
@@ -606,7 +591,6 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseArrayLiteral() {
 std::shared_ptr<AST::Expression> parser::Parser::_parseIdentifier() {
     int st_line_no = this->current_token->line_no;
     int st_col_no = this->current_token->col_no;
-    std::cout << "Ident: " << this->current_token->toString(true) << std::endl;
     if (this->current_token->type != token::TokenType::Identifier) {
         std::cerr << this->current_token->literal + " is not Identifier" << std::endl;
         exit(1);
