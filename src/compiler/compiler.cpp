@@ -4,6 +4,7 @@
 #include "../parser/parser.hpp"
 #include <iostream>
 #include <iostream>
+#include <llvm/ADT/APInt.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <memory>
@@ -563,7 +564,10 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
             std::cout << "Variable value resolved" << std::endl;
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
             std::cout << "Created alloca for variable: " << var_name->value << std::endl;
-            this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+            if (var_type->struct_type->isPointerTy())
+                this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved[0]), alloca);
+            else
+                this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
             std::cout << "Stored value in alloca" << std::endl;
             auto var =
                 std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_generic);
@@ -651,7 +655,12 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
         if (this->enviornment.is_variable(identifier_literal->value)) {
             currentStructType = this->enviornment.get_variable(identifier_literal->value)->variableType;
-            return {{this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type ? currentStructType->struct_type->stand_alone_type : currentStructType->struct_type->struct_type, this->enviornment.get_variable(identifier_literal->value)->allocainst)}, currentStructType};
+            if (currentStructType->struct_type->stand_alone_type) {
+                return {{this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type, this->enviornment.get_variable(identifier_literal->value)->allocainst)}, currentStructType};
+            }
+            else {
+                return {{this->enviornment.get_variable(identifier_literal->value)->allocainst}, currentStructType};
+            }
         }
         else if (this->enviornment.is_function(identifier_literal->value)) {
             return {{this->enviornment.get_function(identifier_literal->value)->function}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("func"))};
@@ -741,8 +750,14 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         std::cerr << "Return Outside of function" << std::endl;
         exit(1);
     }
-
-    this->llvm_ir_builder.CreateRet(return_value[0]);
+    if (this->enviornment.current_function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
+        this->llvm_ir_builder.CreateRet(return_value[0]);
+    else if (this->enviornment.current_function->getReturnType()->isPointerTy() && !return_value[0]->getType()->isPointerTy())
+        std::cout << "Fuck cant Convert non pointer to Pointer" << std::endl;
+    else if (!this->enviornment.current_function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
+        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->getReturnType(), return_value[0]));
+    else
+        this->llvm_ir_builder.CreateRet(return_value[0]);
 };
 
 std::shared_ptr<enviornment::RecordStructInstance> compiler::Compiler::_parseType(std::shared_ptr<AST::GenericType> type) {
@@ -770,7 +785,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     for(auto param : params) {
         param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
         param_inst_record.push_back(this->_parseType(param->value_type));
-        param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : param_inst_record.back()->struct_type->struct_type);
+        param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : llvm::PointerType::get(param_inst_record.back()->struct_type->struct_type, 0));
     }
     auto return_type = this->_parseType(function_declaration_statement->return_type);
     auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
@@ -788,8 +803,16 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     this->enviornment.current_function = func_type;
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
     for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
-        auto alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr);
-        this->llvm_ir_builder.CreateStore(&arg, alloca);
+        llvm::AllocaInst* alloca = nullptr;
+        if (!arg.getType()->isPointerTy() || param_type_record->struct_type->name == "array") {
+            alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
+            this->llvm_ir_builder.CreateStore(&arg, alloca);
+        }
+        else {
+            alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
+            auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
+            this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
+        }
         auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
         arguments.push_back({std::string(arg.getName()), record});
         this->enviornment.add(record);
