@@ -231,8 +231,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     auto right_val = right_value[0];
 
     if (left_type->struct_type->struct_type != nullptr || right_type->struct_type->struct_type != nullptr) {
-        if(this->_checkType(left_type, right_type)) {
-            std::cerr << "Type mismatch" << std::endl;
+        if(!this->_checkType(left_type, right_type)) {
+            std::cerr << "Infix Expression Type mismatch" << std::endl;
             exit(1);
         }
         switch(op) {
@@ -418,7 +418,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         }
     }
 
-    if(this->_checkType(left_type, right_type)) {
+    if(!this->_checkType(left_type, right_type)) {
         std::cerr << "Type mismatch" << std::endl;
         exit(1);
     }
@@ -510,11 +510,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
 
     auto [index, index_generic] = this->_resolveValue(index_expression->index);
 
-    if(left_generic->struct_type->stand_alone_type == nullptr || !this->_checkType(left_generic, this->enviornment.get_struct("array"))) {
+    if(!this->_checkType(left_generic, this->enviornment.get_struct("array"))) {
         std::cerr << "Error: Left type is not an array. Left type: " << left_generic->struct_type->name << std::endl;
         exit(1);
     }
-    if(this->_checkType(index_generic, this->enviornment.get_struct("int"))) {
+    if(!this->_checkType(index_generic, this->enviornment.get_struct("int"))) {
         std::cerr << "Error: Index type is not an int. Index type: " << index_generic->struct_type->name << std::endl;
         exit(1);
     }
@@ -657,7 +657,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
     }
     case AST::NodeType::ArrayLiteral: {
-        return this->_visitArrayLitetal(std::static_pointer_cast<AST::ArrayLiteral>(node));
+        return this->_visitArrayLiteral(std::static_pointer_cast<AST::ArrayLiteral>(node));
     }
     default: {
         std::cerr << "Compiling unknown node type" << std::endl;
@@ -667,7 +667,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     }
 };
 
-std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitArrayLitetal(std::shared_ptr<AST::ArrayLiteral> array_literal) {
+std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal) {
     std::vector<llvm::Value*> values;
     std::shared_ptr<enviornment::RecordStructType> struct_type = nullptr;
     std::vector<std::shared_ptr<enviornment::RecordStructInstance>> generics;
@@ -1012,17 +1012,21 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
 bool compiler::Compiler::_checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2) {
     for (auto [gen_type1, gen_type2] : llvm::zip(type1->generic, type2->generic)) {
         if (!this->_checkType(gen_type1, gen_type2)) {
+            std::cout << "generics are diffrent" << std::endl;
             return false;
         }
     }
     for (auto [field_name1, field_name2] : llvm::zip(type1->struct_type->fields, type2->struct_type->fields)) {
         if (field_name1 != field_name2) {
+            std::cout << "field names are diffrent" << std::endl;
             return false;
         }
         if (!this->_checkType(type1->struct_type->sub_types[field_name1], type2->struct_type->sub_types[field_name2])) {
+            std::cout << "sub_type are diff" << std::endl;
             return false;
         }
     }
+    std::cout << type1->struct_type->stand_alone_type << " " << type2->struct_type->stand_alone_type << std::endl;
     return type1->struct_type->stand_alone_type == type2->struct_type->stand_alone_type;
 };
 

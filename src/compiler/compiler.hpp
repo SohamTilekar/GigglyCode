@@ -55,7 +55,7 @@ class Compiler {
     void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement);
     // void visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement);
     std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _visitCallExpression(std::shared_ptr<AST::CallExpression>);
-    std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _visitArrayLitetal(std::shared_ptr<AST::ArrayLiteral> array_literal);
+    std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
     void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
     void _visitWhileStatement(std::shared_ptr<AST::WhileStatement> while_statement);
