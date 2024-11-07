@@ -13,6 +13,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
+#include <llvm/IR/Metadata.h>
 #include <memory>
 #include <string>
 

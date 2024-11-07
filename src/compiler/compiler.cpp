@@ -14,11 +14,13 @@
 
 compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context) {
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
+    this->llvm_module->setSourceFileName(this->file_path.filename().string());
     this->_initializeBuiltins();
 }
 
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path) {
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
+    this->llvm_module->setSourceFileName(file_path.string());
     this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
     this->_initializeBuiltins();
 }
@@ -125,7 +127,13 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             std::cerr << "Break statement outside loop" << std::endl;
             exit(1);
         }
-        this->llvm_ir_builder.CreateBr(this->enviornment.loop_end_block.at(this->enviornment.loop_end_block.size() - std::static_pointer_cast<AST::ContinueStatement>(node)->loopIdx - 1));
+        auto f_node = std::static_pointer_cast<AST::BreakStatement>(node);
+        auto breakInst = this->llvm_ir_builder.CreateBr(this->enviornment.loop_end_block.at(this->enviornment.loop_end_block.size() - f_node->loopIdx - 1));
+        breakInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Break statement")));
+        breakInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.st_line_no))));
+        breakInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.st_col_no))));
+        breakInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.end_col_no))));
+        breakInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.end_line_no))));
         break;
     }
     case AST::NodeType::ContinueStatement: {
@@ -133,12 +141,19 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             std::cerr << "Continue statement outside loop" << std::endl;
             exit(1);
         }
-        this->llvm_ir_builder.CreateBr(this->enviornment.loop_condition_block.at(this->enviornment.loop_condition_block.size() - std::static_pointer_cast<AST::ContinueStatement>(node)->loopIdx - 1));
+        auto f_node = std::static_pointer_cast<AST::ContinueStatement>(node);
+        auto continueInst = this->llvm_ir_builder.CreateBr(this->enviornment.loop_condition_block.at(this->enviornment.loop_condition_block.size() - f_node->loopIdx - 1));
+        continueInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Continue statement")));
+        continueInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.st_line_no))));
+        continueInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.st_col_no))));
+        continueInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.end_col_no))));
+        continueInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(f_node->meta_data.end_line_no))));
         break;
     }
     case AST::NodeType::BooleanLiteral: {
-        auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
-        auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, boolean_literal->value, true));
+        // auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
+        // auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, boolean_literal->value, true));
+        // Ignore it is a Variable
         break;
     }
     case AST::NodeType::StructStatement: {
@@ -181,6 +196,7 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     auto [left_value, left_type] = this->_resolveValue(left);
     if (op == token::TokenType::Dot) {
         if(left_value.size() != 1) {
+            std::cerr << "Left value size is not 1" << std::endl;
             exit(1);
         }
         if (right->type() == AST::NodeType::IdentifierLiteral) {
@@ -193,33 +209,29 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     idx++;
                 }
                 auto type = left_type->struct_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
+                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(
+                    left_type->struct_type->struct_type,
+                    left_value[0],
+                    idx
+                );
+                llvm::Value* load = this->llvm_ir_builder.CreateLoad(
+                    type->struct_type->stand_alone_type,
+                    gep
+                );
                 return {
                     {
-                        type->struct_type->struct_type ?
-                            this->llvm_ir_builder.CreateStructGEP(
-                                    left_type->struct_type->struct_type,
-                                    left_value[0],
-                                    idx
-                                )
-                            :
-                            this->llvm_ir_builder.CreateLoad(
-                                type->struct_type->stand_alone_type,
-                                this->llvm_ir_builder.CreateStructGEP(
-                                        left_type->struct_type->struct_type,
-                                        left_value[0],
-                                        idx
-                                    )
-                            )
+                        type->struct_type->struct_type ? gep : load
                     },
-                    type};
+                    type
+                };
             }
             else {
-                std::cerr << "Struct Do not have Member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
+                std::cerr << "Struct does not have member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
                 exit(1);
             }
         }
         else {
-            std::cerr << "Memeber access should be Identifier of method" << std::endl;
+            std::cerr << "Member access should be identifier of method" << std::endl;
             exit(1);
         }
     }
@@ -245,6 +257,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Addition")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -261,6 +278,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Subtraction")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -277,6 +299,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Multiplication")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -293,6 +320,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Division")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -309,6 +341,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Modulus")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -325,6 +362,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Equality Check")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -341,6 +383,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Inequality Check")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -357,6 +404,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Less Than Check")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -373,6 +425,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Greater Than Check")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -389,6 +446,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Less Than Or Equal")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -404,6 +466,11 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value[0], right_value[0]});
+                    returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Greater Than Or Equal")));
+                    returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_line_no))));
+                    returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.st_col_no))));
+                    returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_col_no))));
+                    returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(func_record->meta_data.end_line_no))));
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -425,37 +492,48 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     if(left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy()) {
         switch (op) {
             case (token::TokenType::Plus): {
-                return {{this->llvm_ir_builder.CreateAdd(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                auto inst = this->llvm_ir_builder.CreateAdd(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Dash): {
-                return {{this->llvm_ir_builder.CreateSub(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                auto inst = this->llvm_ir_builder.CreateSub(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Asterisk): {
-                return {{this->llvm_ir_builder.CreateMul(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                auto inst = this->llvm_ir_builder.CreateMul(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::ForwardSlash): {
-                return {{this->llvm_ir_builder.CreateSDiv(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                auto inst = this->llvm_ir_builder.CreateSDiv(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::Percent): {
-                return {{this->llvm_ir_builder.CreateSRem(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
+                auto inst = this->llvm_ir_builder.CreateSRem(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int"))};
             }
             case(token::TokenType::EqualEqual): {
-                return {{this->llvm_ir_builder.CreateICmpEQ(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::NotEquals): {
-                return {{this->llvm_ir_builder.CreateICmpNE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateICmpNE(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::LessThan): {
-                return {{this->llvm_ir_builder.CreateICmpSLT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateICmpSLT(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::GreaterThan): {
-                return {{this->llvm_ir_builder.CreateICmpSGT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateICmpSGT(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::LessThanOrEqual): {
-                return {{this->llvm_ir_builder.CreateICmpSLE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateICmpSLE(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case(token::TokenType::GreaterThanOrEqual): {
-                return {{this->llvm_ir_builder.CreateICmpSGE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateICmpSGE(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             default: {
                 std::cerr << "Unknown operator" << std::endl;
@@ -465,34 +543,44 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
         switch (op) {
             case (token::TokenType::Plus): {
-                return {{this->llvm_ir_builder.CreateFAdd(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                auto inst = this->llvm_ir_builder.CreateFAdd(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::Dash): {
-                return {{this->llvm_ir_builder.CreateFSub(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                auto inst = this->llvm_ir_builder.CreateFSub(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::Asterisk): {
-                return {{this->llvm_ir_builder.CreateFMul(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                auto inst = this->llvm_ir_builder.CreateFMul(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::ForwardSlash): {
-                return {{this->llvm_ir_builder.CreateFDiv(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
+                auto inst = this->llvm_ir_builder.CreateFDiv(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float"))};
             }
             case (token::TokenType::EqualEqual): {
-                return {{this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::NotEquals): {
-                return {{this->llvm_ir_builder.CreateFCmpONE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::LessThan): {
-                return {{this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::GreaterThan): {
-                return {{this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::LessThanOrEqual): {
-                return {{this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             case (token::TokenType::GreaterThanOrEqual): {
-                return {{this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val)}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
+                auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val);
+                return {{inst}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
             }
             default: {
                 std::cerr << "Unknown operator" << std::endl;
@@ -519,7 +607,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         exit(1);
     }
     auto element = this->llvm_ir_builder.CreateGEP(left_generic->generic[0]->struct_type->stand_alone_type ? left_generic->generic[0]->struct_type->stand_alone_type : left_generic->generic[0]->struct_type->struct_type, left[0], index[0], "element");
-    return {{left_generic->generic[0]->struct_type->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->generic[0]->struct_type->stand_alone_type, element) : element}, left_generic->generic[0]};
+    auto load = left_generic->generic[0]->struct_type->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->generic[0]->struct_type->stand_alone_type, element) : element;
+    return {{load}, left_generic->generic[0]};
 };
 
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
@@ -538,17 +627,49 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
     if(var_value_resolved.size() == 1) {
         if (var_type->struct_type == nullptr) {
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type, nullptr);
-            this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+            alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Declaration")));
+            alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
+            alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
+            alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
+            alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
+            auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+            store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
+            store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
+            store->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
+            store->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
+            store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
             auto var =
                 std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_generic);
             this->enviornment.add(var);
         }
         else {
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
-            if (var_type->struct_type->isPointerTy())
-                this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved[0]), alloca);
-            else
-                this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+            alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Declaration")));
+            alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
+            alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
+            alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
+            alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
+            if (var_type->struct_type->isPointerTy()) {
+                auto load = this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved[0]);
+                load->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Load")));
+                load->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
+                load->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
+                load->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
+                load->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
+                auto store = this->llvm_ir_builder.CreateStore(load, alloca);
+                store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
+                store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
+                store->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
+                store->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
+                store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
+            } else {
+                auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+                store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
+                store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
+                store->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
+                store->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
+                store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
+            }
             auto var =
                 std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_generic);
             var->variableType = var_generic;
@@ -594,7 +715,12 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
         }
         alloca = this->enviornment.get_variable(name)->allocainst;
         if(value.size() == 1) {
-            this->llvm_ir_builder.CreateStore(value[0], alloca);
+            auto storeInst = this->llvm_ir_builder.CreateStore(value[0], alloca);
+            storeInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Assignment")));
+            storeInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_assignment_statement->value->meta_data.st_line_no))));
+            storeInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_assignment_statement->value->meta_data.st_col_no))));
+            storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_assignment_statement->value->meta_data.end_col_no))));
+            storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_assignment_statement->value->meta_data.end_line_no))));
         } else {
             std::cerr << "Variable assignment with multiple values" << value.size() << std::endl;
             exit(1);
@@ -630,7 +756,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         if (this->enviornment.is_variable(identifier_literal->value)) {
             currentStructType = this->enviornment.get_variable(identifier_literal->value)->variableType;
             if (currentStructType->struct_type->stand_alone_type) {
-                return {{this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type, this->enviornment.get_variable(identifier_literal->value)->allocainst)}, currentStructType};
+                auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type, this->enviornment.get_variable(identifier_literal->value)->allocainst);
+                return {{loadInst}, currentStructType};
             }
             else {
                 return {{this->enviornment.get_variable(identifier_literal->value)->allocainst}, currentStructType};
@@ -654,6 +781,8 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     case AST::NodeType::BooleanLiteral: {
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = boolean_literal->value ? this->enviornment.get_variable("True")->value : this->enviornment.get_variable("False")->value;
+        if (llvm::isa<llvm::Instruction>(value)) {
+        }
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
     }
     case AST::NodeType::ArrayLiteral: {
@@ -687,13 +816,16 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                 .raise();
             return {{nullptr}, nullptr};
         }
-        values.push_back(struct_type->struct_type == nullptr ? value[0] : this->llvm_ir_builder.CreateLoad(struct_type->struct_type, value[0]));
+        auto loadInst = struct_type->struct_type == nullptr ? value[0] : this->llvm_ir_builder.CreateLoad(struct_type->struct_type, value[0]);
+        if (llvm::isa<llvm::Instruction>(loadInst)) {
+        }
+        values.push_back(loadInst);
     }
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
     auto array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
     for (int i = 0; i < values.size(); i++) {
         auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
-        this->llvm_ir_builder.CreateStore(values[i], element);
+        auto storeInst = this->llvm_ir_builder.CreateStore(values[i], element);
     }
     return {{array}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("array"), generics)};
 };
@@ -712,16 +844,25 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         std::cerr << "Return Outside of function" << std::endl;
         exit(1);
     }
+    llvm::Instruction* retInst = nullptr;
     if (this->enviornment.current_function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
-        this->llvm_ir_builder.CreateRet(return_value[0]);
+        retInst = this->llvm_ir_builder.CreateRet(return_value[0]);
     else if (this->enviornment.current_function->getReturnType()->isPointerTy() && !return_value[0]->getType()->isPointerTy()) {
-        std::cerr << "Fuck cant Convert non pointer to Pointer" << std::endl;
+        std::cerr << "Cannot Convert non pointer to Pointer" << std::endl;
         exit(1);
     }
     else if (!this->enviornment.current_function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
-        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->getReturnType(), return_value[0]));
+        retInst = this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->getReturnType(), return_value[0]));
     else
-        this->llvm_ir_builder.CreateRet(return_value[0]);
+        retInst = this->llvm_ir_builder.CreateRet(return_value[0]);
+
+    if (retInst) {
+        retInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Return statement")));
+        retInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(return_statement->meta_data.st_line_no))));
+        retInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(return_statement->meta_data.st_col_no))));
+        retInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(return_statement->meta_data.end_line_no))));
+        retInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(return_statement->meta_data.end_col_no))));
+    }
 };
 
 std::shared_ptr<enviornment::RecordStructInstance> compiler::Compiler::_parseType(std::shared_ptr<AST::GenericType> type) {
@@ -768,12 +909,37 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         llvm::AllocaInst* alloca = nullptr;
         if (!arg.getType()->isPointerTy() || this->_checkType(param_type_record, this->enviornment.get_struct("array"))) {
             alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
-            this->llvm_ir_builder.CreateStore(&arg, alloca);
+            alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Alloca")));
+            alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_line_no))));
+            alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_col_no))));
+            alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_line_no))));
+            alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_col_no))));
+            auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
+            storeInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Store")));
+            storeInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_line_no))));
+            storeInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_col_no))));
+            storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_line_no))));
+            storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_col_no))));
         }
         else {
             alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
+            alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Alloca")));
+            alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_line_no))));
+            alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_col_no))));
+            alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_line_no))));
+            alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_col_no))));
             auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
-            this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
+            loaded_arg->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Load")));
+            loaded_arg->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_line_no))));
+            loaded_arg->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_col_no))));
+            loaded_arg->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_line_no))));
+            loaded_arg->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_col_no))));
+            auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
+            storeInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Store")));
+            storeInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_line_no))));
+            storeInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.st_col_no))));
+            storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_line_no))));
+            storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_col_no))));
         }
         auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
         arguments.push_back({std::string(arg.getName()), record});
@@ -785,6 +951,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     func_record->meta_data.more_data["name_line_no"] = function_declaration_statement->name->meta_data.st_line_no;
     func_record->meta_data.more_data["name_st_col_no"] = function_declaration_statement->name->meta_data.st_col_no;
     func_record->meta_data.more_data["name_end_col_no"] = function_declaration_statement->name->meta_data.end_col_no;
+    func_record->meta_data.more_data["name_end_line_no"] = function_declaration_statement->name->meta_data.end_line_no;
     this->enviornment.add(func_record);
     // adding the alloca for the parameters
     this->compile(body);
@@ -815,19 +982,34 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
         }
         auto returnValue = this->llvm_ir_builder.CreateCall(
             llvm::cast<llvm::Function>(func_record->function), args);
+        returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Function Call")));
+        returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
+        returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
+        returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
+        returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
         return {{returnValue}, func_record->return_inst};
     }
     else if (this->enviornment.is_struct(name)) {
         auto struct_record = this->enviornment.get_struct(name);
         auto struct_type = struct_record->struct_type;
         auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+        alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Struct Allocation")));
+        alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
+        alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
+        alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
+        alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
         for (unsigned int i = 0; i < args.size(); ++i) {
             if (!this->_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
                 std::cerr << "Struct Type MissMatch" << std::endl;
                 exit(1);
             }
             auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
-            this->llvm_ir_builder.CreateStore(args[i], field_ptr);
+            auto storeInst = this->llvm_ir_builder.CreateStore(args[i], field_ptr);
+            storeInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Struct Store")));
+            storeInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
+            storeInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
+            storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
+            storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
         }
         return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(struct_record)};
     }
@@ -850,23 +1032,48 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
         auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
         llvm::BasicBlock* ThenBB = llvm::BasicBlock::Create(llvm_context, "then", func);
         llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
-        this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ContBB);
+        auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ContBB);
+        condBr->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "If Condition")));
+        condBr->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_line_no))));
+        condBr->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_col_no))));
+        condBr->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_line_no))));
+        condBr->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_col_no))));
         this->llvm_ir_builder.SetInsertPoint(ThenBB);
         this->compile(consequence);
-        this->llvm_ir_builder.CreateBr(ContBB);
+        auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
+        brThen->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Then Branch")));
+        brThen->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_line_no))));
+        brThen->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_col_no))));
+        brThen->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_line_no))));
+        brThen->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_col_no))));
         this->llvm_ir_builder.SetInsertPoint(ContBB);
     } else {
         auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
         llvm::BasicBlock* ThenBB = llvm::BasicBlock::Create(llvm_context, "then", func);
         llvm::BasicBlock* ElseBB = llvm::BasicBlock::Create(llvm_context, "else", func);
         llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
-        this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ElseBB);
+        auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ElseBB);
+        condBr->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "If Condition")));
+        condBr->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_line_no))));
+        condBr->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_col_no))));
+        condBr->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_line_no))));
+        condBr->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_col_no))));
         this->llvm_ir_builder.SetInsertPoint(ThenBB);
         this->compile(consequence);
-        this->llvm_ir_builder.CreateBr(ContBB);
+        auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
+        brThen->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Then Branch")));
+        brThen->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_line_no))));
+        brThen->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_col_no))));
+        brThen->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_line_no))));
+        brThen->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_col_no))));
         this->llvm_ir_builder.SetInsertPoint(ElseBB);
         this->compile(alternative);
-        this->llvm_ir_builder.CreateBr(ContBB);
+        auto brElse = this->llvm_ir_builder.CreateBr(ContBB);
+        brElse->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Else Branch")));
+        brElse->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_line_no))));
+        brElse->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.st_col_no))));
+        brElse->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_line_no))));
+        brElse->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(if_statement->meta_data.end_col_no))));
         this->llvm_ir_builder.SetInsertPoint(ContBB);
     }
 };
@@ -878,14 +1085,24 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     llvm::BasicBlock* CondBB = llvm::BasicBlock::Create(llvm_context, "cond", func);
     llvm::BasicBlock* BodyBB = llvm::BasicBlock::Create(llvm_context, "body", func);
     llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
-    this->llvm_ir_builder.CreateBr(CondBB);
+    auto brToCond = this->llvm_ir_builder.CreateBr(CondBB);
+    brToCond->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Branch to Condition")));
+    brToCond->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.st_line_no))));
+    brToCond->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.st_col_no))));
+    brToCond->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.end_line_no))));
+    brToCond->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.end_col_no))));
     this->llvm_ir_builder.SetInsertPoint(CondBB);
     auto [condition_val, _] = this->_resolveValue(condition);
     if (!this->_checkType(_, this->enviornment.get_struct("bool"))) {
         std::cerr << "Condition type Must be Bool" << std::endl;
         exit(1);
     }
-    this->llvm_ir_builder.CreateCondBr(condition_val[0], BodyBB, ContBB);
+    auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val[0], BodyBB, ContBB);
+    condBr->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "While Condition")));
+    condBr->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.st_line_no))));
+    condBr->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.st_col_no))));
+    condBr->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.end_line_no))));
+    condBr->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.end_col_no))));
     this->enviornment.loop_body_block.push_back(BodyBB);
     this->enviornment.loop_end_block.push_back(ContBB);
     this->enviornment.loop_condition_block.push_back(CondBB);
@@ -894,7 +1111,12 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     this->enviornment.loop_body_block.pop_back();
     this->enviornment.loop_end_block.pop_back();
     this->enviornment.loop_condition_block.pop_back();
-    this->llvm_ir_builder.CreateBr(CondBB);
+    auto brToCondAgain = this->llvm_ir_builder.CreateBr(CondBB);
+    brToCondAgain->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Branch to Condition Again")));
+    brToCondAgain->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.st_line_no))));
+    brToCondAgain->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.st_col_no))));
+    brToCondAgain->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.end_line_no))));
+    brToCondAgain->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(while_statement->meta_data.end_col_no))));
     this->llvm_ir_builder.SetInsertPoint(ContBB);
 };
 
@@ -952,12 +1174,37 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 llvm::AllocaInst* alloca = nullptr;
                 if (!arg.getType()->isPointerTy() || this->_checkType(param_type_record, this->enviornment.get_struct("array"))) {
                     alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
-                    this->llvm_ir_builder.CreateStore(&arg, alloca);
+                    alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Alloca")));
+                    alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_line_no))));
+                    alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_col_no))));
+                    alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_line_no))));
+                    alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_col_no))));
+                    auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
+                    storeInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Store")));
+                    storeInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_line_no))));
+                    storeInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_col_no))));
+                    storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_line_no))));
+                    storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_col_no))));
                 }
                 else {
                     alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
+                    alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Alloca")));
+                    alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_line_no))));
+                    alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_col_no))));
+                    alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_line_no))));
+                    alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_col_no))));
                     auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
-                    this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
+                    loaded_arg->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Load")));
+                    loaded_arg->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_line_no))));
+                    loaded_arg->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_col_no))));
+                    loaded_arg->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_line_no))));
+                    loaded_arg->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_col_no))));
+                    auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
+                    storeInst->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Parameter Store")));
+                    storeInst->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_line_no))));
+                    storeInst->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.st_col_no))));
+                    storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_line_no))));
+                    storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_col_no))));
                 }
                 auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
                 arguments.push_back({std::string(arg.getName()), record});
@@ -969,6 +1216,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             func_record->meta_data.more_data["name_line_no"] = field_decl->name->meta_data.st_line_no;
             func_record->meta_data.more_data["name_st_col_no"] = field_decl->name->meta_data.st_col_no;
             func_record->meta_data.more_data["name_end_col_no"] = field_decl->name->meta_data.end_col_no;
+            func_record->meta_data.more_data["name_end_line_no"] = field_decl->name->meta_data.end_line_no;
             this->enviornment.add(func_record);
             this->compile(body);
             this->enviornment = *prev_env;
