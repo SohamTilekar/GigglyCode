@@ -6,6 +6,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 
 namespace AST {
@@ -130,11 +131,12 @@ class FunctionStatement : public Statement {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<FunctionParameter>> parameters;
+    std::vector<std::shared_ptr<FunctionParameter>> closure_parameters;
     std::shared_ptr<GenericType> return_type;
     std::shared_ptr<BlockStatement> body;
-    inline FunctionStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<FunctionParameter>> parameters,
+    inline FunctionStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<FunctionParameter>> parameters, std::vector<std::shared_ptr<FunctionParameter>> closure_parameters,
                              std::shared_ptr<GenericType> return_type, std::shared_ptr<BlockStatement> body)
-        : name(name), parameters(parameters), return_type(return_type), body(body) {}
+        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body) {}
     inline NodeType type() override { return NodeType::FunctionStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

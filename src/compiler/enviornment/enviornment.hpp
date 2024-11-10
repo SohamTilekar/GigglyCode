@@ -1,12 +1,10 @@
 #include "../../parser/AST/ast.hpp"
-#include <list>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
 #include <memory>
-#include <stack>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -35,14 +33,35 @@ class RecordStructInstance;
 
 class RecordFunction : public Record {
   public:
-    llvm::Function* function;
-    llvm::FunctionType* function_type;
+    llvm::Function* function = nullptr;
+    llvm::FunctionType* function_type = nullptr;
+    llvm::StructType* closure_type = nullptr;
     std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments;
+    std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> closure_arguments;
     std::shared_ptr<RecordStructInstance> return_inst;
     RecordFunction(std::string name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
-                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
-        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments),
+                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> closure_arguments, std::shared_ptr<RecordStructInstance> return_inst)
+        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), closure_arguments(closure_arguments),
+          return_inst(return_inst) {};
+    RecordFunction(
+        std::string name,
+        llvm::Function* function,
+        llvm::FunctionType* function_type,
+        std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments,
+        std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> closure_arguments,
+        llvm::StructType* closure_type,
+        std::shared_ptr<RecordStructInstance> return_inst
+    )
+        : Record(RecordType::RecordFunction, name),
+            function(function), function_type(function_type),
+            arguments(arguments),
+            closure_arguments(closure_arguments),
+            closure_type(closure_type),
+            return_inst(return_inst) {};
+    RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
+                    std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
+        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), closure_arguments({}),
           return_inst(return_inst) {};
 };
 
@@ -65,7 +84,10 @@ class RecordStructInstance {
   public:
     std::shared_ptr<RecordStructType> struct_type;
     std::vector<std::shared_ptr<RecordStructInstance>> generic = {};
+    std::shared_ptr<RecordFunction> function = nullptr;
+    llvm::StructType* func_closure;
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type) : struct_type(struct_type) {};
+    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::shared_ptr<RecordFunction> function, llvm::StructType* func_closure) : struct_type(struct_type), function(function), func_closure(func_closure) {};
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::vector<std::shared_ptr<RecordStructInstance>> generic)
         : struct_type(struct_type), generic(generic) {};
 };
@@ -87,7 +109,7 @@ class Enviornment {
     std::string name;
     std::unordered_map<std::string, std::shared_ptr<Record>> record_map;
 
-    llvm::FunctionType* current_function = nullptr;
+    std::shared_ptr<RecordFunction> current_function = nullptr;
 
     std::vector<llvm::BasicBlock*> loop_body_block = {};
     std::vector<llvm::BasicBlock*> loop_end_block = {};
