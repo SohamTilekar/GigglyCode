@@ -44,8 +44,8 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
         return token::TokenType::Struct;
     } else if(*ident == "enum") {
         return token::TokenType::Enum;
-    } else if(*ident == "let") {
-        return token::TokenType::Let;
+    } else if(*ident == "volatile") {
+        return token::TokenType::Volatile;
     } else if(*ident == "import") {
         return token::TokenType::Import;
     } else if(*ident == "True") {

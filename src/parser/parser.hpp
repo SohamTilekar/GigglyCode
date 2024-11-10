@@ -114,7 +114,7 @@ class Parser {
     std::shared_ptr<AST::Statement> _parseStatement();
 
     std::shared_ptr<AST::ExpressionStatement> _parseExpressionStatement(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
-    std::shared_ptr<AST::Statement> _parseVariableDeclaration(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    std::shared_ptr<AST::Statement> _parseVariableDeclaration(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false);
     std::shared_ptr<AST::Statement> _parseVariableAssignment(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
     std::shared_ptr<AST::ReturnStatement> _parseReturnStatement();
     std::shared_ptr<AST::FunctionStatement> _parseFunctionStatement();

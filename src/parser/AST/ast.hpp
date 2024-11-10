@@ -201,8 +201,9 @@ class VariableDeclarationStatement : public Statement {
     std::shared_ptr<Expression> name;
     std::shared_ptr<GenericType> value_type;
     std::shared_ptr<Expression> value;
-    inline VariableDeclarationStatement(std::shared_ptr<Expression> name, std::shared_ptr<GenericType> type, std::shared_ptr<Expression> value = nullptr)
-        : name(name), value_type(type), value(value) {}
+    bool is_volatile = false;
+    inline VariableDeclarationStatement(std::shared_ptr<Expression> name, std::shared_ptr<GenericType> type, std::shared_ptr<Expression> value = nullptr, bool is_volatile = true)
+        : name(name), value_type(type), value(value), is_volatile(is_volatile) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

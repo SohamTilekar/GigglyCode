@@ -90,7 +90,7 @@ enum class TokenType {
     Continue, // Continue Statement continue
     Struct,   // Struct
     Enum,     // Enum
-    Let,      // Let
+    Volatile, // volatile
     Import,   // import
     True,     // Boolean true true
     False,    // Boolean false false

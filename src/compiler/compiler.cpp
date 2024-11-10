@@ -638,7 +638,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                 alloca->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
                 alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
                 alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
-                auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+                auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca, variable_declaration_statement->is_volatile);
                 store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
                 store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
                 store->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
@@ -662,14 +662,14 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                     load->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
                     load->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
                     load->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
-                    auto store = this->llvm_ir_builder.CreateStore(load, alloca);
+                    auto store = this->llvm_ir_builder.CreateStore(load, alloca, variable_declaration_statement->is_volatile);
                     store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
                     store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
                     store->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
                     store->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
                     store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
                 } else {
-                    auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca);
+                    auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca, variable_declaration_statement->is_volatile);
                     store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
                     store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
                     store->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_col_no))));
@@ -785,10 +785,10 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
                     if (_checkType(varRec->variableType, recInst->variableType)) {
                         if (varRec->variableType->struct_type->stand_alone_type) {
                             auto alloca = this->llvm_ir_builder.CreateStructGEP(funcRec->closure_type, closureAlloca, idx);
-                            this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(varRec->variableType->struct_type->stand_alone_type, varRec->allocainst), alloca);
+                            this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(varRec->variableType->struct_type->stand_alone_type, varRec->allocainst), alloca, true);
                         } else {
                             auto alloca = this->llvm_ir_builder.CreateStructGEP(funcRec->closure_type, closureAlloca, idx);
-                            this->llvm_ir_builder.CreateStore(varRec->allocainst, alloca);
+                            this->llvm_ir_builder.CreateStore(varRec->allocainst, alloca, true);
                         }
                     }
                 }

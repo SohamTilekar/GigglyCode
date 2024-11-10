@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include "AST/ast.hpp"
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -63,9 +64,9 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseContinueStatement();
     } else if(this->_currentTokenIs(token::TokenType::Import)) {
         return this->_parseImportStatement();
-    } else if(this->_currentTokenIs(token::TokenType::Let)) {
+    } else if(this->_currentTokenIs(token::TokenType::Volatile)) {
         this->_nextToken();
-        return this->_parseVariableDeclaration();
+        return this->_parseVariableDeclaration(nullptr, -1, -1, true);
     } else if(this->_currentTokenIs(token::TokenType::Struct)) {
         return this->_parseStructStatement();
     } else {
@@ -314,7 +315,7 @@ std::shared_ptr<AST::ExpressionStatement> parser::Parser::_parseExpressionStatem
     return stmt;
 }
 
-std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::shared_ptr<AST::Expression> identifier, int st_line_no, int st_col_no) {
+std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::shared_ptr<AST::Expression> identifier, int st_line_no, int st_col_no, bool is_volatile) {
     if (identifier == nullptr) {
         st_line_no = current_token->line_no;
         st_col_no = current_token->col_no;
@@ -329,7 +330,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::s
         this->_nextToken();
         int end_line_no = current_token->line_no;
         int end_col_no = current_token->col_no;
-        auto variableDeclarationStatement = std::make_shared<AST::VariableDeclarationStatement>(identifier, type);
+        auto variableDeclarationStatement = std::make_shared<AST::VariableDeclarationStatement>(identifier, type, nullptr, is_volatile);
         variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
         variableDeclarationStatement->meta_data.more_data["name_line_no"] = st_line_no;
         variableDeclarationStatement->meta_data.more_data["name_col_no"] = st_col_no;
@@ -341,7 +342,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::s
         this->_nextToken();
         int end_line_no = current_token->line_no;
         int end_col_no = current_token->col_no;
-        auto variableDeclarationStatement = std::make_shared<AST::VariableDeclarationStatement>(identifier, type, expr);
+        auto variableDeclarationStatement = std::make_shared<AST::VariableDeclarationStatement>(identifier, type, expr, is_volatile);
         variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
         variableDeclarationStatement->meta_data.more_data["name_line_no"] = st_line_no;
         variableDeclarationStatement->meta_data.more_data["name_col_no"] = st_col_no;

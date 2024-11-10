@@ -180,6 +180,7 @@ std::shared_ptr<nlohmann::json> AST::VariableDeclarationStatement::toJSON() {
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["value_type"] = *this->value_type->toJSON();
     jsonAst["value"] = this->value == nullptr ? nullptr : *value->toJSON();
+    jsonAst["volatile"] = this->is_volatile;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
