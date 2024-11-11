@@ -46,6 +46,8 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
         return token::TokenType::Enum;
     } else if(*ident == "volatile") {
         return token::TokenType::Volatile;
+    } else if(*ident == "use") {
+    return token::TokenType::Use;
     } else if(*ident == "import") {
         return token::TokenType::Import;
     } else if(*ident == "True") {
@@ -93,6 +95,7 @@ std::shared_ptr<token::Token> Lexer::nextToken() {
             this->_readChar();
             token = this->_readNumber();
             token->literal = "-" + token->literal;
+            return token;
         } else if(*this->_peekChar() == "=") {
             token = this->_newToken(token::TokenType::DashEqual, this->current_char + *this->_peekChar());
             this->_readChar();
