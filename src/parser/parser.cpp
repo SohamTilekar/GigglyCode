@@ -82,35 +82,6 @@ std::shared_ptr<AST::FunctionStatement> parser::Parser::_parseFunctionStatement(
     }
     auto name = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
     name->set_meta_data(current_token->line_no, current_token->col_no, current_token->line_no, current_token->end_col_no);
-    std::vector<std::shared_ptr<AST::FunctionParameter>> closure_parameters;
-    if (this->_peekTokenIs(token::TokenType::LeftBracket)) {
-        this->_nextToken();
-        this->_nextToken();
-        while(this->current_token->type != token::TokenType::RightBracket) {
-            if(this->current_token->type == token::TokenType::Identifier) {
-                auto identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
-                if(!this->_expectPeek(token::TokenType::Colon)) {
-                    return nullptr;
-                }
-                this->_nextToken();
-                auto type = this->_parseType();
-                closure_parameters.push_back(std::make_shared<AST::FunctionParameter>(identifier, type));
-                this->_nextToken();
-                if(this->current_token->type == token::TokenType::Comma) {
-                    this->_nextToken();
-                    continue;
-                } else if(this->current_token->type == token::TokenType::RightBracket) {
-                    break;
-                } else {
-                    _peekError(current_token->type, token::TokenType::Comma);
-                    break;
-                }
-            } else {
-                _peekError(current_token->type, token::TokenType::Identifier);
-                break;
-            }
-        }
-    }
     if(!this->_expectPeek(token::TokenType::LeftParen)) {
         return nullptr;
     }
@@ -138,6 +109,36 @@ std::shared_ptr<AST::FunctionStatement> parser::Parser::_parseFunctionStatement(
         } else {
             _peekError(current_token->type, token::TokenType::Identifier);
             break;
+        }
+    }
+    std::vector<std::shared_ptr<AST::FunctionParameter>> closure_parameters;
+    if (this->_peekTokenIs(token::TokenType::Use)) {
+        this->_nextToken();
+        this->_nextToken();
+        this->_nextToken();
+        while(this->current_token->type != token::TokenType::RightParen) {
+            if(this->current_token->type == token::TokenType::Identifier) {
+                auto identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
+                if(!this->_expectPeek(token::TokenType::Colon)) {
+                    return nullptr;
+                }
+                this->_nextToken();
+                auto type = this->_parseType();
+                closure_parameters.push_back(std::make_shared<AST::FunctionParameter>(identifier, type));
+                this->_nextToken();
+                if(this->current_token->type == token::TokenType::Comma) {
+                    this->_nextToken();
+                    continue;
+                } else if(this->current_token->type == token::TokenType::RightParen) {
+                    break;
+                } else {
+                    _peekError(current_token->type, token::TokenType::Comma);
+                    break;
+                }
+            } else {
+                _peekError(current_token->type, token::TokenType::Identifier);
+                break;
+            }
         }
     }
     if(!this->_expectPeek(token::TokenType::RightArrow)) {

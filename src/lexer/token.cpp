@@ -184,7 +184,9 @@ std::shared_ptr<std::string> token::tokenTypeString(TokenType type) {
     case TokenType::Enum:
         return std::make_shared<std::string>("Enum");
     case TokenType::Volatile:
-        return std::make_shared<std::string>("Let");
+        return std::make_shared<std::string>("Volatile");
+    case TokenType::Use:
+        return std::make_shared<std::string>("Use");
     // case TokenType::Maybe:
     //     return std::make_shared<std::string>("Maybe");
     case TokenType::Import:

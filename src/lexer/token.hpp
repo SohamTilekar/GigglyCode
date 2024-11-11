@@ -91,6 +91,7 @@ enum class TokenType {
     Struct,   // Struct
     Enum,     // Enum
     Volatile, // volatile
+    Use,
     Import,   // import
     True,     // Boolean true true
     False,    // Boolean false false
