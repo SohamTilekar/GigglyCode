@@ -1,6 +1,7 @@
 #include "../../parser/AST/ast.hpp"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
@@ -84,10 +85,9 @@ class RecordStructInstance {
   public:
     std::shared_ptr<RecordStructType> struct_type;
     std::vector<std::shared_ptr<RecordStructInstance>> generic = {};
-    std::shared_ptr<RecordFunction> function = nullptr;
-    llvm::StructType* func_closure;
+    llvm::FunctionType* function = nullptr;
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type) : struct_type(struct_type) {};
-    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::shared_ptr<RecordFunction> function, llvm::StructType* func_closure) : struct_type(struct_type), function(function), func_closure(func_closure) {};
+    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, llvm::FunctionType* function, std::vector<std::shared_ptr<RecordStructInstance>> generic) : struct_type(struct_type), function(function), generic(generic) {};
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::vector<std::shared_ptr<RecordStructInstance>> generic)
         : struct_type(struct_type), generic(generic) {};
 };
@@ -95,12 +95,11 @@ class RecordStructInstance {
 class RecordVariable : public Record {
   public:
     llvm::Value* value;
-    llvm::Type* type;
     llvm::AllocaInst* allocainst;
     std::shared_ptr<RecordStructInstance> variableType = nullptr;
     RecordVariable(std::string name) : Record(RecordType::RecordVariable, name) {};
-    RecordVariable(std::string name, llvm::Value* value, llvm::Type* type, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructInstance> generic)
-    : Record(RecordType::RecordVariable, name), value(value), type(type), allocainst(allocainst), variableType(generic) {};
+    RecordVariable(std::string name, llvm::Value* value, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructInstance> generic)
+    : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variableType(generic) {};
 };
 
 class Enviornment {

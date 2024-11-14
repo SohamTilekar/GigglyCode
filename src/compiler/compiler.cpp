@@ -5,6 +5,7 @@
 #include <iostream>
 #include <iostream>
 #include <llvm/ADT/APInt.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
@@ -39,7 +40,8 @@ void compiler::Compiler::_initializeBuiltins() {
     this->enviornment.parent->add(_void);
     auto _bool = std::make_shared<enviornment::RecordStructType>("bool", llvm::Type::getInt1Ty(llvm_context));
     this->enviornment.parent->add(_bool);
-    auto _func = std::make_shared<enviornment::RecordStructType>("func", llvm::Type::getVoidTy(llvm_context)->getPointerTo());
+    auto func_struct = llvm::StructType::create(this->llvm_context, {llvm::Type::getVoidTy(llvm_context)->getPointerTo(), llvm::Type::getVoidTy(llvm_context)->getPointerTo()});
+    auto _func = std::make_shared<enviornment::RecordStructType>("func", func_struct, std::vector<std::string>{"closure", "function_pointer"});
     this->enviornment.parent->add(_func);
     // array standalone type
     auto _array = std::make_shared<enviornment::RecordStructType>("array", llvm::PointerType::get(llvm::Type::getVoidTy(llvm_context), 0));
@@ -54,11 +56,9 @@ void compiler::Compiler::_initializeBuiltins() {
     llvm::GlobalVariable* globalFalse =
         new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
             llvm::ConstantInt::get(this->enviornment.parent->get_struct("bool")->stand_alone_type, 0), "False");
-        auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, this->enviornment.parent->get_struct("bool")->stand_alone_type,
-            nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
+        auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
         this->enviornment.parent->add(recordTrue);
-        auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, this->enviornment.parent->get_struct("bool")->stand_alone_type,
-            nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
+        auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
         this->enviornment.parent->add(recordFalse);
 
     // Create the function type: void puts(const char*)
@@ -613,25 +613,31 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
 };
 
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
+    std::cerr << "Entering _visitVariableDeclarationStatement" << std::endl;
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->name);
+    std::cerr << "Variable name: " << var_name->value << std::endl;
     auto var_value = variable_declaration_statement->value;
+    std::cerr << "Resolving variable type" << std::endl;
     if(!this->enviornment.is_struct(std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->value_type->name)->value)) {
         std::cerr << "Variable type not defined" << std::endl;
         exit(1);
     }
     auto var_type = this->enviornment.get_struct(std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->value_type->name)->value);
+    std::cerr << "Variable type: " << var_type->name << std::endl;
     auto [var_value_resolved, var_generic] = this->_resolveValue(var_value);
+    std::cerr << "Resolved variable value" << std::endl;
     if (!this->_checkType(var_generic, this->_parseType(variable_declaration_statement->value_type))) {
         std::cerr << "Cannot assign missmatch type" << std::endl;
         exit(1);
     }
     if(var_value_resolved.size() == 1) {
         if (var_type->name == "func") {
-            auto loaded = this->llvm_ir_builder.CreateLoad(var_generic->func_closure, var_value_resolved[0]);
-            auto record = std::make_shared<enviornment::RecordVariable>(var_name->value, loaded, var_generic->func_closure, (llvm::AllocaInst*)var_value_resolved[0], var_generic);
-            this->enviornment.add(record);
+            std::cerr << "Variable is a function" << std::endl;
+            auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, (llvm::AllocaInst*)var_value_resolved[0], var_generic);
+            this->enviornment.add(var);
         } else {
             if (var_type->struct_type == nullptr) {
+                std::cerr << "Allocating standalone type" << std::endl;
                 auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
                 alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Declaration")));
                 alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
@@ -645,10 +651,11 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                 store->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
                 store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
                 auto var =
-                    std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->stand_alone_type, alloca, var_generic);
+                    std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], alloca, var_generic);
                 this->enviornment.add(var);
             }
             else {
+                std::cerr << "Allocating struct type" << std::endl;
                 auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
                 alloca->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Declaration")));
                 alloca->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
@@ -656,6 +663,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                 alloca->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
                 alloca->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
                 if (var_type->struct_type->isPointerTy()) {
+                    std::cerr << "Loading pointer type" << std::endl;
                     auto load = this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved[0]);
                     load->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Load")));
                     load->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
@@ -669,6 +677,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                     store->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_col_no))));
                     store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
                 } else {
+                    std::cerr << "Storing non-pointer type" << std::endl;
                     auto store = this->llvm_ir_builder.CreateStore(var_value_resolved[0], alloca, variable_declaration_statement->is_volatile);
                     store->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Variable Store")));
                     store->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.st_line_no))));
@@ -677,7 +686,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                     store->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(variable_declaration_statement->value->meta_data.end_line_no))));
                 }
                 auto var =
-                    std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], var_type->struct_type, alloca, var_generic);
+                    std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved[0], alloca, var_generic);
                 var->variableType = var_generic;
                 this->enviornment.add(var);
             }
@@ -686,6 +695,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
         std::cerr << "Variable declaration with multiple values" << std::endl;
         exit(1);
     }
+    std::cerr << "Exiting _visitVariableDeclarationStatement" << std::endl;
 }
 
 std::vector<std::string> splitString(const std::string& input) {
@@ -760,44 +770,84 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
     case AST::NodeType::IdentifierLiteral: {
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
         std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
+        std::cout << "Name: " << identifier_literal->value << std::endl;
         if (this->enviornment.is_variable(identifier_literal->value)) {
+            std::cout << "Identifier is a variable: " << identifier_literal->value << std::endl;
             currentStructType = this->enviornment.get_variable(identifier_literal->value)->variableType;
-            if (currentStructType->struct_type->name == "func") {
-                return {{this->enviornment.get_variable(identifier_literal->value)->allocainst}, currentStructType};
-            }
-            else if (currentStructType->struct_type->stand_alone_type) {
+            std::cout << "Current struct type: " << currentStructType->struct_type->name << std::endl;
+            if (currentStructType->struct_type->stand_alone_type) {
+                std::cout << "Struct has stand-alone type" << std::endl;
                 auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type, this->enviornment.get_variable(identifier_literal->value)->allocainst);
                 return {{loadInst}, currentStructType};
             }
             else {
+                std::cout << "Struct does not have stand-alone type" << std::endl;
                 return {{this->enviornment.get_variable(identifier_literal->value)->allocainst}, currentStructType};
             }
         }
         else if (this->enviornment.is_function(identifier_literal->value)) {
-            std::cout << "Func: " << identifier_literal->value << std::endl;
+            std::cout << "Identifier is a function: " << identifier_literal->value << std::endl;
             auto funcRec = this->enviornment.get_function(identifier_literal->value);
-            auto closureAlloca = this->llvm_ir_builder.CreateAlloca(funcRec->closure_type);
+            std::cout << "Function record retrieved" << std::endl;
+            auto func_tp = this->enviornment.get_struct("func");
+            std::cout << "Function type retrieved" << std::endl;
+            std::cout << "funcRec: " << funcRec << std::endl;
+            std::cout << "funcRec->closure_type: " << funcRec->closure_type << std::endl;
+            llvm::AllocaInst* closureAlloca;
+            if (funcRec->closure_type)
+                closureAlloca = this->llvm_ir_builder.CreateAlloca(funcRec->closure_type);
+            std::cout << "Closure alloca created" << std::endl;
             unsigned int idx = 0;
             for (auto [cp, recInst] : funcRec->closure_arguments) {
-                std::cout << "cp: " << cp << std::endl;
+                std::cout << "Closure parameter: " << cp << std::endl;
                 if (this->enviornment.is_variable(cp)) {
+                    std::cout << "Closure parameter is a variable" << std::endl;
                     auto varRec = this->enviornment.get_variable(cp);
                     if (_checkType(varRec->variableType, recInst->variableType)) {
+                        std::cout << "Variable type matches" << std::endl;
                         if (varRec->variableType->struct_type->stand_alone_type) {
+                            std::cout << "Variable has stand-alone type" << std::endl;
                             auto alloca = this->llvm_ir_builder.CreateStructGEP(funcRec->closure_type, closureAlloca, idx);
-                            this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(varRec->variableType->struct_type->stand_alone_type, varRec->allocainst), alloca, true);
+                            std::cout << "Struct GEP created for stand-alone type" << std::endl;
+                            this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(varRec->variableType->struct_type->stand_alone_type, varRec->allocainst), alloca);
+                            std::cout << "Store created for stand-alone type" << std::endl;
                         } else {
+                            std::cout << "Variable does not have stand-alone type" << std::endl;
                             auto alloca = this->llvm_ir_builder.CreateStructGEP(funcRec->closure_type, closureAlloca, idx);
-                            this->llvm_ir_builder.CreateStore(varRec->allocainst, alloca, true);
+                            std::cout << "Struct GEP created for non-stand-alone type" << std::endl;
+                            this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(varRec->variableType->struct_type->struct_type, varRec->allocainst), alloca);
+                            std::cout << "Store created for non-stand-alone type" << std::endl;
                         }
                     }
                 }
                 else {
-                    std::cout << "Func" << std::endl;
+                    std::cout << "Closure parameter is not a variable" << std::endl;
                 }
                 idx++;
             }
-            return {{closureAlloca}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("func"), funcRec, funcRec->closure_type)};
+            std::vector<std::shared_ptr<enviornment::RecordStructInstance>> generics;
+            generics.push_back(funcRec->return_inst);
+            std::cout << "Generics vector populated" << std::endl;
+            std::cout << "Creating function alloca" << std::endl;
+            auto alloca = this->llvm_ir_builder.CreateAlloca(func_tp->struct_type);
+            std::cout << "Function alloca created" << std::endl;
+            auto closure = this->llvm_ir_builder.CreateStructGEP(func_tp->struct_type, alloca, 0);
+            std::cout << "Struct GEP created for function alloca" << std::endl;
+            if (!funcRec->closure_arguments.empty()) {
+                std::cout << "Storing closure alloca" << std::endl;
+                this->llvm_ir_builder.CreateStore(closureAlloca, closure);
+                std::cout << "Closure alloca stored" << std::endl;
+            }
+            else {
+                std::cout << "Storing null pointer for closure" << std::endl;
+                this->llvm_ir_builder.CreateStore(llvm::ConstantPointerNull::get(llvm::Type::getVoidTy(this->llvm_context)->getPointerTo()), closure);
+                std::cout << "Null pointer stored for closure" << std::endl;
+            }
+            auto func = this->llvm_ir_builder.CreateStructGEP(func_tp->struct_type, alloca, 1);
+            std::cout << "Struct GEP created for function" << std::endl;
+            this->llvm_ir_builder.CreateStore(funcRec->function, func);
+            std::cout << "Function stored" << std::endl;
+            return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("func"), funcRec->function_type, generics)};
         }
         std::cerr << "Variable or Function not defined: " << identifier_literal->value << std::endl;
         return {{}, nullptr};
@@ -911,7 +961,11 @@ std::shared_ptr<enviornment::RecordStructInstance> compiler::Compiler::_parseTyp
     for (auto gen : type->generics) {
         generics.push_back(this->_parseType(gen));
     }
-    return std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct(type_name), generics);
+    auto x = std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct(type_name), generics);
+    if (type_name == "func") {
+        x->function = llvm::FunctionType::get(generics[0]->struct_type->stand_alone_type ? generics[0]->struct_type->stand_alone_type : generics[0]->struct_type->struct_type, true);
+    }
+    return x;
 };
 
 void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement) {
@@ -925,7 +979,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     std::vector<std::string> param_name;
     std::vector<llvm::Type*> param_types;
     std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
-    llvm::StructType* closure_type;
+    llvm::StructType* closure_type = nullptr;
     for(auto param : params) {
         param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
         param_inst_record.push_back(this->_parseType(param->value_type));
@@ -943,7 +997,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     }
     // auto closure_struct = llvm::StructType::create(this->llvm_context, closure_types, "closure_struct");
     auto return_type = this->_parseType(function_declaration_statement->return_type);
-    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
+    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
     unsigned idx = 0;
@@ -995,19 +1049,22 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_line_no))));
             storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(function_declaration_statement->meta_data.end_col_no))));
         }
-        auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
+        auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
         arguments.push_back({std::string(arg.getName()), record});
         this->enviornment.add(record);
     }
     idx = 0;
     for (auto [cName, InstRecord, InstType] : llvm::zip(closure_name, closure_inst_record, closure_types)) {
         std::cout << "cName: " << cName << std::endl;
+        llvm::Value* closureArg;
+        for (auto &arg : func->args()) {
+            closureArg = &arg;
+        }
         auto alloca = this->llvm_ir_builder.CreateAlloca(InstType, nullptr, cName);
-        auto closureArg = func->arg_end() - 1;
-        auto gep = this->llvm_ir_builder.CreateStructGEP(closure_type, &*closureArg, idx);
+        auto gep = this->llvm_ir_builder.CreateStructGEP(closure_type, closureArg, idx);
         auto loaded_arg = this->llvm_ir_builder.CreateLoad(InstType, gep, cName + ".load");
         auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
-        auto record = std::make_shared<enviornment::RecordVariable>(cName, loaded_arg, InstType, alloca, InstRecord);
+        auto record = std::make_shared<enviornment::RecordVariable>(cName, loaded_arg, alloca, InstRecord);
         func_record->closure_arguments.push_back({cName, record});
         this->enviornment.add(record);
         idx++;
@@ -1029,56 +1086,84 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     this->enviornment.add(func_record);
 };
 
-std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitCallExpression(
-    std::shared_ptr<AST::CallExpression> call_expression) {
+std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructInstance>> compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> call_expression) {
+    std::cout << "Entering _visitCallExpression" << std::endl;
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
+    std::cout << "Function/Struct/Variable name: " << name << std::endl;
     auto param = call_expression->arguments;
     std::vector<llvm::Value*> args;
     std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types;
     for(auto arg : param) {
+        std::cout << "Resolving argument" << std::endl;
         auto [value, param_type] = this->_resolveValue(arg);
         params_types.push_back(param_type);
         args.push_back(value[0]);
     }
 
     if(this->enviornment.is_function(name)) {
+        std::cout << "Name is a function: " << name << std::endl;
         auto func_record = this->enviornment.get_function(name);
+        std::cout << "Function record retrieved for function: " << name << std::endl;
         if (!_checkFunctionParameterType(func_record, params_types)) {
-            std::cerr << "Function Parameter Type Mismatch" << std::endl;
+            std::cerr << "Function Parameter Type Mismatch for function: " << name << std::endl;
             exit(1);
         }
+        std::cout << "Function parameter types checked for function: " << name << std::endl;
         if (!func_record->closure_arguments.empty()) {
+            std::cout << "Function has closure arguments for function: " << name << std::endl;
             std::vector<llvm::Value*> structAlloca;
             for (auto [cp, recInst] : func_record->closure_arguments) {
+                std::cout << "Processing closure argument: " << cp << " for function: " << name << std::endl;
                 if (this->enviornment.is_variable(cp)) {
                     auto varRec = this->enviornment.get_variable(cp);
+                    std::cout << "Closure argument is a variable: " << cp << " for function: " << name << std::endl;
                     if (_checkType(varRec->variableType, recInst->variableType)) {
-                        if (varRec->variableType->struct_type->stand_alone_type)
+                        std::cout << "Variable type matches for closure argument: " << cp << " for function: " << name << std::endl;
+                        if (varRec->variableType->struct_type->stand_alone_type) {
+                            std::cout << "Variable has stand-alone type for closure argument: " << cp << " for function: " << name << std::endl;
                             structAlloca.push_back(this->llvm_ir_builder.CreateLoad(varRec->variableType->struct_type->stand_alone_type, varRec->allocainst));
-                        else
+                        } else {
+                            std::cout << "Variable does not have stand-alone type for closure argument: " << cp << " for function: " << name << std::endl;
                             structAlloca.push_back(varRec->allocainst);
+                        }
                     }
+                    else {
+                        std::cout << "No Fuck but Fuck" << std::endl;
+                        exit(2);
+                    }
+                }
+                else if (this->enviornment.is_function(cp)) {
+                    std::cout << "No Fuck but Fuck" << std::endl;
+                    exit(1);
                 }
             }
             llvm::AllocaInst* closureAlloca = this->llvm_ir_builder.CreateAlloca(func_record->closure_type);
+            std::cout << "Closure alloca created for function: " << name << std::endl;
             unsigned int idx = 0;
             for (auto alloca : structAlloca) {
+                std::cout << "Storing closure argument at index: " << idx << " for function: " << name << std::endl;
                 auto field_ptr = this->llvm_ir_builder.CreateStructGEP(func_record->closure_type, closureAlloca, idx);
                 auto store = this->llvm_ir_builder.CreateStore(structAlloca[idx], field_ptr);
+                std::cout << "Stored closure argument at index: " << idx << " for function: " << name << std::endl;
                 idx++;
             }
             args.push_back(closureAlloca);
+            std::cout << "Closure arguments stored for function: " << name << std::endl;
         }
+        std::cout << "Creating function call for function: " << name << std::endl;
         auto returnValue = this->llvm_ir_builder.CreateCall(
             func_record->function, args);
+        std::cout << "Function call created for function: " << name << std::endl;
         returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Function Call")));
         returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
         returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
         returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
         returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
+        std::cout << "Exiting _visitCallExpression with function return value for function: " << name << std::endl;
         return {{returnValue}, func_record->return_inst};
     }
     else if (this->enviornment.is_struct(name)) {
+        std::cout << "Name is a struct" << std::endl;
         auto struct_record = this->enviornment.get_struct(name);
         auto struct_type = struct_record->struct_type;
         auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
@@ -1100,36 +1185,63 @@ std::tuple<std::vector<llvm::Value*>, std::shared_ptr<enviornment::RecordStructI
             storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
             storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
         }
+        std::cout << "Exiting _visitCallExpression with struct allocation" << std::endl;
         return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(struct_record)};
     }
     else if (this->enviornment.is_variable(name)) {
+        std::cout << "Name is a variable" << std::endl;
         std::cout << "call_name: " << name << std::endl;
         auto var_record = this->enviornment.get_variable(name);
-        llvm::LoadInst* func;
         if (!var_record->variableType->function) {
             std::cerr << "Variable is not a function" << std::endl;
             exit(1);
         }
-        auto func_record = var_record->variableType->function;
-        if (!func_record->closure_arguments.empty()) {
-            auto closure = var_record->allocainst ? var_record->allocainst : var_record->value;
-            args.push_back(closure);
-        }
-        if (!_checkFunctionParameterType(func_record, params_types)) {
-            std::cerr << "Function Parameter Type Mismatch" << std::endl;
-            exit(1);
-        }
-        auto returnValue = this->llvm_ir_builder.CreateCall(var_record->variableType->function->function, args); // Calling the function
-        returnValue->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Function Call")));
-        returnValue->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
-        returnValue->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
-        returnValue->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
-        returnValue->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
-        return {{returnValue}, func_record->return_inst};
+        auto func = this->llvm_ir_builder.CreateLoad(var_record->variableType->function->getPointerTo(), this->llvm_ir_builder.CreateStructGEP(var_record->variableType->struct_type->struct_type, var_record->allocainst, 1));
+        auto closure = this->llvm_ir_builder.CreateLoad(llvm::Type::getVoidTy(this->llvm_context)->getPointerTo(), this->llvm_ir_builder.CreateStructGEP(var_record->variableType->struct_type->struct_type, var_record->allocainst, 0));
+
+        auto funcParent = this->llvm_ir_builder.GetInsertBlock()->getParent();
+        llvm::BasicBlock* ThenBB = llvm::BasicBlock::Create(this->llvm_context, "then", funcParent);
+        llvm::BasicBlock* ElseBB = llvm::BasicBlock::Create(this->llvm_context, "else", funcParent);
+        llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(this->llvm_context, "cont", funcParent);
+
+        auto condBr = this->llvm_ir_builder.CreateCondBr(this->llvm_ir_builder.CreateICmpNE(closure, llvm::ConstantPointerNull::get(llvm::Type::getVoidTy(this->llvm_context)->getPointerTo())), ThenBB, ElseBB);
+        condBr->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Closure Check")));
+        condBr->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
+        condBr->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
+        condBr->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
+        condBr->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
+
+        this->llvm_ir_builder.SetInsertPoint(ThenBB);
+        auto returnValueWithClosure = this->llvm_ir_builder.CreateCall(var_record->variableType->function, func, {closure});
+        returnValueWithClosure->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Function Call with Closure")));
+        returnValueWithClosure->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
+        returnValueWithClosure->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
+        returnValueWithClosure->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
+        returnValueWithClosure->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
+        this->llvm_ir_builder.CreateBr(ContBB);
+
+        this->llvm_ir_builder.SetInsertPoint(ElseBB);
+        args.push_back(closure);
+        auto returnValueWithoutClosure = this->llvm_ir_builder.CreateCall(var_record->variableType->function, func, args);
+        returnValueWithoutClosure->setMetadata("dbg", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, "Function Call without Closure")));
+        returnValueWithoutClosure->setMetadata("line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_line_no))));
+        returnValueWithoutClosure->setMetadata("col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.st_col_no))));
+        returnValueWithoutClosure->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_line_no))));
+        returnValueWithoutClosure->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(call_expression->meta_data.end_col_no))));
+        this->llvm_ir_builder.CreateBr(ContBB);
+
+        this->llvm_ir_builder.SetInsertPoint(ContBB);
+        auto phi = this->llvm_ir_builder.CreatePHI(var_record->variableType->function->getReturnType(), 2);
+        phi->addIncoming(returnValueWithClosure, ThenBB);
+        phi->addIncoming(returnValueWithoutClosure, ElseBB);
+
+        std::cout << "Exiting _visitCallExpression with variable function call" << std::endl;
+        return {{phi}, var_record->variableType->generic[0]};
     }
     errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no,
                             "Function `" + name + "` not defined")
         .raise();
+    std::cout << "Exiting _visitCallExpression with error" << std::endl;
     return {{nullptr}, nullptr};
 };
 
@@ -1321,7 +1433,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                     storeInst->setMetadata("end_line", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_line_no))));
                     storeInst->setMetadata("end_col", llvm::MDNode::get(this->llvm_context, llvm::MDString::get(this->llvm_context, std::to_string(field_decl->meta_data.end_col_no))));
                 }
-                auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, arg.getType(), alloca, param_type_record);
+                auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
                 arguments.push_back({std::string(arg.getName()), record});
                 this->enviornment.add(record);
             }
@@ -1372,7 +1484,7 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
 };
 
 bool compiler::Compiler::_checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2) {
-    if (type1->function || type2->function) {
+    if (type1->struct_type->name == "func" || type2->struct_type->name == "func") {
         return true;
     }
     for (auto [gen_type1, gen_type2] : llvm::zip(type1->generic, type2->generic)) {
@@ -1416,9 +1528,11 @@ bool compiler::Compiler::_checkType(std::shared_ptr<enviornment::RecordStructTyp
 };
 
 bool compiler::Compiler::_checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> func_record, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params) {
+    return true;
     for (auto [arg, pass_instanc] : llvm::zip(func_record->arguments, params)) {
-        auto [_, accept_instanc] = arg;
+        auto [arg_name, accept_instanc] = arg;
         if (!this->_checkType(accept_instanc->variableType, pass_instanc)) {
+            std::cout << "Type mismatch for argument: " << arg_name << std::endl;
             return false;
         }
     }

@@ -49,13 +49,13 @@ std::string basicCodeHighlighting(const std::string& code) {
 int main(int argc, char* argv[]) {
     CLI::App app{"File Reader and Writer"};
 
-    std::string inputFilePath;
-    std::string outputFilePath;
-
-    app.add_option("input_file", inputFilePath, "Input file path")->required();
-    app.add_option("-o,--output", outputFilePath, "Output file path")->required();
-
-    CLI11_PARSE(app, argc, argv);
+    std::string inputFilePath = "./test/testscipt.gc";
+    std::string outputFilePath = "./dump/testscipt.ll";
+    // std::string inputFilePath;
+    // std::string outputFilePath;
+    // app.add_option("input_file", inputFilePath, "Input file path")->required();
+    // app.add_option("-o,--output", outputFilePath, "Output file path")->required();
+    // CLI11_PARSE(app, argc, argv);
 
     // Read the input file content into a string
     std::string fileContent = readFileToString(inputFilePath);
