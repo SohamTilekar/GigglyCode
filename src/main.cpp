@@ -1,19 +1,24 @@
+#include <exception>
 #include <iostream>
 #include <string>
 #include <fstream>
-#include <iostream>
 #include <sstream>
-#include <regex>
 #include <filesystem>
+#include <tuple>
+#include <unordered_set>
+#include <vector>
+#include "include/json.hpp"
 #include "include/cli11.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 #include "compiler/compiler.hpp"
 
-#define DEBUG_LEXER
-#define DEBUG_PARSER
+// #define DEBUG_LEXER
+// #define DEBUG_PARSER
 #define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
 #define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.json"
+
+using json = nlohmann::json;
 
 // Function to read the file content into a string
 const std::string readFileToString(const std::string& filePath) {
@@ -28,40 +33,59 @@ const std::string readFileToString(const std::string& filePath) {
     return buffer.str();
 }
 
-std::string basicCodeHighlighting(const std::string& code) {
-    std::regex keywords("\\b(let|var|int|float)\\b");
-    std::regex types("\\b(int|float|double|char|bool|void)\\b");
-    std::regex numbers("\\b[0-9]+\\b");
-    std::regex strings("\".*?\"");
-    std::regex comments("//.*");
-    std::regex operators("[+\\-*/=<>]");
+void setIrGcMap(const std::string& filePath, const std::string& ir_gc_map, json& compiledFilesRecord) {
+    std::string fileContent = readFileToString(filePath);
+    std::hash<std::string> hasher;
+    size_t currentHash = hasher(fileContent);
 
-    std::string highlightedCode = std::regex_replace(highlightedCode, numbers, "\033[1;32m$&\033[0m");
-    highlightedCode = std::regex_replace(code, keywords, "\033[1;31m$&\033[0m");
-    highlightedCode = std::regex_replace(highlightedCode, types, "\033[1;36m$&\033[0m");
-    highlightedCode = std::regex_replace(highlightedCode, operators, "\033[1;35m$&\033[0m");
-    highlightedCode = std::regex_replace(highlightedCode, strings, "\033[1;33m$&\033[0m");
-    highlightedCode = std::regex_replace(highlightedCode, comments, "\033[1;34m$&\033[0m");
+    // Initialize the ir_gc_map JSON structure if the file does not exist
+    json ir_gc_map_json;
+    if (!std::filesystem::exists(ir_gc_map)) {
+        ir_gc_map_json["uptodate"] = false;
+        ir_gc_map_json["functions"] = json::array();
+        ir_gc_map_json["structs"] = json::array();
+        // Create the ir_gc_map file
+        std::filesystem::create_directories(std::filesystem::path(ir_gc_map).parent_path());
+        std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
+        if (!ir_gc_map_file_out.is_open()) {
+            throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
+        }
+        ir_gc_map_file_out << ir_gc_map_json.dump(4);
+        ir_gc_map_file_out.close();
+    } else {
+        std::ifstream ir_gc_map_file(ir_gc_map);
+        if (!ir_gc_map_file.is_open()) {
+            throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map);
+        }
+        ir_gc_map_file >> ir_gc_map_json;
+        ir_gc_map_file.close();
+    }
 
-    return highlightedCode;
+    if (compiledFilesRecord.contains(filePath) && compiledFilesRecord[filePath] == currentHash) {
+        ir_gc_map_json["uptodate"] = true;
+    } else {
+        ir_gc_map_json["uptodate"] = false;
+    }
+
+    std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
+    if (!ir_gc_map_file_out.is_open()) {
+        throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
+    }
+    ir_gc_map_file_out << ir_gc_map_json.dump(4);
+    ir_gc_map_file_out.close();
 }
 
-int main(int argc, char* argv[]) {
-    CLI::App app{"File Reader and Writer"};
+void compileFile(const std::string& filePath, const std::string& outputFilePath, const std::string& ir_gc_map, json& compiledFilesRecord) {
+    std::string fileContent = readFileToString(filePath);
 
-    std::string inputFilePath = "./test/testscipt.gc";
-    std::string outputFilePath = "./dump/testscipt.ll";
-    // std::string inputFilePath;
-    // std::string outputFilePath;
-    // app.add_option("input_file", inputFilePath, "Input file path")->required();
-    // app.add_option("-o,--output", outputFilePath, "Output file path")->required();
-    // CLI11_PARSE(app, argc, argv);
-
-    // Read the input file content into a string
-    std::string fileContent = readFileToString(inputFilePath);
-
-    // Print the file content
-    std::cout << "File Content:\n" << basicCodeHighlighting(fileContent) << std::endl;
+    // Check if the file has changed
+    std::hash<std::string> hasher;
+    size_t currentHash = hasher(fileContent);
+    if (compiledFilesRecord.contains(filePath) && compiledFilesRecord[filePath] == currentHash) {
+        std::cout << "Skipping unchanged file: " << filePath << std::endl;
+        return;
+    }
+    std::cout << "Working on file: " << filePath << std::endl;
 #ifdef DEBUG_LEXER
     std::cout << "=========== Lexer Debug ===========" << std::endl;
     Lexer debug_lexer(fileContent);
@@ -69,7 +93,7 @@ int main(int argc, char* argv[]) {
         std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
         if (!debugOutput.is_open()) {
             std::cerr << "Error: Could not open debug output file " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
-            return 1;
+            return;
         }
         while (debug_lexer.current_char != "") {
             std::shared_ptr<token::Token> token = debug_lexer.nextToken();
@@ -85,15 +109,13 @@ int main(int argc, char* argv[]) {
         }
     }
 #endif
-    Lexer lexer(fileContent);
 #ifdef DEBUG_PARSER
     parser::Parser debug_parser(std::make_shared<Lexer>(fileContent));
     auto debug_program = debug_parser.parseProgram();
     std::cout << "=========== Parser Debug ===========" << std::endl;
-    if(!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
-        std::ofstream file(DEBUG_PARSER_OUTPUT_PATH,
-                            std::ios::trunc); // Open file in append mode
-        if(file.is_open()) {
+    if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
+        std::ofstream file(DEBUG_PARSER_OUTPUT_PATH, std::ios::trunc); // Open file in append mode
+        if (file.is_open()) {
             file << debug_program->toJSON()->dump(4) << std::endl;
             file.close();
         } else {
@@ -102,37 +124,135 @@ int main(int argc, char* argv[]) {
     } else {
         std::cout << debug_program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
     }
-    for(auto& err : debug_parser.errors) {
+    for (auto& err : debug_parser.errors) {
         err->raise(false);
     }
-    if(debug_parser.errors.size() > 0) {
-        return 1;
+    if (debug_parser.errors.size() > 0) {
+        return;
     }
-    if(!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
+    if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
         std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
     }
 #endif
+    // Lexer
+    Lexer lexer(fileContent);
     // Parser
     parser::Parser parsr(std::make_shared<Lexer>(lexer));
     auto program = parsr.parseProgram();
-    for(auto& err : parsr.errors) {
+    for (auto& err : parsr.errors) {
+        std::cout << "Hasher1: " << currentHash << std::endl;
         err->raise(false);
     }
-    if(parsr.errors.size() > 0) {
-        return 1;
+    if (parsr.errors.size() > 0) {
+            return;
     }
     // Compiler
-    auto comp = compiler::Compiler(fileContent, std::filesystem::absolute(inputFilePath));
+    auto comp = compiler::Compiler(fileContent, std::filesystem::absolute(filePath), std::filesystem::path(ir_gc_map));
     comp.compile(program);
     std::error_code EC;
     llvm::raw_fd_ostream file(outputFilePath, EC, llvm::sys::fs::OF_None);
-    if(EC) {
-        std::cerr << "Could not open file: " << EC.message() << std::endl;
-        return 1;
+    if (EC) {
+            std::cerr << "Could not open file " << outputFilePath << ": " << EC.message() << std::endl;
+            return;
     }
     comp.llvm_module->print(file, nullptr);
     file.close();
-    // Write the file content to the output file
     std::cout << "Output File: " << outputFilePath << std::endl;
+
+    // Update the compiled files record
+    compiledFilesRecord[filePath] = currentHash;
+    std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
+    if (!ir_gc_map_file_out.is_open()) {
+        throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
+    }
+    comp.ir_gc_map_json["uptodate"] = true;
+    ir_gc_map_file_out << comp.ir_gc_map_json.dump(4);
+    ir_gc_map_file_out.close();
+    std::cout << "Done Working on File: " << filePath << std::endl;
+}
+
+void compileDirectory(const std::string& srcDir, const std::string& buildDir, json& compiledFilesRecord) {
+    std::unordered_set<std::string> currentFiles;
+
+    // update the ir_gc_map file
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".gc") {
+            std::cout << buildDir + "/ir_gc_map/" + std::filesystem::relative(entry.path(), srcDir).string().substr(0, std::filesystem::relative(entry.path(), srcDir).string().find_last_of('.')) + ".json" << std::endl;
+            setIrGcMap(entry.path().string(), buildDir + "/ir_gc_map/" + std::filesystem::relative(entry.path(), srcDir).string().substr(0, std::filesystem::relative(entry.path(), srcDir).string().find_last_of('.')) + ".json", compiledFilesRecord);
+        }
+    }
+
+    // Compile each .gc file in the src director
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".gc") {
+            std::string relativePath = std::filesystem::relative(entry.path(), srcDir).string();
+            std::string outputFilePath = buildDir + "/ir/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".ll";
+            std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".json";
+            std::filesystem::create_directories(std::filesystem::path(outputFilePath).parent_path());
+            std::vector<std::tuple<std::string, std::string, std::string>> filesRecord = {{entry.path().string(), outputFilePath, ir_gc_map}};
+            while (!filesRecord.empty()) {
+                try {
+                    auto& fileTuple = filesRecord.back();
+                    compileFile(std::get<0>(fileTuple), std::get<1>(fileTuple), std::get<2>(fileTuple), compiledFilesRecord);
+                    filesRecord.pop_back();
+                }
+                catch (const compiler::NotCompiledError& e) {
+                    auto gcFile = e.path;
+                    std::string outputFilePath = buildDir + "/ir/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".ll";
+                    std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".json";
+                    filesRecord.push_back({gcFile, outputFilePath, ir_gc_map});
+                }
+                catch (std::exception e) {
+                    throw;
+                }
+            }
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    CLI::App app{"Folder Compiler"};
+
+    std::string inputFolderPath;
+    app.add_option("input_folder", inputFolderPath, "Input folder path")->required();
+    CLI11_PARSE(app, argc, argv);
+
+    std::string srcDir = inputFolderPath + "/src";
+    std::string buildDir = inputFolderPath + "/build";
+    std::string irDir = buildDir + "/ir";
+    std::string irGcMapDir = buildDir + "/ir_gc_map";
+    std::string recordFilePath = buildDir + "/compiled_files_record.json";
+
+    // Ensure the input folder contains the required directories and files
+    if (!std::filesystem::exists(srcDir) || !std::filesystem::exists(srcDir + "/main.gc")) {
+        std::cerr << "Error: The input folder must contain a 'src' directory with a 'main.gc' file." << std::endl;
+        return 1;
+    }
+
+    // Create the build/ir directory if it doesn't exist
+    std::filesystem::create_directories(irDir);
+    // Create the build/ir_gc_map directory if it doesn't exist
+    std::filesystem::create_directories(irGcMapDir);
+
+    // Load the compiled files record
+    json compiledFilesRecord;
+    if (std::filesystem::exists(recordFilePath)) {
+        std::ifstream recordFile(recordFilePath);
+        if (recordFile.is_open()) {
+            recordFile >> compiledFilesRecord;
+            recordFile.close();
+        }
+    }
+
+    // Compile the files in the src directory
+    compileDirectory(srcDir, buildDir, compiledFilesRecord);
+
+    // Save the compiled files record
+    std::ofstream recordFile(recordFilePath, std::ios::trunc);
+    if (recordFile.is_open()) {
+        recordFile << compiledFilesRecord.dump(4);
+        recordFile.close();
+    }
+
     return 0;
 }

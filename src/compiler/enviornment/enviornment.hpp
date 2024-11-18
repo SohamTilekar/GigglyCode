@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace enviornment {
-enum class RecordType { RecordStructInst, RecordVariable, RecordFunction };
+enum class RecordType { RecordStructInst, RecordVariable, RecordFunction, RecordModule };
 
 class Record {
   public:
@@ -36,34 +36,12 @@ class RecordFunction : public Record {
   public:
     llvm::Function* function = nullptr;
     llvm::FunctionType* function_type = nullptr;
-    llvm::StructType* closure_type = nullptr;
     std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments;
-    std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> closure_arguments;
     std::shared_ptr<RecordStructInstance> return_inst;
     RecordFunction(std::string name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
-                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> closure_arguments, std::shared_ptr<RecordStructInstance> return_inst)
-        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), closure_arguments(closure_arguments),
-          return_inst(return_inst) {};
-    RecordFunction(
-        std::string name,
-        llvm::Function* function,
-        llvm::FunctionType* function_type,
-        std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments,
-        std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> closure_arguments,
-        llvm::StructType* closure_type,
-        std::shared_ptr<RecordStructInstance> return_inst
-    )
-        : Record(RecordType::RecordFunction, name),
-            function(function), function_type(function_type),
-            arguments(arguments),
-            closure_arguments(closure_arguments),
-            closure_type(closure_type),
-            return_inst(return_inst) {};
-    RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
-                    std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
-        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), closure_arguments({}),
-          return_inst(return_inst) {};
+                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
+        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
 };
 
 class RecordStructType : public Record {
@@ -85,9 +63,7 @@ class RecordStructInstance {
   public:
     std::shared_ptr<RecordStructType> struct_type;
     std::vector<std::shared_ptr<RecordStructInstance>> generic = {};
-    llvm::FunctionType* function = nullptr;
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type) : struct_type(struct_type) {};
-    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, llvm::FunctionType* function, std::vector<std::shared_ptr<RecordStructInstance>> generic) : struct_type(struct_type), function(function), generic(generic) {};
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::vector<std::shared_ptr<RecordStructInstance>> generic)
         : struct_type(struct_type), generic(generic) {};
 };
@@ -100,6 +76,20 @@ class RecordVariable : public Record {
     RecordVariable(std::string name) : Record(RecordType::RecordVariable, name) {};
     RecordVariable(std::string name, llvm::Value* value, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructInstance> generic)
     : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variableType(generic) {};
+};
+
+class RecordModule : public Record {
+  public:
+    std::unordered_map<std::string, std::shared_ptr<Record>> record_map;
+    std::string name;
+    RecordModule(std::string name, std::unordered_map<std::string, std::shared_ptr<Record>> record_map) : Record(RecordType::RecordModule, name), name(name), record_map(record_map) {};
+    RecordModule(std::string name) : Record(RecordType::RecordModule, name), name(name) {};
+    bool is_function(std::string name);
+    std::shared_ptr<RecordFunction> get_function(std::string name);
+    bool is_struct(std::string name);
+    std::shared_ptr<RecordStructType> get_struct(std::string name);
+    bool is_module(std::string name);
+    std::shared_ptr<RecordModule> get_module(std::string name);
 };
 
 class Enviornment {
@@ -126,6 +116,9 @@ class Enviornment {
     std::shared_ptr<RecordFunction> get_function(std::string name, bool limit2current_scope = false);
     bool is_struct(std::string name, bool limit2current_scope = false);
     std::shared_ptr<RecordStructType> get_struct(std::string
+        name, bool limit2current_scope = false);
+    bool is_module(std::string name, bool limit2current_scope = false);
+    std::shared_ptr<RecordModule> get_module(std::string
         name, bool limit2current_scope = false);
 }; // class Environment
 } // namespace enviornment
