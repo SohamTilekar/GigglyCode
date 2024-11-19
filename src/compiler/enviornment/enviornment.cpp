@@ -37,10 +37,8 @@ std::shared_ptr<enviornment::RecordStructType> enviornment::RecordModule::get_st
 };
 
 std::shared_ptr<enviornment::RecordModule> enviornment::RecordModule::get_module(std::string name) {
-    std::cout << name << std::endl;
     if(record_map.find(name) != record_map.end())
         if (record_map.at(name)->type == RecordType::RecordModule) {
-            std::cout << "this is Fucking" << std::endl;
             return std::static_pointer_cast<enviornment::RecordModule>(record_map.at(name));
         }
     return nullptr;

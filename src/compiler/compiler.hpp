@@ -42,11 +42,12 @@ class Compiler {
     std::filesystem::path ir_gc_map;
     nlohmann::json ir_gc_map_json;
 
+    std::string fc_st_name_prefix;
+
     enviornment::Enviornment enviornment;
 
     std::vector<llvm::BasicBlock*> function_entery_block = {};
 
-    Compiler();
     Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map);
 
     void compile(std::shared_ptr<AST::Node> node);
@@ -80,8 +81,8 @@ class Compiler {
 
     std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>>> _resolveValue(std::shared_ptr<AST::Node> node);
 
-    void _importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module);
-    void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module);
+    void _importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
+    void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
 
     std::shared_ptr<enviornment::RecordStructInstance> _parseType(std::shared_ptr<AST::GenericType> type);
     bool _checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2);

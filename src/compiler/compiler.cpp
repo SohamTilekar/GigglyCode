@@ -14,34 +14,50 @@
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
+#include <regex.h>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-compiler::Compiler::Compiler() : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context) {
-    this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
-    this->llvm_module->setSourceFileName(this->file_path.filename().string());
-    this->_initializeBuiltins();
-}
 
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map) {
     this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
     this->llvm_module->setSourceFileName(file_path.string());
     this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
     this->_initializeBuiltins();
-
+    std::string path_str = file_path.string();
+    size_t pos = path_str.rfind("src");
+    if (pos != std::string::npos) {
+        pos += 4; // Move past the "src"
+    } else {
+        pos = 0; // Default to the start if "src" is not found
+    }
+    size_t ext_pos = path_str.rfind(".gc");
+    if (ext_pos != std::string::npos) {
+        path_str = path_str.substr(0, ext_pos);
+    }
+    this->fc_st_name_prefix = path_str.substr(pos);
+    pos = 0;
+    while ((pos = this->fc_st_name_prefix.find('/', pos)) != std::string::npos) {
+        this->fc_st_name_prefix.replace(pos, 1, "..");
+        pos += 2;
+    }
+    pos = 0;
+    while ((pos = this->fc_st_name_prefix.find('\\', pos)) != std::string::npos) {
+        this->fc_st_name_prefix.replace(pos, 1, "..");
+        pos += 2;
+    }
+    this->fc_st_name_prefix += "..";
     // Open the ir_gc_map JSON file and attach it to this->ir_gc_map_json
     std::ifstream ir_gc_map_file(ir_gc_map.string());
     if (!ir_gc_map_file.is_open()) {
         throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map.string());
     }
     ir_gc_map_file >> this->ir_gc_map_json;
-    this->ir_gc_map_json["functions"] = nlohmann::json::array();
-    this->ir_gc_map_json["structs"] = nlohmann::json::array();
+    this->ir_gc_map_json["functions"] = nlohmann::json::object();
+    this->ir_gc_map_json["structs"] = nlohmann::json::object();
     ir_gc_map_file.close();
 }
-
 void compiler::Compiler::_initializeBuiltins() {
     auto _int = std::make_shared<enviornment::RecordStructType>("int", llvm::Type::getInt64Ty(llvm_context));
     this->enviornment.parent->add(_int);
@@ -191,20 +207,12 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
     auto [left_value, _left_type] = this->_resolveValue(left);
-    std::cerr << "Left value resolved: " << left_value.data() << ", Type: " << &_left_type << std::endl;
-    std::cerr << "Left value pointer address: " << &left_value << ", Left type pointer address: " << &_left_type << std::endl;
     if (op == token::TokenType::Dot) {
-        std::cerr << "Operator is Dot" << std::endl;
         if (right->type() == AST::NodeType::IdentifierLiteral) {
-            std::cerr << "Right node type is IdentifierLiteral" << std::endl;
             if (left_value.empty()) {
-                std::cerr << "Left value is empty" << std::endl;
                 auto module = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
                 auto name = std::static_pointer_cast<AST::IdentifierLiteral>(right)->value;
-                std::cerr << "Accessing module: " << module->name << ", Identifier: " << name << std::endl;
-                std::cerr << "Module pointer address: " << module.get() << std::endl;
                 if (module->is_module(name)) {
-                    std::cerr << "Module " << name << " found in module " << module->name << std::endl;
                     return std::make_tuple(std::vector<llvm::Value*>{}, module->get_module(name));
                 }
                 else {
@@ -213,8 +221,6 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                 }
             }
             auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
-            std::cerr << "Left type struct: " << left_type->struct_type->name << std::endl;
-            std::cerr << "Left type struct pointer address: " << left_type.get() << std::endl;
             if (left_type->struct_type->stand_alone_type == nullptr && left_type->struct_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
                 unsigned int idx = 0;
                 for (auto field : left_type->struct_type->fields) {
@@ -229,14 +235,10 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                     left_value[0],
                     idx
                 );
-                std::cerr << "GEP created: " << gep << ", Index: " << idx << std::endl;
-                std::cerr << "GEP pointer address: " << gep << std::endl;
                 llvm::Value* load = this->llvm_ir_builder.CreateLoad(
                     type->struct_type->stand_alone_type,
                     gep
                 );
-                std::cerr << "Load created: " << load << std::endl;
-                std::cerr << "Load pointer address: " << load << std::endl;
                 return {
                     {
                         type->struct_type->struct_type ? gep : load
@@ -250,7 +252,6 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
             }
         }
         else if (right->type() == AST::NodeType::CallExpression) {
-            std::cerr << "Right node type is CallExpression" << std::endl;
             auto call_expression = std::static_pointer_cast<AST::CallExpression>(right);
             auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
             auto param = call_expression->arguments;
@@ -258,8 +259,6 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
             std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types;
             for(auto arg : param) {
                 auto [value, param_type] = this->_resolveValue(arg);
-                std::cerr << "Argument value resolved: " << value.data() << ", Type: " << &param_type << std::endl;
-                std::cerr << "Argument value pointer address: " << &value << ", Argument type pointer address: " << &param_type << std::endl;
                 if (value.empty()) {
                     std::cerr << "Cant pass Module to the Function" << std::endl;
                     exit(1);
@@ -268,31 +267,21 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                 args.push_back(value[0]);
             }
             if (left_value.empty()) {
-                std::cerr << "Left value is empty" << std::endl;
                 auto left_type = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
-                std::cerr << "left type: " << left_type << std::endl;
-                std::cerr << "Left type module: " << left_type->name << std::endl;
-                std::cerr << "Left type module pointer address: " << left_type.get() << std::endl;
                 if(left_type->is_function(name)) {
                     auto func = left_type->get_function(name);
-                    std::cerr << "Function found: " << func->function->getName().str() << std::endl;
-                    std::cerr << "Function pointer address: " << func->function << std::endl;
                     if (!this->_checkFunctionParameterType(func, params_types)) {
                         std::cerr << "Method Parameter Type Mismatch for function: " << name << std::endl;
                         exit(1);
                     }
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func->function, args);
-                    std::cerr << "Function call created: " << returnValue << std::endl;
-                    std::cerr << "Function call pointer address: " << returnValue << std::endl;
                     return {{returnValue}, func->return_inst};
                 }
                 else if (left_type->is_struct(name)) {
                     auto struct_record = this->enviornment.get_struct(name);
                     auto struct_type = struct_record->struct_type;
                     auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
-                    std::cerr << "Struct allocation created: " << alloca << std::endl;
-                    std::cerr << "Struct allocation pointer address: " << alloca << std::endl;
                     for (unsigned int i = 0; i < args.size(); ++i) {
                         if (!this->_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
                             std::cerr << "Struct Type MissMatch" << std::endl;
@@ -300,8 +289,6 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                         }
                         auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
                         auto storeInst = this->llvm_ir_builder.CreateStore(args[i], field_ptr);
-                        std::cerr << "Field store created: " << storeInst << ", Field pointer: " << field_ptr << std::endl;
-                        std::cerr << "Field store pointer address: " << storeInst << ", Field pointer address: " << field_ptr << std::endl;
                     }
                     return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(struct_record)};
                 }
@@ -311,20 +298,14 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                 }
             }
             auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
-            std::cerr << "Left type struct instance: " << left_type->struct_type->name << std::endl;
-            std::cerr << "Left type struct instance pointer address: " << left_type.get() << std::endl;
             if (left_type->struct_type->stand_alone_type == nullptr && left_type->struct_type->methods.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
                 auto method = left_type->struct_type->methods[name];
-                std::cerr << "Method found: " << method->function->getName().str() << std::endl;
-                std::cerr << "Method pointer address: " << method->function << std::endl;
                 if (!this->_checkFunctionParameterType(method, params_types)) {
                     std::cerr << "Method Parameter Type Mismatch for function: " << name << std::endl;
                     exit(1);
                 }
                 auto returnValue = this->llvm_ir_builder.CreateCall(
                     method->function, args);
-                std::cerr << "Method call created: " << returnValue << std::endl;
-                std::cerr << "Method call pointer address: " << returnValue << std::endl;
                 return {{returnValue}, method->return_inst};
             }
             else {
@@ -958,8 +939,8 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     auto return_type = this->_parseType(function_declaration_statement->return_type);
     auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
-    this->ir_gc_map_json["functions"].push_back({name, func->getName().str()});
+    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix + name, this->llvm_module.get());
+    this->ir_gc_map_json["functions"][name] = func->getName().str();
     unsigned idx = 0;
     for(auto& arg : func->args()) {
         arg.setName(param_name[idx++]);
@@ -1137,9 +1118,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 field_types.push_back(field_type->struct_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
-            auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
-            struct_type->setBody(field_types);
-            struct_record->struct_type = struct_type;
+
         }
         else if (field->type() == AST::NodeType::FunctionStatement) {
             auto field_decl = std::static_pointer_cast<AST::FunctionStatement>(field);
@@ -1201,7 +1180,10 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             struct_record->methods[name] = func_record;
         }
     }
-    this->ir_gc_map_json["structs"].push_back({struct_name, struct_record->struct_type->getName().str()});
+    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
+    struct_type->setBody(field_types);
+    struct_record->struct_type = struct_type;
+    this->ir_gc_map_json["structs"][struct_name] = struct_record->struct_type->getName().str();
 };
 
 // Function to read the file content into a string
@@ -1213,13 +1195,14 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
     auto ir_gc_map = std::filesystem::path(this->ir_gc_map.parent_path().string() + "/" + import_statement->relativePath + ".json");
     std::ifstream ir_gc_map_file(ir_gc_map);
     if (!ir_gc_map_file.is_open()) {
+        std::cerr << "Failed to open ir_gc_map file: " << ir_gc_map << std::endl;
         throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map.string());
     }
     ir_gc_map_file >> ir_gc_map_json;
     ir_gc_map_file.close();
     bool uptodate = ir_gc_map_json["uptodate"];
     if (!uptodate) {
-        std::cout << ir_gc_map << std::endl;
+        std::cerr << "IR GC map not uptodate, throwing NotCompiledError" << std::endl;
         throw compiler::NotCompiledError(gc_source_path.string());
     }
     auto prev_path = this->file_path;
@@ -1232,6 +1215,7 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
         err->raise(false);
     }
     if (parsr.errors.size() > 0) {
+        std::cerr << "Parser errors found, returning" << std::endl;
         return;
     }
     if (!module) {
@@ -1246,11 +1230,11 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
     for (auto& stmt : program->statements) {
         switch (stmt->type()) {
             case AST::NodeType::FunctionStatement: {
-                this->_importFunctionDeclarationStatement(std::static_pointer_cast<AST::FunctionStatement>(stmt), module);
+                this->_importFunctionDeclarationStatement(std::static_pointer_cast<AST::FunctionStatement>(stmt), module, ir_gc_map_json);
                 break;
             }
             case AST::NodeType::StructStatement: {
-                this->_importStructStatement(std::static_pointer_cast<AST::StructStatement>(stmt), module);
+                this->_importStructStatement(std::static_pointer_cast<AST::StructStatement>(stmt), module, ir_gc_map_json);
                 break;
             }
             case AST::NodeType::ImportStatement: {
@@ -1260,12 +1244,13 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
                 break;
             }
             default:
+                std::cerr << "Unknown statement type, skipping" << std::endl;
                 break;
         }
     }
 }
 
-void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module) {
+void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json) {
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(function_declaration_statement->name)->value;
     auto params = function_declaration_statement->parameters;
     std::vector<std::string> param_names;
@@ -1279,8 +1264,7 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
     auto return_type = this->_parseType(function_declaration_statement->return_type);
     auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
-
+    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, ir_gc_map_json["functions"][name].get<std::string>(), this->llvm_module.get());
     unsigned idx = 0;
     for (auto& arg : func->args()) {
         arg.setName(param_names[idx++]);
@@ -1291,7 +1275,7 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
     module->record_map[func_record->name] = func_record;
 }
 
-void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module) {
+void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json) {
     std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(struct_statement->name)->value;
     std::vector<llvm::Type*> field_types;
     auto fields = struct_statement->fields;
@@ -1339,7 +1323,7 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
         }
     }
 
-    auto struct_type = llvm::StructType::create(this->llvm_context, field_types);
+    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, ir_gc_map_json["structs"][struct_name].get<std::string>());
     struct_type->setBody(field_types);
     struct_record->struct_type = struct_type;
 

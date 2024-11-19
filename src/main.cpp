@@ -42,8 +42,8 @@ void setIrGcMap(const std::string& filePath, const std::string& ir_gc_map, json&
     json ir_gc_map_json;
     if (!std::filesystem::exists(ir_gc_map)) {
         ir_gc_map_json["uptodate"] = false;
-        ir_gc_map_json["functions"] = json::array();
-        ir_gc_map_json["structs"] = json::array();
+        ir_gc_map_json["functions"] = json::object();
+        ir_gc_map_json["structs"] = json::object();
         // Create the ir_gc_map file
         std::filesystem::create_directories(std::filesystem::path(ir_gc_map).parent_path());
         std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
@@ -119,7 +119,8 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
             file << debug_program->toJSON()->dump(4) << std::endl;
             file.close();
         } else {
-            std::cout << "Unable to open file";
+            std::cerr << "Unable to open file";
+            exit(1);
         }
     } else {
         std::cout << debug_program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
@@ -140,7 +141,6 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
     parser::Parser parsr(std::make_shared<Lexer>(lexer));
     auto program = parsr.parseProgram();
     for (auto& err : parsr.errors) {
-        std::cout << "Hasher1: " << currentHash << std::endl;
         err->raise(false);
     }
     if (parsr.errors.size() > 0) {
@@ -153,7 +153,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
     llvm::raw_fd_ostream file(outputFilePath, EC, llvm::sys::fs::OF_None);
     if (EC) {
             std::cerr << "Could not open file " << outputFilePath << ": " << EC.message() << std::endl;
-            return;
+            exit(1);
     }
     comp.llvm_module->print(file, nullptr);
     file.close();
@@ -177,7 +177,6 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
     // update the ir_gc_map file
     for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
         if (entry.is_regular_file() && entry.path().extension() == ".gc") {
-            std::cout << buildDir + "/ir_gc_map/" + std::filesystem::relative(entry.path(), srcDir).string().substr(0, std::filesystem::relative(entry.path(), srcDir).string().find_last_of('.')) + ".json" << std::endl;
             setIrGcMap(entry.path().string(), buildDir + "/ir_gc_map/" + std::filesystem::relative(entry.path(), srcDir).string().substr(0, std::filesystem::relative(entry.path(), srcDir).string().find_last_of('.')) + ".json", compiledFilesRecord);
         }
     }
@@ -198,7 +197,9 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
                 }
                 catch (const compiler::NotCompiledError& e) {
                     auto gcFile = e.path;
+                    std::string relativePath = std::filesystem::relative(gcFile, srcDir).string();
                     std::string outputFilePath = buildDir + "/ir/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".ll";
+                    std::filesystem::create_directories(std::filesystem::path(outputFilePath).parent_path());
                     std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".json";
                     filesRecord.push_back({gcFile, outputFilePath, ir_gc_map});
                 }
