@@ -75,7 +75,7 @@ void setIrGcMap(const std::string& filePath, const std::string& ir_gc_map, json&
     ir_gc_map_file_out.close();
 }
 
-void compileFile(const std::string& filePath, const std::string& outputFilePath, const std::string& ir_gc_map, json& compiledFilesRecord) {
+void compileFile(const std::string& filePath, const std::string& outputFilePath, const std::string& ir_gc_map, const std::string& objFilePath, json& compiledFilesRecord, const std::string& optimizationLevel) {
     std::string fileContent = readFileToString(filePath);
 
     // Check if the file has changed
@@ -159,6 +159,16 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
     file.close();
     std::cout << "Output File: " << outputFilePath << std::endl;
 
+    // Convert .ll to .o using clang
+    std::filesystem::create_directories(std::filesystem::path(objFilePath).parent_path());
+    std::string command = "clang -c " + outputFilePath + " -o " + objFilePath + " -Woverride-module" + (optimizationLevel != "" ? (" -O" + optimizationLevel) : "");
+    int result = std::system(command.c_str());
+    if (result != 0) {
+        std::cerr << "Error: Failed to convert " << outputFilePath << " to " << objFilePath << std::endl;
+    } else {
+        std::cout << "Converted " << outputFilePath << " to " << objFilePath << std::endl;
+    }
+
     // Update the compiled files record
     compiledFilesRecord[filePath] = currentHash;
     std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
@@ -171,7 +181,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
     std::cout << "Done Working on File: " << filePath << std::endl;
 }
 
-void compileDirectory(const std::string& srcDir, const std::string& buildDir, json& compiledFilesRecord) {
+void compileDirectory(const std::string& srcDir, const std::string& buildDir, json& compiledFilesRecord, const std::string& optimizationLevel) {
     std::unordered_set<std::string> currentFiles;
 
     // update the ir_gc_map file
@@ -187,12 +197,13 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
             std::string relativePath = std::filesystem::relative(entry.path(), srcDir).string();
             std::string outputFilePath = buildDir + "/ir/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".ll";
             std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".json";
+            std::string objFilePath = buildDir + "/obj/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".o";
             std::filesystem::create_directories(std::filesystem::path(outputFilePath).parent_path());
-            std::vector<std::tuple<std::string, std::string, std::string>> filesRecord = {{entry.path().string(), outputFilePath, ir_gc_map}};
+            std::vector<std::tuple<std::string, std::string, std::string, std::string>> filesRecord = {{entry.path().string(), outputFilePath, ir_gc_map, objFilePath}};
             while (!filesRecord.empty()) {
                 try {
                     auto& fileTuple = filesRecord.back();
-                    compileFile(std::get<0>(fileTuple), std::get<1>(fileTuple), std::get<2>(fileTuple), compiledFilesRecord);
+                    compileFile(std::get<0>(fileTuple), std::get<1>(fileTuple), std::get<2>(fileTuple), std::get<3>(fileTuple), compiledFilesRecord, optimizationLevel);
                     filesRecord.pop_back();
                 }
                 catch (const compiler::NotCompiledError& e) {
@@ -201,7 +212,8 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
                     std::string outputFilePath = buildDir + "/ir/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".ll";
                     std::filesystem::create_directories(std::filesystem::path(outputFilePath).parent_path());
                     std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".json";
-                    filesRecord.push_back({gcFile, outputFilePath, ir_gc_map});
+                    std::string objFilePath = buildDir + "/obj/" + relativePath.substr(0, relativePath.find_last_of('.')) + ".o";
+                    filesRecord.push_back({gcFile, outputFilePath, ir_gc_map, objFilePath});
                 }
                 catch (std::exception e) {
                     throw;
@@ -216,6 +228,13 @@ int main(int argc, char* argv[]) {
 
     std::string inputFolderPath;
     app.add_option("input_folder", inputFolderPath, "Input folder path")->required();
+
+    std::string optimizationLevel;
+    app.add_option("-O,--optimization", optimizationLevel, "Optimization level (O1, O2, O3, Os, Ofast)")->required(false);
+
+    std::string executablePath;
+    app.add_option("-o,--output", executablePath, "Output executable path")->required();
+
     CLI11_PARSE(app, argc, argv);
 
     std::string srcDir = inputFolderPath + "/src";
@@ -246,13 +265,30 @@ int main(int argc, char* argv[]) {
     }
 
     // Compile the files in the src directory
-    compileDirectory(srcDir, buildDir, compiledFilesRecord);
+    compileDirectory(srcDir, buildDir, compiledFilesRecord, optimizationLevel);
 
     // Save the compiled files record
     std::ofstream recordFile(recordFilePath, std::ios::trunc);
     if (recordFile.is_open()) {
         recordFile << compiledFilesRecord.dump(4);
         recordFile.close();
+    }
+
+    // Link all .o files into a single executable
+    std::string objFiles;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(buildDir + "/obj")) {
+        if (entry.is_regular_file() && entry.path().extension() == ".o") {
+            objFiles += entry.path().string() + " ";
+        }
+    }
+
+    std::string linkCommand = "clang " + objFiles + "-o " + executablePath;
+    int linkResult = std::system(linkCommand.c_str());
+    if (linkResult != 0) {
+        std::cerr << "Error: Failed to link object files into executable " << executablePath << std::endl;
+        return 1;
+    } else {
+        std::cout << "Successfully linked object files into executable " << executablePath << std::endl;
     }
 
     return 0;

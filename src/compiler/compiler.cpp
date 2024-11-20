@@ -21,10 +21,6 @@
 #include <vector>
 
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map) {
-    this->llvm_module = std::make_unique<llvm::Module>("main", llvm_context);
-    this->llvm_module->setSourceFileName(file_path.string());
-    this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
-    this->_initializeBuiltins();
     std::string path_str = file_path.string();
     size_t pos = path_str.rfind("src");
     if (pos != std::string::npos) {
@@ -47,7 +43,11 @@ compiler::Compiler::Compiler(const std::string& source, std::filesystem::path fi
         this->fc_st_name_prefix.replace(pos, 1, "..");
         pos += 2;
     }
+    this->llvm_module = std::make_unique<llvm::Module>(this->fc_st_name_prefix, llvm_context);
     this->fc_st_name_prefix += "..";
+    this->llvm_module->setSourceFileName(file_path.string());
+    this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
+    this->_initializeBuiltins();
     // Open the ir_gc_map JSON file and attach it to this->ir_gc_map_json
     std::ifstream ir_gc_map_file(ir_gc_map.string());
     if (!ir_gc_map_file.is_open()) {
@@ -77,12 +77,12 @@ void compiler::Compiler::_initializeBuiltins() {
 
     // Create the global variable 'true'
     llvm::GlobalVariable* globalTrue =
-        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
+        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::InternalLinkage,
             llvm::ConstantInt::get(this->enviornment.parent->get_struct("bool")->stand_alone_type, 1), "True");
 
     // Create the global variable 'false'
     llvm::GlobalVariable* globalFalse =
-        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::ExternalLinkage,
+        new llvm::GlobalVariable(*this->llvm_module, this->enviornment.parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::InternalLinkage,
             llvm::ConstantInt::get(this->enviornment.parent->get_struct("bool")->stand_alone_type, 0), "False");
         auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.parent->get_struct("bool")));
         this->enviornment.parent->add(recordTrue);
@@ -939,7 +939,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     auto return_type = this->_parseType(function_declaration_statement->return_type);
     auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix + name, this->llvm_module.get());
+    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
     this->ir_gc_map_json["functions"][name] = func->getName().str();
     unsigned idx = 0;
     for(auto& arg : func->args()) {
