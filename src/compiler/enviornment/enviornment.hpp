@@ -36,11 +36,11 @@ class RecordFunction : public Record {
   public:
     llvm::Function* function = nullptr;
     llvm::FunctionType* function_type = nullptr;
-    std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments;
+    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments;
     std::shared_ptr<RecordStructInstance> return_inst;
     RecordFunction(std::string name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
-                   std::vector<std::tuple<std::string, std::shared_ptr<RecordVariable>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
+                   std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
 };
 
@@ -50,13 +50,12 @@ class RecordStructType : public Record {
     llvm::StructType* struct_type = nullptr;
     std::vector<std::string> fields = {};
     std::unordered_map<std::string, std::shared_ptr<RecordStructInstance>> sub_types = {};
-    std::unordered_map<std::string, std::shared_ptr<RecordFunction>> methods = {};
+    std::vector<std::tuple<std::string, std::shared_ptr<RecordFunction>>> methods = {};
     RecordStructType(std::string name) : Record(RecordType::RecordStructInst, name) {};
-    RecordStructType(std::string name, llvm::StructType* struct_type, std::vector<std::string> variable_names,
-                    std::unordered_map<std::string, std::shared_ptr<RecordFunction>> functions = {})
-        : Record(RecordType::RecordStructInst, name), struct_type(struct_type), fields(variable_names) {};
     RecordStructType(std::string name, llvm::Type* stand_alone_type)
         : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
+    bool is_method(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
+    std::shared_ptr<RecordFunction> get_method(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
 };
 
 class RecordStructInstance {
@@ -78,14 +77,18 @@ class RecordVariable : public Record {
     : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variableType(generic) {};
 };
 
+bool _checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2);
+bool _checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructType> type2);
+bool _checkType(std::shared_ptr<enviornment::RecordStructType> type1, std::shared_ptr<enviornment::RecordStructType> type2);
+
 class RecordModule : public Record {
   public:
-    std::unordered_map<std::string, std::shared_ptr<Record>> record_map;
+    std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map;
     std::string name;
-    RecordModule(std::string name, std::unordered_map<std::string, std::shared_ptr<Record>> record_map) : Record(RecordType::RecordModule, name), name(name), record_map(record_map) {};
+    RecordModule(std::string name, std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map) : Record(RecordType::RecordModule, name), name(name), record_map(record_map) {};
     RecordModule(std::string name) : Record(RecordType::RecordModule, name), name(name) {};
-    bool is_function(std::string name);
-    std::shared_ptr<RecordFunction> get_function(std::string name);
+    bool is_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
+    std::shared_ptr<RecordFunction> get_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
     bool is_struct(std::string name);
     std::shared_ptr<RecordStructType> get_struct(std::string name);
     bool is_module(std::string name);
@@ -96,7 +99,7 @@ class Enviornment {
   public:
     std::shared_ptr<Enviornment> parent;
     std::string name;
-    std::unordered_map<std::string, std::shared_ptr<Record>> record_map;
+    std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map;
 
     std::shared_ptr<RecordFunction> current_function = nullptr;
 
@@ -104,16 +107,14 @@ class Enviornment {
     std::vector<llvm::BasicBlock*> loop_end_block = {};
     std::vector<llvm::BasicBlock*> loop_condition_block = {};
 
-    Enviornment(std::shared_ptr<Enviornment> parent = nullptr, std::unordered_map<std::string, std::shared_ptr<Record>> records = {},
+    Enviornment(std::shared_ptr<Enviornment> parent = nullptr, std::vector<std::tuple<std::string, std::shared_ptr<Record>>> records = {},
                 std::string name = "unnamed")
         : parent(parent), name(name), record_map(records) {};
     void add(std::shared_ptr<Record> record);
-    std::shared_ptr<Record> get(std::string name, bool limit2current_scope = false);
-    bool contains(std::string name, bool limit2current_scope = false);
     bool is_variable(std::string name, bool limit2current_scope = false);
     std::shared_ptr<RecordVariable> get_variable(std::string name, bool limit2current_scope = false);
-    bool is_function(std::string name, bool limit2current_scope = false);
-    std::shared_ptr<RecordFunction> get_function(std::string name, bool limit2current_scope = false);
+    bool is_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types, bool limit2current_scope = false);
+    std::shared_ptr<RecordFunction> get_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types, bool limit2current_scope = false);
     bool is_struct(std::string name, bool limit2current_scope = false);
     std::shared_ptr<RecordStructType> get_struct(std::string
         name, bool limit2current_scope = false);

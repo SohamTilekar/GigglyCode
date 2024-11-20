@@ -46,7 +46,7 @@ compiler::Compiler::Compiler(const std::string& source, std::filesystem::path fi
     this->llvm_module = std::make_unique<llvm::Module>(this->fc_st_name_prefix, llvm_context);
     this->fc_st_name_prefix += "..";
     this->llvm_module->setSourceFileName(file_path.string());
-    this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::unordered_map<std::string, std::shared_ptr<enviornment::Record>>(), "buildtins");
+    this->enviornment.parent = std::make_shared<enviornment::Enviornment>(nullptr, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>(), "buildtins");
     this->_initializeBuiltins();
     // Open the ir_gc_map JSON file and attach it to this->ir_gc_map_json
     std::ifstream ir_gc_map_file(ir_gc_map.string());
@@ -92,13 +92,13 @@ void compiler::Compiler::_initializeBuiltins() {
     // Create the function type: void puts(const char*)
     llvm::FunctionType* putsType = llvm::FunctionType::get(_void->stand_alone_type, _string->stand_alone_type, false);
     auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> putsParams = {{"string", nullptr}};
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> putsParams = {{"string", std::make_shared<enviornment::RecordStructInstance>(_string)}};
     this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, std::make_shared<enviornment::RecordStructInstance>(_void)));
 
     // Create the function type: int print(const char*)
     llvm::FunctionType* funcType = llvm::FunctionType::get(_int->stand_alone_type, _string->stand_alone_type, false);
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", this->llvm_module.get());
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> params = {{"string", nullptr}};
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> params = {{"string", std::make_shared<enviornment::RecordStructInstance>(_string)}};
     this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("print", func, funcType, params, std::make_shared<enviornment::RecordStructInstance>(_int)));
 }
 
@@ -268,12 +268,8 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
             }
             if (left_value.empty()) {
                 auto left_type = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
-                if(left_type->is_function(name)) {
-                    auto func = left_type->get_function(name);
-                    if (!this->_checkFunctionParameterType(func, params_types)) {
-                        std::cerr << "Method Parameter Type Mismatch for function: " << name << std::endl;
-                        exit(1);
-                    }
+                if(left_type->is_function(name, params_types)) {
+                    auto func = left_type->get_function(name, params_types);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func->function, args);
                     return {{returnValue}, func->return_inst};
@@ -283,7 +279,7 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                     auto struct_type = struct_record->struct_type;
                     auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
                     for (unsigned int i = 0; i < args.size(); ++i) {
-                        if (!this->_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
+                        if (!enviornment::_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
                             std::cerr << "Struct Type MissMatch" << std::endl;
                             exit(1);
                         }
@@ -293,23 +289,19 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                     return {{alloca}, std::make_shared<enviornment::RecordStructInstance>(struct_record)};
                 }
                 else {
-                    std::cerr << "Struct Or Function " << name << " Dose Not Exit." << std::endl;
+                    std::cerr << "Struct Or Function " << name << " overload Dose Not Exit." << std::endl;
                     exit(1);
                 }
             }
             auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
-            if (left_type->struct_type->stand_alone_type == nullptr && left_type->struct_type->methods.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
-                auto method = left_type->struct_type->methods[name];
-                if (!this->_checkFunctionParameterType(method, params_types)) {
-                    std::cerr << "Method Parameter Type Mismatch for function: " << name << std::endl;
-                    exit(1);
-                }
+            if (left_type->struct_type->stand_alone_type == nullptr && left_type->struct_type->is_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types)) {
+                auto method = left_type->struct_type->get_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types);
                 auto returnValue = this->llvm_ir_builder.CreateCall(
                     method->function, args);
                 return {{returnValue}, method->return_inst};
             }
             else {
-                std::cerr << "Struct does not have method " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
+                std::cerr << "Struct does not have any method overload for " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
                 exit(1);
             }
         }
@@ -327,21 +319,21 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
     auto right_val = right_value[0];
     auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
     auto right_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_right_type);
+    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_type1{left_type, right_type};
+    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_type2{right_type, left_type};
     if (left_type->struct_type->struct_type != nullptr || right_type->struct_type->struct_type != nullptr) {
-        if(!this->_checkType(left_type, right_type)) {
-            std::cerr << "Infix Expression Type mismatch" << std::endl;
-            exit(1);
-        }
         switch(op) {
             case token::TokenType::Plus : {
-                if (left_type->struct_type->methods.contains("__add__")) {
-                    auto func_record = left_type->struct_type->methods.at("__add__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__add__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__add__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else if (right_type->struct_type->is_method("__add__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__add__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -350,62 +342,69 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                 }
             }
             case token::TokenType::Dash: {
-                if (left_type->struct_type->methods.contains("__sub__")) {
-                    auto func_record = left_type->struct_type->methods.at("__sub__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__sub__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__sub__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
+                else if (right_type->struct_type->is_method("__sub__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__sub__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
                 else {
-                    std::cerr << "Cant Sub 2 Struct" << std::endl;
+                    std::cerr << "Cant Substract 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             case token::TokenType::Asterisk: {
-                if (left_type->struct_type->methods.contains("__mul__")) {
-                    auto func_record = left_type->struct_type->methods.at("__mul__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__mul__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__mul__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
+                else if (right_type->struct_type->is_method("__mul__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__mul__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
                 else {
-                    std::cerr << "Cant Mul 2 Struct" << std::endl;
+                    std::cerr << "Cant Multiply 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             case token::TokenType::ForwardSlash: {
-                if (left_type->struct_type->methods.contains("__div__")) {
-                    auto func_record = left_type->struct_type->methods.at("__div__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__div__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__div__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else if (right_type->struct_type->is_method("__div__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__div__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
                     std::cerr << "Cant Divide 2 Struct" << std::endl;
                     exit(1);
-                }
-            }
+                }            }
             case token::TokenType::Percent: {
-                if (left_type->struct_type->methods.contains("__mod__")) {
-                    auto func_record = left_type->struct_type->methods.at("__mod__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__mod__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__mod__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else if (right_type->struct_type->is_method("__mod__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__mod__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
@@ -414,112 +413,126 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
                 }
             }
             case token::TokenType::EqualEqual: {
-                if (left_type->struct_type->methods.contains("__eq__")) {
-                    auto func_record = left_type->struct_type->methods.at("__eq__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__eq__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__eq__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
+                else if (right_type->struct_type->is_method("__eq__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__eq__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
                 else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare Equal 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             case token::TokenType::NotEquals: {
-                if (left_type->struct_type->methods.contains("__neq__")) {
-                    auto func_record = left_type->struct_type->methods.at("__neq__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__neq__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__neq__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
+                else if (right_type->struct_type->is_method("__neq__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__neq__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
                 else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare Not Equal 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             case token::TokenType::LessThan: {
-                if (left_type->struct_type->methods.contains("__lt__")) {
-                    auto func_record = left_type->struct_type->methods.at("__lt__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__lt__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__lt__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
-                else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
-                    exit(1);
+                else if (right_type->struct_type->is_method("__lt__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__lt__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
                 }
-            }
+                else {
+                    std::cerr << "Cant Compare Lessthan 2 Struct" << std::endl;
+                    exit(1);
+                }            }
             case token::TokenType::GreaterThan: {
-                if (left_type->struct_type->methods.contains("__gt__")) {
-                    auto func_record = left_type->struct_type->methods.at("__gt__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__gt__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__gt__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
+                else if (right_type->struct_type->is_method("__gt__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__gt__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
                 else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare Graterthan 2 Struct" << std::endl;
                     exit(1);
-                }
-            }
+                }            }
             case token::TokenType::LessThanOrEqual: {
-                if (left_type->struct_type->methods.contains("__lte__")) {
-                    auto func_record = left_type->struct_type->methods.at("__lte__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
+                if (left_type->struct_type->is_method("__lte__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__lte__", params_type1);
                     auto returnValue = this->llvm_ir_builder.CreateCall(
                         func_record->function, {left_value[0], right_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
+                else if (right_type->struct_type->is_method("__lte__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__lte__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
                 else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare Lessthan or Equals 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             case token::TokenType::GreaterThanOrEqual: {
-                if (left_type->struct_type->methods.contains("__gte__")) {
-                    auto func_record = left_type->struct_type->methods.at("__gte__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
-                    auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value[0], right_value[0]});
+                if (left_type->struct_type->is_method("__gte__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__gte__", params_type1);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else if (right_type->struct_type->is_method("__gte__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__gte__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Compare Greatherthan or Equals 2 Struct" << std::endl;
                     exit(1);
                 }
             }
             case token::TokenType::AsteriskAsterisk: {
-                if (left_type->struct_type->methods.contains("__pow__")) {
-                    auto func_record = left_type->struct_type->methods.at("__pow__");
-                    if (!this->_checkFunctionParameterType(func_record, {left_type, right_type})) {
-                        std::cerr << "Function Parameter Type Mismatch" << std::endl;
-                        exit(1);
-                    }
-                    auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value[0], right_value[0]});
+                if (left_type->struct_type->is_method("__pow__", params_type1)) {
+                    auto func_record = left_type->struct_type->get_method("__pow__", params_type1);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {left_value[0], right_value[0]});
+                    return {{returnValue}, func_record->return_inst};
+                }
+                else if (right_type->struct_type->is_method("__pow__", params_type2)) {
+                    auto func_record = right_type->struct_type->get_method("__pow__", params_type2);
+                    auto returnValue = this->llvm_ir_builder.CreateCall(
+                        func_record->function, {right_value[0], left_value[0]});
                     return {{returnValue}, func_record->return_inst};
                 }
                 else {
-                    std::cerr << "Cant Compare 2 Struct" << std::endl;
+                    std::cerr << "Cant Power 2 Struct" << std::endl;
                     exit(1);
                 }
             }
@@ -529,8 +542,7 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
             }
         }
     }
-
-    if(!this->_checkType(left_type, right_type)) {
+    if(!enviornment::_checkType(left_type, right_type)) {
         std::cerr << "Type mismatch" << std::endl;
         exit(1);
     }
@@ -659,11 +671,11 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
         exit(1);
     }
     auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_index_generic);
-    if(!this->_checkType(left_generic, this->enviornment.get_struct("array"))) {
+    if(!enviornment::_checkType(left_generic, this->enviornment.get_struct("array"))) {
         std::cerr << "Error: Left type is not an array. Left type: " << left_generic->struct_type->name << std::endl;
         exit(1);
     }
-    if(!this->_checkType(index_generic, this->enviornment.get_struct("int"))) {
+    if(!enviornment::_checkType(index_generic, this->enviornment.get_struct("int"))) {
         std::cerr << "Error: Index type is not an int. Index type: " << index_generic->struct_type->name << std::endl;
         exit(1);
     }
@@ -691,7 +703,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
         exit(1);
     }
     auto var_generic = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_var_generic);
-    if (!this->_checkType(var_generic, this->_parseType(variable_declaration_statement->value_type))) {
+    if (!enviornment::_checkType(var_generic, this->_parseType(variable_declaration_statement->value_type))) {
         std::cerr << "Cannot assign missmatch type" << std::endl;
         exit(1);
     }
@@ -760,7 +772,7 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
             return;
         }
         currentStructType = this->enviornment.get_variable(name)->variableType;
-        if (!this->_checkType(assignmentType, currentStructType)) {
+        if (!enviornment::_checkType(assignmentType, currentStructType)) {
             std::cerr << "Cannot assign missmatch type" << std::endl;
             exit(1);
         }
@@ -894,6 +906,10 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         std::cerr << "Return Outside of function" << std::endl;
         exit(1);
     }
+    if (!enviornment::_checkType(this->enviornment.current_function->return_inst, std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_))) {
+        std::cerr << "Return Type Miss Match" << std::endl;
+        exit(1);
+    }
     llvm::Instruction* retInst = nullptr;
     if (this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
         retInst = this->llvm_ir_builder.CreateRet(return_value[0]);
@@ -950,12 +966,12 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     this->llvm_ir_builder.SetInsertPoint(bb);
     auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
     this->enviornment = enviornment::Enviornment(prev_env, {}, name);
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
     auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
     this->enviornment.current_function = func_record;
     for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
         llvm::AllocaInst* alloca = nullptr;
-        if (!arg.getType()->isPointerTy() || this->_checkType(param_type_record, this->enviornment.get_struct("array"))) {
+        if (!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment.get_struct("array"))) {
             alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
             auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
         }
@@ -965,7 +981,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
         }
         auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
-        arguments.push_back({std::string(arg.getName()), record});
+        func_record->arguments.push_back({arg.getName().str(), param_type_record});
         this->enviornment.add(record);
     }
     func_record->set_meta_data(function_declaration_statement->meta_data.st_line_no, function_declaration_statement->meta_data.st_col_no,
@@ -999,12 +1015,8 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
         params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructInstance>>(param_type));
         args.push_back(value[0]);
     }
-    if(this->enviornment.is_function(name)) {
-        auto func_record = this->enviornment.get_function(name);
-        if (!_checkFunctionParameterType(func_record, params_types)) {
-            std::cerr << "Function Parameter Type Mismatch for function: " << name << std::endl;
-            exit(1);
-        }
+    if(this->enviornment.is_function(name, params_types)) {
+        auto func_record = this->enviornment.get_function(name, params_types);
         auto returnValue = this->llvm_ir_builder.CreateCall(
             func_record->function, args);
         return {{returnValue}, func_record->return_inst};
@@ -1014,7 +1026,7 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
         auto struct_type = struct_record->struct_type;
         auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
         for (unsigned int i = 0; i < args.size(); ++i) {
-            if (!this->_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
+            if (!enviornment::_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
                 std::cerr << "Struct Type MissMatch" << std::endl;
                 exit(1);
             }
@@ -1039,7 +1051,7 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
         exit(1);
     }
     auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_condition);
-    if (!this->_checkType(bool_condition, this->enviornment.get_struct("bool"))) {
+    if (!enviornment::_checkType(bool_condition, this->enviornment.get_struct("bool"))) {
         std::cerr << "Condition type Must be Bool" << std::endl;
         exit(1);
     }
@@ -1083,7 +1095,7 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
         exit(1);
     }
     auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_condition);
-    if (!this->_checkType(bool_condition, this->enviornment.get_struct("bool"))) {
+    if (!enviornment::_checkType(bool_condition, this->enviornment.get_struct("bool"))) {
         std::cerr << "Condition type Must be Bool" << std::endl;
         exit(1);
     }
@@ -1118,7 +1130,6 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 field_types.push_back(field_type->struct_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
-
         }
         else if (field->type() == AST::NodeType::FunctionStatement) {
             auto field_decl = std::static_pointer_cast<AST::FunctionStatement>(field);
@@ -1136,7 +1147,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             auto return_type = this->_parseType(field_decl->return_type);
             auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-            auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, this->llvm_module.get());
+            auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix + struct_name + "._." + name, this->llvm_module.get());
             unsigned idx = 0;
             for(auto& arg : func->args()) {
                 arg.setName(param_name[idx++]);
@@ -1146,12 +1157,17 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             this->llvm_ir_builder.SetInsertPoint(bb);
             auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
             this->enviornment = enviornment::Enviornment(prev_env, {}, name);
-            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
-            auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
+            auto func_record = std::make_shared<enviornment::RecordFunction>(
+                name,
+                func,
+                func_type,
+                std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>>{},
+                return_type
+            );
             this->enviornment.current_function = func_record;
             for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
                 llvm::AllocaInst* alloca = nullptr;
-                if (!arg.getType()->isPointerTy() || this->_checkType(param_type_record, this->enviornment.get_struct("array"))) {
+                if (!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment.get_struct("array"))) {
                     alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
                     auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
                 }
@@ -1161,7 +1177,7 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                     auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
                 }
                 auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
-                arguments.push_back({std::string(arg.getName()), record});
+                func_record->arguments.push_back({std::string(arg.getName()), param_type_record});
                 this->enviornment.add(record);
             }
             func_record->set_meta_data(field_decl->meta_data.st_line_no, field_decl->meta_data.st_col_no,
@@ -1177,10 +1193,10 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             if (!this->function_entery_block.empty()) {
                 this->llvm_ir_builder.SetInsertPoint(this->function_entery_block.at(this->function_entery_block.size() - 1));
             }
-            struct_record->methods[name] = func_record;
+            struct_record->methods.push_back({name, func_record});
         }
     }
-    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, struct_name);
+    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
     struct_type->setBody(field_types);
     struct_record->struct_type = struct_type;
     this->ir_gc_map_json["structs"][struct_name] = struct_record->struct_type->getName().str();
@@ -1224,7 +1240,7 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
     }
     else {
         auto new_mod = std::make_shared<enviornment::RecordModule>(import_statement->relativePath.substr(import_statement->relativePath.find_last_of('/') + 1));
-        module->record_map[new_mod->name] = new_mod;
+        module->record_map.push_back({new_mod->name, new_mod});
         module = new_mod;
     }
     for (auto& stmt : program->statements) {
@@ -1255,10 +1271,12 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
     auto params = function_declaration_statement->parameters;
     std::vector<std::string> param_names;
     std::vector<llvm::Type*> param_types;
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
 
     for (auto param : params) {
         param_names.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
         param_types.push_back(this->_parseType(param->value_type)->struct_type->stand_alone_type ? this->_parseType(param->value_type)->struct_type->stand_alone_type : llvm::PointerType::get(this->_parseType(param->value_type)->struct_type->struct_type, 0));
+        arguments.push_back({std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value, this->_parseType(param->value_type)});
     }
 
     auto return_type = this->_parseType(function_declaration_statement->return_type);
@@ -1270,9 +1288,8 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
         arg.setName(param_names[idx++]);
     }
 
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
     auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
-    module->record_map[func_record->name] = func_record;
+    module->record_map.push_back({func_record->name, func_record});
 }
 
 void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json) {
@@ -1300,11 +1317,13 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
             std::vector<std::string> param_names;
             std::vector<llvm::Type*> param_types;
             std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_records;
+            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
 
             for (auto param : method_params) {
                 param_names.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
                 param_inst_records.push_back(this->_parseType(param->value_type));
                 param_types.push_back(param_inst_records.back()->struct_type->stand_alone_type ? param_inst_records.back()->struct_type->stand_alone_type : llvm::PointerType::get(param_inst_records.back()->struct_type->struct_type, 0));
+                arguments.push_back({std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value, this->_parseType(param->value_type)});
             }
 
             auto return_type = this->_parseType(field_decl->return_type);
@@ -1317,9 +1336,8 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
                 arg.setName(param_names[idx++]);
             }
 
-            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordVariable>>> arguments;
             auto func_record = std::make_shared<enviornment::RecordFunction>(method_name, func, func_type, arguments, return_type);
-            struct_record->methods[method_name] = func_record;
+            struct_record->methods.push_back({method_name, func_record});
         }
     }
 
@@ -1327,57 +1345,5 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
     struct_type->setBody(field_types);
     struct_record->struct_type = struct_type;
 
-    module->record_map[struct_record->name] = struct_record;
+    module->record_map.push_back({struct_record->name, struct_record});
 }
-
-bool compiler::Compiler::_checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2) {
-    for (auto [gen_type1, gen_type2] : llvm::zip(type1->generic, type2->generic)) {
-        if (!this->_checkType(gen_type1, gen_type2)) {
-            return false;
-        }
-    }
-    for (auto [field_name1, field_name2] : llvm::zip(type1->struct_type->fields, type2->struct_type->fields)) {
-        if (field_name1 != field_name2) {
-            return false;
-        }
-        if (!this->_checkType(type1->struct_type->sub_types[field_name1], type2->struct_type->sub_types[field_name2])) {
-            return false;
-        }
-    }
-    return type1->struct_type->stand_alone_type == type2->struct_type->stand_alone_type;
-};
-
-bool compiler::Compiler::_checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructType> type2) {
-    for (auto [field_name1, field_name2] : llvm::zip(type1->struct_type->fields, type2->fields)) {
-        if (field_name1 != field_name2) {
-            return false;
-        }
-        if (!this->_checkType(type1->struct_type->sub_types[field_name1], type2->sub_types[field_name2])) {
-            return false;
-        }
-    }
-    return type1->struct_type->stand_alone_type == type2->stand_alone_type;
-};
-
-bool compiler::Compiler::_checkType(std::shared_ptr<enviornment::RecordStructType> type1, std::shared_ptr<enviornment::RecordStructType> type2) {
-    for (auto [field_name1, field_name2] : llvm::zip(type1->fields, type2->fields)) {
-        if (field_name1 != field_name2) {
-            return false;
-        }
-        if (!this->_checkType(type1->sub_types[field_name1], type2->sub_types[field_name2])) {
-            return false;
-        }
-    }
-    return type1->stand_alone_type == type2->stand_alone_type;
-};
-
-bool compiler::Compiler::_checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> func_record, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params) {
-    return true;
-    for (auto [arg, pass_instanc] : llvm::zip(func_record->arguments, params)) {
-        auto [arg_name, accept_instanc] = arg;
-        if (!this->_checkType(accept_instanc->variableType, pass_instanc)) {
-            return false;
-        }
-    }
-    return true;
-};
