@@ -88,7 +88,7 @@ One of the standout features planned for GigglyCode is its support for inline Py
 Here's a quick example to illustrate what GigglyCode looks like:
 
 ```python
-def fizzbuzz(start, stop, step) {
+def fizzbuzz(start: int, stop: int, step: int) -> void {
   for i in range(start, stop, step) {
     if i % 15 == 0 {
       print('fizzbuzz');
@@ -118,7 +118,7 @@ struct Point {
 }
 
 def main() {
-  let p = Point { x: 10, y: 20 };
+  p: Point = Point(10, 20);
   print(p.x, p.y);
 }
 ```
