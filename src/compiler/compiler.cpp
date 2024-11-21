@@ -1,3 +1,4 @@
+#include <exception>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
@@ -196,8 +197,15 @@ void compiler::Compiler::_visitExpressionStatement(std::shared_ptr<AST::Expressi
 };
 
 void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement) {
-    for(auto stmt : block_statement->statements) {
-        this->compile(stmt);
+    try {
+        for(auto stmt : block_statement->statements) {
+            this->compile(stmt);
+        }
+    } catch (compiler::DoneRet) {
+        // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
+    }
+    catch (std::exception) {
+        throw;
     }
 };
 
@@ -912,18 +920,16 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     }
     llvm::Instruction* retInst = nullptr;
     if (this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
-        retInst = this->llvm_ir_builder.CreateRet(return_value[0]);
+        this->llvm_ir_builder.CreateRet(return_value[0]);
     else if (this->enviornment.current_function->function->getReturnType()->isPointerTy() && !return_value[0]->getType()->isPointerTy()) {
         std::cerr << "Cannot Convert non pointer to Pointer" << std::endl;
         exit(1);
     }
     else if (!this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
-        retInst = this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->function->getReturnType(), return_value[0]));
+        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->function->getReturnType(), return_value[0]));
     else
-        retInst = this->llvm_ir_builder.CreateRet(return_value[0]);
-
-    if (retInst) {
-    }
+        this->llvm_ir_builder.CreateRet(return_value[0]);
+    throw compiler::DoneRet();
 };
 
 std::shared_ptr<enviornment::RecordStructInstance> compiler::Compiler::_parseType(std::shared_ptr<AST::GenericType> type) {
@@ -1061,9 +1067,16 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
         llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
         auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ContBB);
         this->llvm_ir_builder.SetInsertPoint(ThenBB);
-        this->compile(consequence);
-        auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
-        this->llvm_ir_builder.SetInsertPoint(ContBB);
+        try {
+            this->compile(consequence);
+            auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
+            this->llvm_ir_builder.SetInsertPoint(ContBB);
+        } catch (compiler::DoneRet) {
+            // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
+        }
+        catch (std::exception) {
+            throw;
+        }
     } else {
         auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
         llvm::BasicBlock* ThenBB = llvm::BasicBlock::Create(llvm_context, "then", func);
@@ -1071,12 +1084,26 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
         llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
         auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ElseBB);
         this->llvm_ir_builder.SetInsertPoint(ThenBB);
-        this->compile(consequence);
-        auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
-        this->llvm_ir_builder.SetInsertPoint(ElseBB);
-        this->compile(alternative);
-        auto brElse = this->llvm_ir_builder.CreateBr(ContBB);
-        this->llvm_ir_builder.SetInsertPoint(ContBB);
+        try {
+            this->compile(consequence);
+            auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
+            this->llvm_ir_builder.SetInsertPoint(ElseBB);
+        } catch (compiler::DoneRet) {
+            // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
+        }
+        catch (std::exception) {
+            throw;
+        }
+        try {
+            this->compile(alternative);
+            auto brElse = this->llvm_ir_builder.CreateBr(ContBB);
+            this->llvm_ir_builder.SetInsertPoint(ContBB);
+        } catch (compiler::DoneRet) {
+            // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
+        }
+        catch (std::exception) {
+            throw;
+        }
     }
 };
 
@@ -1104,12 +1131,20 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     this->enviornment.loop_end_block.push_back(ContBB);
     this->enviornment.loop_condition_block.push_back(CondBB);
     this->llvm_ir_builder.SetInsertPoint(BodyBB);
-    this->compile(body);
+    try {
+        this->compile(body);
+        auto brToCondAgain = this->llvm_ir_builder.CreateBr(CondBB);
+        this->llvm_ir_builder.SetInsertPoint(ContBB);
+    } catch (compiler::DoneRet) {
+        std::cout << "Done Reti" << std::endl;
+        // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
+    }
+    catch (std::exception) {
+        throw;
+    }
     this->enviornment.loop_body_block.pop_back();
     this->enviornment.loop_end_block.pop_back();
     this->enviornment.loop_condition_block.pop_back();
-    auto brToCondAgain = this->llvm_ir_builder.CreateBr(CondBB);
-    this->llvm_ir_builder.SetInsertPoint(ContBB);
 };
 
 void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement) {
@@ -1130,24 +1165,28 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                 field_types.push_back(field_type->struct_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
+            auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
+            struct_type->setBody(field_types);
+            struct_record->struct_type = struct_type;
         }
         else if (field->type() == AST::NodeType::FunctionStatement) {
-            auto field_decl = std::static_pointer_cast<AST::FunctionStatement>(field);
-            auto name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-            auto body = field_decl->body;
-            auto params = field_decl->parameters;
+            auto func_dec = std::static_pointer_cast<AST::FunctionStatement>(field);
+            auto name = std::static_pointer_cast<AST::IdentifierLiteral>(func_dec->name)->value;
+            auto body = func_dec->body;
+            auto params = func_dec->parameters;
             std::vector<std::string> param_name;
             std::vector<llvm::Type*> param_types;
             std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
             for(auto param : params) {
                 param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
                 param_inst_record.push_back(this->_parseType(param->value_type));
-                param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : param_inst_record.back()->struct_type->struct_type);
+                param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : llvm::PointerType::get(param_inst_record.back()->struct_type->struct_type, 0));
             }
-            auto return_type = this->_parseType(field_decl->return_type);
-            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type;
+            auto return_type = this->_parseType(func_dec->return_type);
+            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-            auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix + struct_name + "._." + name, this->llvm_module.get());
+            auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix + "." + name, this->llvm_module.get());
+            this->ir_gc_map_json["functions"][name] = func->getName().str();
             unsigned idx = 0;
             for(auto& arg : func->args()) {
                 arg.setName(param_name[idx++]);
@@ -1157,13 +1196,8 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             this->llvm_ir_builder.SetInsertPoint(bb);
             auto prev_env = std::make_shared<enviornment::Enviornment>(this->enviornment);
             this->enviornment = enviornment::Enviornment(prev_env, {}, name);
-            auto func_record = std::make_shared<enviornment::RecordFunction>(
-                name,
-                func,
-                func_type,
-                std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>>{},
-                return_type
-            );
+            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
+            auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
             this->enviornment.current_function = func_record;
             for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
                 llvm::AllocaInst* alloca = nullptr;
@@ -1177,16 +1211,17 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
                     auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
                 }
                 auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
-                func_record->arguments.push_back({std::string(arg.getName()), param_type_record});
+                func_record->arguments.push_back({arg.getName().str(), param_type_record});
                 this->enviornment.add(record);
             }
-            func_record->set_meta_data(field_decl->meta_data.st_line_no, field_decl->meta_data.st_col_no,
-                                       field_decl->meta_data.end_line_no, field_decl->meta_data.end_col_no);
-            func_record->meta_data.more_data["name_line_no"] = field_decl->name->meta_data.st_line_no;
-            func_record->meta_data.more_data["name_st_col_no"] = field_decl->name->meta_data.st_col_no;
-            func_record->meta_data.more_data["name_end_col_no"] = field_decl->name->meta_data.end_col_no;
-            func_record->meta_data.more_data["name_end_line_no"] = field_decl->name->meta_data.end_line_no;
+            func_record->set_meta_data(func_dec->meta_data.st_line_no, func_dec->meta_data.st_col_no,
+                                       func_dec->meta_data.end_line_no, func_dec->meta_data.end_col_no);
+            func_record->meta_data.more_data["name_line_no"] = func_dec->name->meta_data.st_line_no;
+            func_record->meta_data.more_data["name_st_col_no"] = func_dec->name->meta_data.st_col_no;
+            func_record->meta_data.more_data["name_end_col_no"] = func_dec->name->meta_data.end_col_no;
+            func_record->meta_data.more_data["name_end_line_no"] = func_dec->name->meta_data.end_line_no;
             this->enviornment.add(func_record);
+            // adding the alloca for the parameters
             this->compile(body);
             this->enviornment = *prev_env;
             this->function_entery_block.pop_back();
@@ -1196,9 +1231,6 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             struct_record->methods.push_back({name, func_record});
         }
     }
-    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
-    struct_type->setBody(field_types);
-    struct_record->struct_type = struct_type;
     this->ir_gc_map_json["structs"][struct_name] = struct_record->struct_type->getName().str();
 };
 

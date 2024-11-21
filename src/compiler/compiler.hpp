@@ -1,6 +1,7 @@
 #include "../parser/AST/ast.hpp"
 #include "enviornment/enviornment.hpp"
 #include "../include/json.hpp"
+#include <clang-c/Index.h> // Include the Clang C API
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -28,6 +29,14 @@ class NotCompiledError : public std::exception {
     NotCompiledError(std::string path) : path(path) {}
     const char* what() const throw() {
         return ("File " + path + " is not compiled").c_str();
+    }
+};
+
+class DoneRet : public std::exception {
+  public:
+    DoneRet() {}
+    const char* what() const throw() {
+        return "Rety Should Be get Catch in the ifelse & while but it not InternalCompilationError";
     }
 };
 
@@ -85,5 +94,8 @@ class Compiler {
     void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
 
     std::shared_ptr<enviornment::RecordStructInstance> _parseType(std::shared_ptr<AST::GenericType> type);
+
+    llvm::Type* _convertCXTypeToLLVMType(CXType type);
+    std::shared_ptr<enviornment::RecordStructInstance> _convertCXTypeToRecordStructInstance(CXType type);
 };
 } // namespace compiler
