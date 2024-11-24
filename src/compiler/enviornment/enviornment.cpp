@@ -4,6 +4,7 @@
 
 
 bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2) {
+    if (type1->unknown || type2->unknown) return true;
     for (auto [gen_type1, gen_type2] : llvm::zip(type1->generic, type2->generic)) {
         if (!enviornment::_checkType(gen_type1, gen_type2)) {
             return false;
@@ -21,6 +22,7 @@ bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructInstance> 
 };
 
 bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructType> type2) {
+    if (type1->unknown) return true;
     for (auto [field_name1, field_name2] : llvm::zip(type1->struct_type->fields, type2->fields)) {
         if (field_name1 != field_name2) {
             return false;
@@ -45,14 +47,13 @@ bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructType> type
 };
 
 bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> func_record, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params) {
-    return true;
     for (auto [arg, pass_instanc] : llvm::zip(func_record->arguments, params)) {
         auto [arg_name, accept_instanc] = arg;
         if (!_checkType(accept_instanc, pass_instanc)) {
             return false;
         }
     }
-    return true;
+    return func_record->varArg || func_record->arguments.size() == params.size();
 };
 
 bool enviornment::RecordStructType::is_method(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {

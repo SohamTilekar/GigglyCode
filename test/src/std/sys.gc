@@ -1,3 +1,0 @@
-def pwd() -> str {
-    return "";
-}

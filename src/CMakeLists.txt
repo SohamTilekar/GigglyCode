@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
 
-
 project(GigglyCode LANGUAGES CXX)
 
 set(BUILD_ARCH "-m64")
@@ -12,13 +11,17 @@ find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
+find_package(Clang REQUIRED CONFIG)
+include_directories(${CLANG_INCLUDE_DIRS})
+add_definitions(${CLANG_DEFINITIONS})
+
 add_subdirectory(lexer)
 add_subdirectory(parser)
 add_subdirectory(compiler)
 
 add_executable(gigly main.cpp)
 
-llvm_map_components_to_libnames(llvm_libs 
+llvm_map_components_to_libnames(llvm_libs
     Analysis
     Core
     ExecutionEngine
@@ -32,6 +35,7 @@ llvm_map_components_to_libnames(llvm_libs
 )
 
 target_link_libraries(gigly ${llvm_libs})
+target_link_libraries(gigly ${CLANG_LIBRARIES})
 
 target_link_libraries(gigly lexer)
 target_link_libraries(gigly parser)

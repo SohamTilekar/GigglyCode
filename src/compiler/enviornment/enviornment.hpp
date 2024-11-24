@@ -38,10 +38,14 @@ class RecordFunction : public Record {
     llvm::FunctionType* function_type = nullptr;
     std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments;
     std::shared_ptr<RecordStructInstance> return_inst;
+    bool varArg = false;
     RecordFunction(std::string name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
                    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments, std::shared_ptr<RecordStructInstance> return_inst)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
+    RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type,
+                    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments, std::shared_ptr<RecordStructInstance> return_inst, bool isVarArg)
+        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst), varArg(isVarArg) {};
 };
 
 class RecordStructType : public Record {
@@ -60,8 +64,10 @@ class RecordStructType : public Record {
 
 class RecordStructInstance {
   public:
-    std::shared_ptr<RecordStructType> struct_type;
+    std::shared_ptr<RecordStructType> struct_type = nullptr;
     std::vector<std::shared_ptr<RecordStructInstance>> generic = {};
+    bool unknown = false;
+    RecordStructInstance() : unknown(true) {};
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type) : struct_type(struct_type) {};
     RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::vector<std::shared_ptr<RecordStructInstance>> generic)
         : struct_type(struct_type), generic(generic) {};

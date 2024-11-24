@@ -429,6 +429,9 @@ std::shared_ptr<AST::StructStatement> parser::Parser::_parseStructStatement() {
         }
         this->_nextToken();
     }
+    if (this->peek_token->type == token::TokenType::Semicolon) {
+        this->_nextToken();
+    }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
 

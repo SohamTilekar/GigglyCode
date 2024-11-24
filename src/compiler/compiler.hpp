@@ -1,7 +1,6 @@
 #include "../parser/AST/ast.hpp"
 #include "enviornment/enviornment.hpp"
 #include "../include/json.hpp"
-#include <clang-c/Index.h> // Include the Clang C API
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -47,6 +46,8 @@ class Compiler {
     llvm::IRBuilder<> llvm_ir_builder; // Move the declaration here
 
     std::string source;
+    std::filesystem::path buildDir;
+    std::filesystem::path relativePath;
     std::filesystem::path file_path;
     std::filesystem::path ir_gc_map;
     nlohmann::json ir_gc_map_json;
@@ -57,7 +58,7 @@ class Compiler {
 
     std::vector<llvm::BasicBlock*> function_entery_block = {};
 
-    Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map);
+    Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map, std::filesystem::path buildDir, std::filesystem::path relativePath);
 
     void compile(std::shared_ptr<AST::Node> node);
 
@@ -94,8 +95,5 @@ class Compiler {
     void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
 
     std::shared_ptr<enviornment::RecordStructInstance> _parseType(std::shared_ptr<AST::GenericType> type);
-
-    llvm::Type* _convertCXTypeToLLVMType(CXType type);
-    std::shared_ptr<enviornment::RecordStructInstance> _convertCXTypeToRecordStructInstance(CXType type);
 };
 } // namespace compiler

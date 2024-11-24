@@ -1,37 +1,36 @@
-#include <exception>
-#include <llvm/IR/Module.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/raw_ostream.h>
 #include "compiler.hpp"
 #include "../errors/errors.hpp"
 #include "../parser/parser.hpp"
 #include "../lexer/lexer.hpp"
 #include <fstream>
 #include <iostream>
+#include <exception>
+#include <filesystem>
+#include <regex.h>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <llvm/IR/Module.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include "llvm/Linker/Linker.h"
 #include <llvm/ADT/APInt.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
-#include <regex.h>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include <llvm/Linker/Linker.h>
 
-compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map) {
+compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map, std::filesystem::path buildDir, std::filesystem::path relativePath) : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map), buildDir(buildDir), relativePath(relativePath) {
     std::string path_str = file_path.string();
     size_t pos = path_str.rfind("src");
     if (pos != std::string::npos) {
         pos += 4; // Move past the "src"
     } else {
         pos = 0; // Default to the start if "src" is not found
-    }
-    size_t ext_pos = path_str.rfind(".gc");
-    if (ext_pos != std::string::npos) {
-        path_str = path_str.substr(0, ext_pos);
     }
     this->fc_st_name_prefix = path_str.substr(pos);
     pos = 0;
@@ -62,6 +61,10 @@ compiler::Compiler::Compiler(const std::string& source, std::filesystem::path fi
 void compiler::Compiler::_initializeBuiltins() {
     auto _int = std::make_shared<enviornment::RecordStructType>("int", llvm::Type::getInt64Ty(llvm_context));
     this->enviornment.parent->add(_int);
+    auto _int32 = std::make_shared<enviornment::RecordStructType>("int32", llvm::Type::getInt32Ty(llvm_context));
+    this->enviornment.parent->add(_int32);
+    auto _int128 = std::make_shared<enviornment::RecordStructType>("int128", llvm::Type::getInt64Ty(llvm_context));
+    this->enviornment.parent->add(_int128);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
     this->enviornment.parent->add(_float);
     auto _char = std::make_shared<enviornment::RecordStructType>("char", llvm::Type::getInt8Ty(llvm_context));
@@ -94,13 +97,18 @@ void compiler::Compiler::_initializeBuiltins() {
     llvm::FunctionType* putsType = llvm::FunctionType::get(_void->stand_alone_type, _string->stand_alone_type, false);
     auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> putsParams = {{"string", std::make_shared<enviornment::RecordStructInstance>(_string)}};
-    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, std::make_shared<enviornment::RecordStructInstance>(_void)));
+    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, std::make_shared<enviornment::RecordStructInstance>(_void), true));
+    // Create the function type: int printf(const char*, ...)
+    llvm::FunctionType* printfType = llvm::FunctionType::get(_int->stand_alone_type, {_string->stand_alone_type}, true);
+    auto printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", this->llvm_module.get());
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> printfParams = {{"format", std::make_shared<enviornment::RecordStructInstance>(_string)}};
+    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("printf", printfFunc, printfType, printfParams, std::make_shared<enviornment::RecordStructInstance>(_int), true));
 
-    // Create the function type: int print(const char*)
-    llvm::FunctionType* funcType = llvm::FunctionType::get(_int->stand_alone_type, _string->stand_alone_type, false);
-    auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", this->llvm_module.get());
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> params = {{"string", std::make_shared<enviornment::RecordStructInstance>(_string)}};
-    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("print", func, funcType, params, std::make_shared<enviornment::RecordStructInstance>(_int)));
+    // Create the function type: int scanf(const char*, ...)
+    llvm::FunctionType* scanfType = llvm::FunctionType::get(_int->stand_alone_type, {_string->stand_alone_type}, true);
+    auto scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", this->llvm_module.get());
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> scanfParams = {{"format", std::make_shared<enviornment::RecordStructInstance>(_string)}};
+    this->enviornment.parent->add(std::make_shared<enviornment::RecordFunction>("scanf", scanfFunc, scanfType, scanfParams, std::make_shared<enviornment::RecordStructInstance>(_int), true));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
@@ -197,15 +205,8 @@ void compiler::Compiler::_visitExpressionStatement(std::shared_ptr<AST::Expressi
 };
 
 void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement) {
-    try {
-        for(auto stmt : block_statement->statements) {
-            this->compile(stmt);
-        }
-    } catch (compiler::DoneRet) {
-        // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
-    }
-    catch (std::exception) {
-        throw;
+    for(auto stmt : block_statement->statements) {
+        this->compile(stmt);
     }
 };
 
@@ -847,8 +848,6 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
     case AST::NodeType::BooleanLiteral: {
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = boolean_literal->value ? this->enviornment.get_variable("True")->value : this->enviornment.get_variable("False")->value;
-        if (llvm::isa<llvm::Instruction>(value)) {
-        }
         return {{value}, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool"))};
     }
     case AST::NodeType::ArrayLiteral: {
@@ -856,7 +855,6 @@ std::tuple<std::vector<llvm::Value*>, std::variant<std::shared_ptr<enviornment::
     }
     default: {
         std::cerr << "Compiling unknown node type" << std::endl;
-        this->compile(node);
         exit(1);
     }
     }
@@ -904,9 +902,6 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     auto value = return_statement->value;
     auto [return_value, _] = this->_resolveValue(value);
     if(return_value.size() != 1) {
-        // errors::InternalCompilationError("Return statement with multiple values", this->source, return_statement->meta_data.st_line_no,
-        //                                  return_statement->meta_data.end_line_no, "Return statement with multiple values")
-        //     .raise();
         std::cerr << "Return statement with multiple values" << std::endl;
         exit(1);
     }
@@ -919,16 +914,19 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         exit(1);
     }
     llvm::Instruction* retInst = nullptr;
-    if (this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
+    if (this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy()) {
         this->llvm_ir_builder.CreateRet(return_value[0]);
+    }
     else if (this->enviornment.current_function->function->getReturnType()->isPointerTy() && !return_value[0]->getType()->isPointerTy()) {
         std::cerr << "Cannot Convert non pointer to Pointer" << std::endl;
         exit(1);
     }
-    else if (!this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy())
+    else if (!this->enviornment.current_function->function->getReturnType()->isPointerTy() && return_value[0]->getType()->isPointerTy()) {
         this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment.current_function->function->getReturnType(), return_value[0]));
-    else
+    }
+    else {
         this->llvm_ir_builder.CreateRet(return_value[0]);
+    }
     throw compiler::DoneRet();
 };
 
@@ -954,14 +952,16 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     std::vector<llvm::Type*> param_types;
     std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
     for(auto param : params) {
-        param_name.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
-        param_inst_record.push_back(this->_parseType(param->value_type));
-        param_types.push_back(param_inst_record.back()->struct_type->stand_alone_type ? param_inst_record.back()->struct_type->stand_alone_type : llvm::PointerType::get(param_inst_record.back()->struct_type->struct_type, 0));
+        auto param_name_str = std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value;
+        param_name.push_back(param_name_str);
+        auto param_type = this->_parseType(param->value_type);
+        param_inst_record.push_back(param_type);
+        param_types.push_back(param_type->struct_type->stand_alone_type ? param_type->struct_type->stand_alone_type : llvm::PointerType::get(param_type->struct_type->struct_type, 0));
     }
     auto return_type = this->_parseType(function_declaration_statement->return_type);
     auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
-    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
+    auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
     this->ir_gc_map_json["functions"][name] = func->getName().str();
     unsigned idx = 0;
     for(auto& arg : func->args()) {
@@ -998,7 +998,15 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     func_record->meta_data.more_data["name_end_line_no"] = function_declaration_statement->name->meta_data.end_line_no;
     this->enviornment.add(func_record);
     // adding the alloca for the parameters
-    this->compile(body);
+    try {
+        this->compile(body);
+    }
+    catch (compiler::DoneRet) {
+        // Ignoring
+    }
+    catch (std::exception) {
+        throw;
+    }
     this->enviornment = *prev_env;
     this->function_entery_block.pop_back();
     if (!this->function_entery_block.empty()) {
@@ -1081,13 +1089,12 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
         auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
         llvm::BasicBlock* ThenBB = llvm::BasicBlock::Create(llvm_context, "then", func);
         llvm::BasicBlock* ElseBB = llvm::BasicBlock::Create(llvm_context, "else", func);
-        llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
         auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val[0], ThenBB, ElseBB);
-        this->llvm_ir_builder.SetInsertPoint(ThenBB);
         try {
+            this->llvm_ir_builder.SetInsertPoint(ThenBB);
             this->compile(consequence);
-            auto brThen = this->llvm_ir_builder.CreateBr(ContBB);
-            this->llvm_ir_builder.SetInsertPoint(ElseBB);
+            llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
+            this->llvm_ir_builder.SetInsertPoint(ContBB);
         } catch (compiler::DoneRet) {
             // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
         }
@@ -1095,8 +1102,9 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             throw;
         }
         try {
+            this->llvm_ir_builder.SetInsertPoint(ElseBB);
             this->compile(alternative);
-            auto brElse = this->llvm_ir_builder.CreateBr(ContBB);
+            llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
             this->llvm_ir_builder.SetInsertPoint(ContBB);
         } catch (compiler::DoneRet) {
             // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
@@ -1136,7 +1144,6 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
         auto brToCondAgain = this->llvm_ir_builder.CreateBr(CondBB);
         this->llvm_ir_builder.SetInsertPoint(ContBB);
     } catch (compiler::DoneRet) {
-        std::cout << "Done Reti" << std::endl;
         // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
     }
     catch (std::exception) {
@@ -1222,7 +1229,11 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             func_record->meta_data.more_data["name_end_line_no"] = func_dec->name->meta_data.end_line_no;
             this->enviornment.add(func_record);
             // adding the alloca for the parameters
-            this->compile(body);
+            try {
+                this->compile(body);
+            } catch (compiler::DoneRet) {
+                // ignoring
+            }
             this->enviornment = *prev_env;
             this->function_entery_block.pop_back();
             if (!this->function_entery_block.empty()) {
@@ -1238,9 +1249,44 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
 const std::string readFileToString(const std::string& filePath); // Defined in main.cpp
 
 void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement, std::shared_ptr<enviornment::RecordModule> module) {
+    auto module_name = import_statement->relativePath.substr(import_statement->relativePath.find_last_of('/') + 1);
+    std::replace(module_name.begin(), module_name.end(), '.', '_');
+    std::cout << "module_name: " << module_name << std::endl;
+    if (!module) {
+        module = std::make_shared<enviornment::RecordModule>(module_name);
+        this->enviornment.add(module);
+    }
+    else {
+        auto new_mod = std::make_shared<enviornment::RecordModule>(module_name);
+        module->record_map.push_back({module_name, new_mod});
+        module = new_mod;
+    }
+    if (import_statement->relativePath.ends_with(".c")) {
+        std::cerr << "cant import C code" << std::endl;
+        exit(1);
+        // Handle C file import
+        auto ir_gc_map = std::filesystem::path(this->ir_gc_map.parent_path().string() + "/" + import_statement->relativePath + ".json");
+        std::ifstream ir_gc_map_file(ir_gc_map);
+        if (!ir_gc_map_file.is_open()) {
+            std::cerr << "Failed to open ir_gc_map file: " << ir_gc_map << std::endl;
+            throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map.string());
+        }
+        ir_gc_map_file >> ir_gc_map_json;
+        ir_gc_map_file.close();
+        bool uptodate = ir_gc_map_json["uptodate"];
+        if (!uptodate) {
+            std::cerr << "IR GC map not uptodate, throwing NotCompiledError" << std::endl;
+            throw compiler::NotCompiledError((this->file_path.parent_path() / import_statement->relativePath).string());
+        }
+        return;
+    }
+    else if(import_statement->relativePath.ends_with(".py")) {
+        std::cerr << "Cant Import Python code" << std::endl;
+        exit(1);
+    }
     auto gc_source_path = std::filesystem::path(this->file_path.parent_path().string() + "/" + import_statement->relativePath + ".gc");
     nlohmann::json ir_gc_map_json;
-    auto ir_gc_map = std::filesystem::path(this->ir_gc_map.parent_path().string() + "/" + import_statement->relativePath + ".json");
+    auto ir_gc_map = std::filesystem::path(this->ir_gc_map.parent_path().string() + "/" + import_statement->relativePath + ".gc" + ".json");
     std::ifstream ir_gc_map_file(ir_gc_map);
     if (!ir_gc_map_file.is_open()) {
         std::cerr << "Failed to open ir_gc_map file: " << ir_gc_map << std::endl;
@@ -1265,15 +1311,6 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
     if (parsr.errors.size() > 0) {
         std::cerr << "Parser errors found, returning" << std::endl;
         return;
-    }
-    if (!module) {
-        module = std::make_shared<enviornment::RecordModule>(import_statement->relativePath.substr(import_statement->relativePath.find_last_of('/') + 1));
-        this->enviornment.add(module);
-    }
-    else {
-        auto new_mod = std::make_shared<enviornment::RecordModule>(import_statement->relativePath.substr(import_statement->relativePath.find_last_of('/') + 1));
-        module->record_map.push_back({new_mod->name, new_mod});
-        module = new_mod;
     }
     for (auto& stmt : program->statements) {
         switch (stmt->type()) {

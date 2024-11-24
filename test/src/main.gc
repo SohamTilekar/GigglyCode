@@ -1,6 +1,12 @@
-import "other";
+struct Point {
+    x: int;
+    y: int;
+};
+
+def get1() -> Point {
+    return Point(1, 2);
+}
 
 def main() -> int {
-    other.add(1, 2);
-    return 0;
+    return get1().x;
 }
