@@ -92,11 +92,11 @@ enum class TokenType {
     Enum,     // Enum
     Volatile, // volatile
     Use,
-    Import,   // import
-    True,     // Boolean true true
-    False,    // Boolean false false
-    // Maybe,    // Maybe type maybe
-    None, // None type none
+    Import, // import
+    True,   // Boolean true true
+    False,  // Boolean false false
+            // Maybe,    // Maybe type maybe
+    None,   // None type none
 };
 
 std::shared_ptr<std::string> tokenTypeString(TokenType type);
@@ -110,8 +110,7 @@ class Token {
     int col_no;
     inline Token() {};
     inline Token(TokenType type, int line_no, int col_no) : type(type), line_no(line_no), end_col_no(col_no - 1), col_no(col_no - 1) {};
-    inline Token(TokenType type, std::string literal, int line_no, int col_no)
-        : type(type), literal(literal), line_no(line_no), end_col_no(col_no - 1), col_no(col_no - literal.length() - 1) {};
+    inline Token(TokenType type, std::string literal, int line_no, int col_no) : type(type), literal(literal), line_no(line_no), end_col_no(col_no - 1), col_no(col_no - literal.length() - 1) {};
     std::string toString(bool color = true);
     void print();
 };

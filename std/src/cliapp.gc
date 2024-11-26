@@ -1,0 +1,8 @@
+struct CliApp {
+    argc: int;
+    argv: array[str];
+    def CliApp(self: CliApp, argc: int, argv: array[str]) -> void {
+        self.argc = argc;
+        self.argv = argv;
+    }
+};

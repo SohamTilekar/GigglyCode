@@ -1,4 +1,5 @@
 #include "errors.hpp"
+
 #include <regex>
 #include <sstream>
 #include <vector>
@@ -6,8 +7,7 @@
 class LineIterator {
   public:
     LineIterator(const std::string& multi_line_str, int start_line_no, int end_line_no)
-        : stream(multi_line_str), current_line_no(1), start_line_no(start_line_no),
-          end_line_no(end_line_no) { // Skip lines until we reach start_line_no
+        : stream(multi_line_str), current_line_no(1), start_line_no(start_line_no), end_line_no(end_line_no) { // Skip lines until we reach start_line_no
         while(current_line_no < start_line_no && std::getline(stream, current_line)) {
             ++current_line_no;
             this->before_start_line = current_line + "\n";

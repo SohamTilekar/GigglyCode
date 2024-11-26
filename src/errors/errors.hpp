@@ -1,8 +1,9 @@
 #ifndef ERRORS_HPP
 #define ERRORS_HPP
+#include <iostream>
+
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
-#include <iostream>
 
 namespace errors {
 
@@ -24,7 +25,7 @@ class SyntaxError : public Error {
   public:
     token::Token token;
     SyntaxError(const std::string& type, const std::string& source, const token::Token& token, const std::string& message = "", const std::string& suggestedFix = "")
-      : Error(type, source, -1, -1, message, suggestedFix), token(token) {}
+        : Error(type, source, -1, -1, message, suggestedFix), token(token) {}
     void raise(bool terminate = true) override;
 };
 
@@ -38,8 +39,7 @@ class CompletionError : public Error {
 class NoPrefixParseFnError : public Error {
   public:
     token::Token token;
-    NoPrefixParseFnError(const std::string& source, const token::Token& token, const std::string& message = "", const std::string& suggestedFix =
-    "")
+    NoPrefixParseFnError(const std::string& source, const token::Token& token, const std::string& message = "", const std::string& suggestedFix = "")
         : Error("No PreficParseFnError", source, -1, -1, message, suggestedFix), token(token) {}
     void raise(bool terminate = true) override;
 };

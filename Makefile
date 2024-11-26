@@ -1,10 +1,19 @@
+cstd:
+	@echo ---------------------------------------------------------
+	cmake --build ./build --config Debug --target all -j 4 --
+	@echo ---------------------------------------------------------
+	-./build/gigly ./std/ -o ./dump/std
+	@echo ---------------------------------------------------------
+	ld -r ./std/build/obj/*.o -o ./dump/std.o
+
+
 run:
 	@echo ---------------------------------------------------------
 	cmake --build ./build --config Debug --target all -j 4 --
 	@echo ---------------------------------------------------------
-	./build/gigly ./test/ -o ./dump/exec
+	./build/gigly ./gpm/ -o ./dump/exec
 	@echo ---------------------------------------------------------
-	./dump/exec
+	./dump/exec $(ARGS)
 
 orun:
 	@echo ---------------------------------------------------------

@@ -1,12 +1,13 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
-#include <memory>
-#include <unordered_map>
-#include <vector>
 
 namespace parser {
 
@@ -16,7 +17,7 @@ enum class PrecedenceType {
     COMPARISION,   // >, <, >=, <=, ==, !=
     SUM,           // +
     PRODUCT,       // *
-    Exponent,    // **
+    Exponent,      // **
     PREFIX,        // -X or !X
     CALL,          // myFunction(X)
     INDEX,         // array[index]
@@ -72,14 +73,10 @@ class Parser {
     std::shared_ptr<token::Token> peek_token;
     std::vector<std::shared_ptr<errors::Error>> errors;
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>()>> prefix_parse_fns = {
-        {token::TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},
-        {token::TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
-        {token::TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},
-        {token::TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
-        {token::TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},
-        {token::TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
-        {token::TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)},
-        {token::TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
+        {token::TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},      {token::TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
+        {token::TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},        {token::TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
+        {token::TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},        {token::TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
+        {token::TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)}, {token::TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
     };
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>(std::shared_ptr<AST::Expression>)>> infix_parse_Fns = {
         {token::TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
@@ -137,6 +134,7 @@ class Parser {
     std::shared_ptr<AST::Expression> _parseStringLiteral();
     std::shared_ptr<AST::Expression> _parseGroupedExpression();
     std::shared_ptr<AST::Expression> _parseIdentifier();
+    std::shared_ptr<AST::Expression> _parseInfixIdenifier();
     std::shared_ptr<AST::Expression> _parseArrayLiteral();
 
     std::vector<std::shared_ptr<AST::Expression>> _parse_expression_list(token::TokenType end);

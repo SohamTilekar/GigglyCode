@@ -1,6 +1,7 @@
+#include "lexer.hpp"
+
 #include "../errors/errors.hpp"
 #include "token.hpp"
-#include "lexer.hpp"
 
 Lexer::Lexer(const std::string& source) {
     this->source = source;
@@ -47,7 +48,7 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
     } else if(*ident == "volatile") {
         return token::TokenType::Volatile;
     } else if(*ident == "use") {
-    return token::TokenType::Use;
+        return token::TokenType::Use;
     } else if(*ident == "import") {
         return token::TokenType::Import;
     } else if(*ident == "True") {
@@ -223,9 +224,10 @@ std::shared_ptr<token::Token> Lexer::nextToken() {
     return token;
 }
 
-#include "lexer.hpp"
 #include <algorithm>
 #include <sstream>
+
+#include "lexer.hpp"
 
 void Lexer::_readChar() {
     this->pos++;
@@ -302,9 +304,7 @@ void Lexer::_skipWhitespace() {
 bool Lexer::_isDigit(const std::string& character) { return character >= "0" && character <= "9"; };
 
 
-bool Lexer::_isLetter(const std::string& character) {
-    return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z") || character == "_";
-};
+bool Lexer::_isLetter(const std::string& character) { return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z") || character == "_"; };
 
 std::string getStringOnLineNumber(const std::string& input_string, int line_number) {
     std::istringstream input(input_string);
@@ -356,11 +356,11 @@ std::shared_ptr<std::string> Lexer::_readString(const std::string& quote) {
     while(true) {
         this->_readChar();
         if(this->current_char == "") {
-            errors::raiseSyntaxError("Invalid Str", this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
-                                     "Unterminated string literal", "Add a closing " + quote + " to terminate the string literal");
+            errors::raiseSyntaxError("Invalid Str", this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no), "Unterminated string literal",
+                                     "Add a closing " + quote + " to terminate the string literal");
         } else if(this->current_char == "\n" && quote != "\"\"\"" && quote != "'''") {
-            errors::raiseSyntaxError("Invalid Str", this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
-                                     "Unterminated string literal", "Add a closing " + quote + " to terminate the string literal");
+            errors::raiseSyntaxError("Invalid Str", this->source, token::Token(token::TokenType::String, literal, this->line_no, this->col_no), "Unterminated string literal",
+                                     "Add a closing " + quote + " to terminate the string literal");
         } else if(this->current_char == "\\") {
             this->_readChar();
             if(this->current_char == "\"") {

@@ -1,6 +1,8 @@
 #include "ast.hpp"
-#include "../../lexer/token.hpp"
+
 #include <memory>
+
+#include "../../lexer/token.hpp"
 
 std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
     switch(type) {
@@ -113,7 +115,7 @@ std::shared_ptr<nlohmann::json> AST::FunctionStatement::toJSON() {
         jsonAst["parameters"].push_back(*param->toJSON());
     }
     jsonAst["return_type"] = *this->return_type->toJSON();
-    jsonAst["body"] = *this->body->toJSON();
+    jsonAst["body"] = this->body ? *this->body->toJSON() : nullptr;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 

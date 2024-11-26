@@ -1,8 +1,9 @@
 #ifndef LEXER_HPP
 #define LEXER_HPP
-#include "token.hpp"
 #include <memory>
 #include <string>
+
+#include "token.hpp"
 
 std::string getStringOnLineNumber(const std::string& input_string, int line_number);
 int getNumberOfLines(const std::string& str);

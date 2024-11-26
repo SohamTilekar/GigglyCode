@@ -1,0 +1,6 @@
+import "std/cliapp";
+
+def main(argc: int, argv: array[str]) -> int {
+    arg_parser: cliapp.CliApp = cliapp.CliApp(argc, argv);
+    return 0;
+}

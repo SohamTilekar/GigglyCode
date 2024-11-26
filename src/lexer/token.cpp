@@ -1,4 +1,5 @@
 #include "./token.hpp"
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -45,12 +46,10 @@ std::string token::Token::toString(bool color) {
         endColNoString += std::string(2 - endColNoString.length(), ' ');
 
     // Construct the formatted string with colors
-    return (color ? colorRed : "") + "[type: " + (color ? colorReset + colorBlue : "") + typeString + (color ? colorRed : "") +
-           ", literal: " + (color ? colorGreen + "\"" + colorYellow : "") + literalPaddingStr + literalString + literalPaddingStr +
-           (color ? colorGreen + "\"" : "") + ", line_no: " + (color ? colorReset + colorGreen : "") + lineNoString + (color ? colorReset : "") +
-           ", col_no: " + (color ? colorReset + colorMagenta : "") + colNoString + (color ? colorReset : "") +
-           ", end_col_no: " + (color ? colorReset + colorMagenta : "") + endColNoString + (color ? colorReset : "") + (color ? colorRed : "") + "]" +
-           (color ? colorReset : "");
+    return (color ? colorRed : "") + "[type: " + (color ? colorReset + colorBlue : "") + typeString + (color ? colorRed : "") + ", literal: " + (color ? colorGreen + "\"" + colorYellow : "") +
+           literalPaddingStr + literalString + literalPaddingStr + (color ? colorGreen + "\"" : "") + ", line_no: " + (color ? colorReset + colorGreen : "") + lineNoString +
+           (color ? colorReset : "") + ", col_no: " + (color ? colorReset + colorMagenta : "") + colNoString + (color ? colorReset : "") + ", end_col_no: " + (color ? colorReset + colorMagenta : "") +
+           endColNoString + (color ? colorReset : "") + (color ? colorRed : "") + "]" + (color ? colorReset : "");
 }
 
 std::shared_ptr<std::string> token::tokenTypeString(TokenType type) {

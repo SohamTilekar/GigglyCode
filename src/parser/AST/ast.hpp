@@ -1,12 +1,13 @@
 #ifndef AST_HPP
 #define AST_HPP
-#include "../../include/json.hpp"
-#include "../../lexer/token.hpp"
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <variant>
 #include <vector>
+
+#include "../../include/json.hpp"
+#include "../../lexer/token.hpp"
 
 
 namespace AST {
@@ -145,8 +146,7 @@ class CallExpression : public Expression {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Expression>> arguments;
-    inline CallExpression(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Expression>> arguments = {})
-        : name(name), arguments(arguments) {}
+    inline CallExpression(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Expression>> arguments = {}) : name(name), arguments(arguments) {}
     inline NodeType type() override { return NodeType::CallExpression; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -156,8 +156,7 @@ class IfElseStatement : public Statement {
     std::shared_ptr<Expression> condition;
     std::shared_ptr<Statement> consequence;
     std::shared_ptr<Statement> alternative;
-    inline IfElseStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> consequence,
-                           std::shared_ptr<Statement> alternative = nullptr)
+    inline IfElseStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> consequence, std::shared_ptr<Statement> alternative = nullptr)
         : condition(condition), consequence(consequence), alternative(alternative) {}
     inline NodeType type() override { return NodeType::IfElseStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
@@ -191,7 +190,7 @@ class ContinueStatement : public Statement {
 class ImportStatement : public Statement {
   public:
     std::string relativePath;
-    inline NodeType type() override { return  NodeType::ImportStatement;}
+    inline NodeType type() override { return NodeType::ImportStatement; }
     ImportStatement(const std::string& relativePath) : relativePath(relativePath) {}
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -222,9 +221,7 @@ class InfixExpression : public Expression {
     std::shared_ptr<Expression> left;
     std::shared_ptr<Expression> right;
     token::TokenType op;
-    inline InfixExpression(std::shared_ptr<Expression> left, token::TokenType op, const std::string& literal,
-                           std::shared_ptr<Expression> right = nullptr)
-        : left(left), right(right), op(op) {
+    inline InfixExpression(std::shared_ptr<Expression> left, token::TokenType op, const std::string& literal, std::shared_ptr<Expression> right = nullptr) : left(left), right(right), op(op) {
         this->meta_data.more_data["operator_literal"] = literal;
     }
     inline NodeType type() override { return NodeType::InfixedExpression; };
@@ -285,8 +282,7 @@ class StructStatement : public Statement {
   public:
     std::shared_ptr<Expression> name = nullptr;
     std::vector<std::shared_ptr<Statement>> fields = {};
-    inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields)
-        : name(name), fields(fields) {}
+    inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields) : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
