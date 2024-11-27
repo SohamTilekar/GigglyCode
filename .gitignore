@@ -9,3 +9,7 @@ dump/*
 temp*
 .cache/*
 .zed/*
+*/build/*
+*.o
+*.json
+*/exec
