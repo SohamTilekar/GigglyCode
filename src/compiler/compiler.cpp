@@ -70,8 +70,16 @@ void compiler::Compiler::_initializeBuiltins() {
     this->enviornment.parent->add(_int32);
     auto _int128 = std::make_shared<enviornment::RecordStructType>("int128", llvm::Type::getInt64Ty(llvm_context));
     this->enviornment.parent->add(_int128);
+    auto _uint = std::make_shared<enviornment::RecordStructType>("uint", llvm::Type::getInt64Ty(llvm_context));
+    this->enviornment.parent->add(_uint);
+    auto _uint32 = std::make_shared<enviornment::RecordStructType>("uint32", llvm::Type::getInt32Ty(llvm_context));
+    this->enviornment.parent->add(_uint32);
+    auto _uint128 = std::make_shared<enviornment::RecordStructType>("uint128", llvm::Type::getInt64Ty(llvm_context));
+    this->enviornment.parent->add(_int128);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
     this->enviornment.parent->add(_float);
+    auto _float32 = std::make_shared<enviornment::RecordStructType>("float32", llvm::Type::getFloatTy(llvm_context));
+    this->enviornment.parent->add(_float32);
     auto _char = std::make_shared<enviornment::RecordStructType>("char", llvm::Type::getInt8Ty(llvm_context));
     this->enviornment.parent->add(_char);
     auto _string = std::make_shared<enviornment::RecordStructType>("str", llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
@@ -504,50 +512,104 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         std::cerr << "Type mismatch" << std::endl;
         exit(1);
     }
-    if(left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy()) {
+
+    llvm::Value* left_val_converted = left_val;
+    llvm::Value* right_val_converted = right_val;
+    auto common_type = left_type;
+
+    // Handle type conversion
+    if((!left_type->struct_type->stand_alone_type->isIntegerTy(1)) && left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
+        left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getDoubleTy(this->llvm_context));
+        common_type = right_type;
+    } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isIntegerTy() && (!right_type->struct_type->stand_alone_type->isIntegerTy(1))) {
+        right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getDoubleTy(this->llvm_context));
+        common_type = left_type;
+    } else if((!left_type->struct_type->stand_alone_type->isIntegerTy(1)) && left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isFloatTy()) {
+        left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getFloatTy(this->llvm_context));
+        common_type = right_type;
+    } else if(left_type->struct_type->stand_alone_type->isFloatTy() && right_type->struct_type->stand_alone_type->isIntegerTy() && (!right_type->struct_type->stand_alone_type->isIntegerTy(1))) {
+        right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getFloatTy(this->llvm_context));
+        common_type = left_type;
+    } else if(
+        (left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy())
+        || (left_type->struct_type->stand_alone_type->isIntegerTy(1) && right_type->struct_type->stand_alone_type->isIntegerTy(1))
+        || left_type->struct_type->stand_alone_type->isFloatTy() && right_type->struct_type->stand_alone_type->isFloatTy()
+        || left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isDoubleTy()
+    ) {
+        // No conversion Needed
+    } else {
+        std::cerr << "Unknown Type" << std::endl;
+        exit(1);
+    }
+
+    if(common_type->struct_type->stand_alone_type->isIntegerTy()) {
         switch(op) {
         case(token::TokenType::Plus): {
-            auto inst = this->llvm_ir_builder.CreateAdd(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Dash): {
-            auto inst = this->llvm_ir_builder.CreateSub(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Asterisk): {
-            auto inst = this->llvm_ir_builder.CreateMul(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateMul(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::ForwardSlash): {
-            auto inst = this->llvm_ir_builder.CreateSDiv(left_val, right_val);
+            llvm::Value* inst;
+            if (left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+                inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
+            else
+                inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Percent): {
-            auto inst = this->llvm_ir_builder.CreateSRem(left_val, right_val);
+            llvm::Value* inst;
+            if (left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+                inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
+            else
+                inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("int")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::EqualEqual): {
-            auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::NotEquals): {
-            auto inst = this->llvm_ir_builder.CreateICmpNE(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateICmpNE(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThan): {
-            auto inst = this->llvm_ir_builder.CreateICmpSLT(left_val, right_val);
+            llvm::Value* inst;
+            if (left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+                inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
+            else
+                inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThan): {
-            auto inst = this->llvm_ir_builder.CreateICmpSGT(left_val, right_val);
+            llvm::Value* inst;
+            if (left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+                inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
+            else
+                inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThanOrEqual): {
-            auto inst = this->llvm_ir_builder.CreateICmpSLE(left_val, right_val);
+            llvm::Value* inst;
+            if (left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+                inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
+            else
+                inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThanOrEqual): {
-            auto inst = this->llvm_ir_builder.CreateICmpSGE(left_val, right_val);
+            llvm::Value* inst;
+            if (left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+                inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
+            else
+                inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::AsteriskAsterisk): {
@@ -559,46 +621,46 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             exit(1);
         }
         }
-    } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
+    } else if(common_type->struct_type->stand_alone_type->isDoubleTy()) {
         switch(op) {
         case(token::TokenType::Plus): {
-            auto inst = this->llvm_ir_builder.CreateFAdd(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Dash): {
-            auto inst = this->llvm_ir_builder.CreateFSub(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Asterisk): {
-            auto inst = this->llvm_ir_builder.CreateFMul(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFMul(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::ForwardSlash): {
-            auto inst = this->llvm_ir_builder.CreateFDiv(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFDiv(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("float")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::EqualEqual): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::NotEquals): {
-            auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThan): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThan): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThanOrEqual): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThanOrEqual): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val, right_val);
+            auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
             return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment.get_struct("bool")), compiler::resolveType::StructInst};
         }
         case(token::TokenType::AsteriskAsterisk): {
