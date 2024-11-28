@@ -89,10 +89,13 @@ class Compiler {
 
     void _visitIfElseStatement(std::shared_ptr<AST::IfElseStatement> if_statement);
 
-    void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement);
+    void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordStructType> struct_ = nullptr);
     std::tuple<llvm::Value*, llvm::AllocaInst*,
                std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
         _visitCallExpression(std::shared_ptr<AST::CallExpression>);
+    std::tuple<llvm::Value*, llvm::AllocaInst*,
+                std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
+        _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
     std::tuple<llvm::Value*, llvm::AllocaInst*,
                std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
     _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
