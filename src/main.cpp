@@ -15,7 +15,7 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 
-// #define DEBUG_LEXER
+#define DEBUG_LEXER
 #define DEBUG_PARSER
 #define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
 #define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.json"
@@ -23,6 +23,7 @@
 using json = nlohmann::json;
 std::filesystem::path GC_STD_DIR;
 std::filesystem::path GC_STD_IRGCMAP;
+bool dev_node = true;
 
 // Function to read the file content into a string
 const std::string readFileToString(const std::string& filePath) {
@@ -321,7 +322,6 @@ int main(int argc, char* argv[]) {
 
     std::string executablePath;
     app.add_option("-o,--output", executablePath, "Output executable path")->required();
-
     CLI11_PARSE(app, argc, argv);
 
     std::string srcDir = inputFolderPath + "/src";

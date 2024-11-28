@@ -116,6 +116,10 @@ std::shared_ptr<std::string> token::tokenTypeString(TokenType type) {
         return std::make_shared<std::string>("RightArrow");
     case TokenType::Comma:
         return std::make_shared<std::string>("Comma");
+    case TokenType::AtTheRate:
+        return std::make_shared<std::string>("AtTheRate");
+    case TokenType::Pipe:
+        return std::make_shared<std::string>("Pipe");
     case TokenType::Equals:
         return std::make_shared<std::string>("Equals");
     case TokenType::Illegal:

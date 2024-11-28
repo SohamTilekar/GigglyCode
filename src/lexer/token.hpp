@@ -73,6 +73,8 @@ enum class TokenType {
     Semicolon,    // Semicolon ;
     RightArrow,   // Right Arrow ->
     Comma,        // Comma ,
+    AtTheRate,    // At symbol @
+    Pipe,         // Pipe symbol |
 
     // Keywords
     And,      // Logical AND and

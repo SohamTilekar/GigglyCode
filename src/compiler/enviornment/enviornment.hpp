@@ -14,7 +14,7 @@
 #include "../../parser/AST/ast.hpp"
 
 namespace enviornment {
-enum class RecordType { RecordStructInst, RecordVariable, RecordFunction, RecordModule };
+enum class RecordType { RecordStructInst, RecordVariable, RecordFunction, RecordModule, RecordGenericFunction };
 
 class Record {
   public:
@@ -33,6 +33,7 @@ class Record {
 class RecordVariable;
 class RecordStructType;
 class RecordStructInstance;
+class Enviornment;
 
 class RecordFunction : public Record {
   public:
@@ -48,6 +49,13 @@ class RecordFunction : public Record {
     RecordFunction(std::string name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments,
                    std::shared_ptr<RecordStructInstance> return_inst, bool isVarArg)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst), varArg(isVarArg) {};
+};
+
+class RecordGenericFunction : public Record {
+  public:
+    std::shared_ptr<AST::FunctionStatement> func = nullptr;
+    std::shared_ptr<Enviornment> env = nullptr;
+    RecordGenericFunction(std::string name, std::shared_ptr<AST::FunctionStatement> func, std::shared_ptr<Enviornment> env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {};
 };
 
 class RecordStructType : public Record {
@@ -99,6 +107,8 @@ class RecordModule : public Record {
     std::shared_ptr<RecordStructType> get_struct(std::string name);
     bool is_module(std::string name);
     std::shared_ptr<RecordModule> get_module(std::string name);
+    bool is_Gfunc(std::string name);
+    std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> get_Gfunc(std::string name);
 };
 
 class Enviornment {
@@ -124,5 +134,7 @@ class Enviornment {
     std::shared_ptr<RecordStructType> get_struct(std::string name, bool limit2current_scope = false);
     bool is_module(std::string name, bool limit2current_scope = false);
     std::shared_ptr<RecordModule> get_module(std::string name, bool limit2current_scope = false);
+    bool is_Gfunc(std::string name);
+    std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> get_Gfunc(std::string name);
 }; // class Environment
 } // namespace enviornment

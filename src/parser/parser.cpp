@@ -1,9 +1,11 @@
 #include "parser.hpp"
 
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <ostream>
+#include <string>
 
 #include "AST/ast.hpp"
 
@@ -56,6 +58,8 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseReturnStatement();
     } else if(this->_currentTokenIs(token::TokenType::Def)) {
         return this->_parseFunctionStatement();
+    } else if(this->_currentTokenIs(token::TokenType::AtTheRate)) {
+        return this->_parseDeco();
     } else if(this->_currentTokenIs(token::TokenType::If)) {
         return this->_parseIfElseStatement();
     } else if(this->_currentTokenIs(token::TokenType::While)) {
@@ -75,6 +79,59 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseExpressionStatement();
     }
 }
+
+std::shared_ptr<AST::Statement> parser::Parser::_parseDeco() {
+    if(!this->_expectPeek(token::TokenType::Identifier)) {
+        return nullptr;
+    }
+    std::string name = this->current_token->literal;
+    if(name == std::string("generic")) {
+        if(!this->_expectPeek(token::TokenType::LeftParen)) {
+            return nullptr;
+        }
+        this->_nextToken();
+        std::vector<std::shared_ptr<AST::GenericType>> generic;
+        while(this->current_token->type != token::TokenType::RightParen) {
+            if(this->current_token->type == token::TokenType::Identifier) {
+                auto identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
+                if(!this->_expectPeek(token::TokenType::Colon)) {
+                    return nullptr;
+                }
+                this->_nextToken();
+                std::vector<std::shared_ptr<AST::Type>> type;
+                while(this->current_token->type != token::TokenType::RightParen && this->current_token->type != token::TokenType::Comma) {
+                    type.push_back(this->_parseType());
+                    if(this->_peekTokenIs(token::TokenType::Pipe)) {
+                        this->_nextToken();
+                        this->_nextToken();
+                    } else {
+                        break;
+                    }
+                }
+                generic.push_back(std::make_shared<AST::GenericType>(identifier, type));
+                if(this->_peekTokenIs(token::TokenType::Comma)) {
+                    this->_nextToken();
+                    this->_nextToken();
+                } else {
+                    break;
+                }
+            } else {
+                _peekError(current_token->type, token::TokenType::Identifier);
+                break;
+            }
+        }
+        if(!this->_expectPeek(token::TokenType::RightParen)) {
+            return nullptr;
+        }
+        if(this->_expectPeek(token::TokenType::Def)) {
+            auto func = this->_parseFunctionStatement();
+            func->generic = generic;
+            return func;
+        }
+        this->_peekError(this->current_token->type, token::TokenType::Def);
+    }
+    return nullptr;
+};
 
 std::shared_ptr<AST::FunctionStatement> parser::Parser::_parseFunctionStatement() {
     int st_line_no = current_token->line_no;
@@ -159,7 +216,7 @@ std::shared_ptr<AST::FunctionStatement> parser::Parser::_parseFunctionStatement(
     }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto function_statement = std::make_shared<AST::FunctionStatement>(name, parameters, closure_parameters, return_type, body);
+    auto function_statement = std::make_shared<AST::FunctionStatement>(name, parameters, closure_parameters, return_type, body, std::vector<std::shared_ptr<AST::GenericType>>{});
     function_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return function_statement;
 }
@@ -375,12 +432,12 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseInfixIdenifier() {
     return std::make_shared<AST::InfixExpression>(li, token::TokenType::Dot, ".", this->_parseInfixIdenifier());
 }
 
-std::shared_ptr<AST::GenericType> parser::Parser::_parseType() {
+std::shared_ptr<AST::Type> parser::Parser::_parseType() {
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
     std::shared_ptr<AST::Expression> name;
     name = this->_parseInfixIdenifier();
-    std::vector<std::shared_ptr<AST::GenericType>> generics;
+    std::vector<std::shared_ptr<AST::Type>> generics;
     if(this->_peekTokenIs(token::TokenType::LeftBracket)) {
         this->_nextToken();
         this->_nextToken();
@@ -395,7 +452,7 @@ std::shared_ptr<AST::GenericType> parser::Parser::_parseType() {
     }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto generic_type_node = std::make_shared<AST::GenericType>(name, generics);
+    auto generic_type_node = std::make_shared<AST::Type>(name, generics);
     generic_type_node->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return generic_type_node;
 }

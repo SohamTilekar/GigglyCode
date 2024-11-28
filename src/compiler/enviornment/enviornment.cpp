@@ -1,6 +1,4 @@
 #include "enviornment.hpp"
-
-#include <iostream>
 #include <memory>
 
 
@@ -113,6 +111,18 @@ bool enviornment::RecordModule::is_module(std::string name) {
     return false;
 }
 
+bool enviornment::RecordModule::is_Gfunc(std::string name) {
+    for(auto [module_name, module_record] : record_map) {
+        if(module_record->type == RecordType::RecordGenericFunction) {
+            auto module = std::static_pointer_cast<enviornment::RecordGenericFunction>(module_record);
+            if(module->name == name) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::shared_ptr<enviornment::RecordFunction> enviornment::RecordModule::get_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
     for(auto [func_name, func_record] : record_map) {
         if(func_record->type == RecordType::RecordFunction) {
@@ -147,6 +157,19 @@ std::shared_ptr<enviornment::RecordModule> enviornment::RecordModule::get_module
         }
     }
     return nullptr;
+};
+
+std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::RecordModule::get_Gfunc(std::string name) {
+    std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> matching_gfuncs;
+    for(auto [Gf_name, Gf_record] : record_map) {
+        if(Gf_record->type == RecordType::RecordGenericFunction) {
+            auto Gf = std::static_pointer_cast<enviornment::RecordGenericFunction>(Gf_record);
+            if(Gf->name == name) {
+                matching_gfuncs.push_back(Gf);
+            }
+        }
+    }
+    return matching_gfuncs;
 };
 
 void enviornment::Enviornment::add(std::shared_ptr<Record> record) { record_map.push_back({record->name, record}); }
@@ -190,6 +213,15 @@ bool enviornment::Enviornment::is_module(std::string name, bool limit2current_sc
     return this->parent ? this->parent->is_module(name) : false;
 };
 
+bool enviornment::Enviornment::is_Gfunc(std::string name) {
+    for(auto [record_name, record] : record_map) {
+        if(record->type == RecordType::RecordGenericFunction && record->name == name) {
+            return true;
+        }
+    }
+    return this->parent ? this->parent->is_Gfunc(name) : false;
+};
+
 std::shared_ptr<enviornment::RecordVariable> enviornment::Enviornment::get_variable(std::string name, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordVariable && record->name == name) {
@@ -228,4 +260,17 @@ std::shared_ptr<enviornment::RecordModule> enviornment::Enviornment::get_module(
         }
     }
     return (parent != nullptr & !limit2current_scope) ? parent->get_module(name) : nullptr;
+};
+
+std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::Enviornment::get_Gfunc(std::string name) {
+    std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> matching_gfuncs;
+    for(auto [Gf_name, Gf_record] : record_map) {
+        if(Gf_record->type == RecordType::RecordGenericFunction) {
+            auto Gf = std::static_pointer_cast<enviornment::RecordGenericFunction>(Gf_record);
+            if(Gf->name == name) {
+                matching_gfuncs.push_back(Gf);
+            }
+        }
+    }
+    return this->parent != nullptr && matching_gfuncs.size() == 0 ? this->parent->get_Gfunc(name) : matching_gfuncs;
 };

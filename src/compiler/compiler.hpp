@@ -62,7 +62,7 @@ class Compiler {
 
     std::string fc_st_name_prefix;
 
-    enviornment::Enviornment enviornment;
+    std::shared_ptr<enviornment::Enviornment> enviornment;
 
     std::vector<llvm::BasicBlock*> function_entery_block = {};
 
@@ -110,6 +110,6 @@ class Compiler {
     void _importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
     void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
 
-    std::shared_ptr<enviornment::RecordStructInstance> _parseType(std::shared_ptr<AST::GenericType> type);
+    std::shared_ptr<enviornment::RecordStructInstance> _parseType(std::shared_ptr<AST::Type> type);
 };
 } // namespace compiler

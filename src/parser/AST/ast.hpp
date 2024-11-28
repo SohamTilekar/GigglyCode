@@ -33,7 +33,7 @@ enum class NodeType {
 
     // Types
     Type,
-    UnionType,
+    GenericType,
 
     // Expressions
     InfixedExpression,
@@ -79,12 +79,21 @@ class Statement : public Node {};
 
 class Expression : public Node {};
 
+class Type : public Node {
+  public:
+    std::shared_ptr<Expression> name;
+    std::vector<std::shared_ptr<Type>> generics;
+    inline Type(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Type>> generics) : name(name), generics(generics) {}
+    inline NodeType type() { return NodeType::Type; };
+    std::shared_ptr<nlohmann::json> toJSON();
+};
+
 class GenericType : public Node {
   public:
     std::shared_ptr<Expression> name;
-    std::vector<std::shared_ptr<GenericType>> generics;
-    inline GenericType(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<GenericType>> generics) : name(name), generics(generics) {}
-    inline NodeType type() { return NodeType::Type; };
+    std::vector<std::shared_ptr<Type>> generic_union;
+    inline GenericType(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Type>> generic_union) : name(name), generic_union(generic_union) {}
+    inline NodeType type() { return NodeType::GenericType; };
     std::shared_ptr<nlohmann::json> toJSON();
 };
 
@@ -122,8 +131,8 @@ class ReturnStatement : public Statement {
 class FunctionParameter : public Node {
   public:
     std::shared_ptr<Expression> name;
-    std::shared_ptr<GenericType> value_type;
-    inline FunctionParameter(std::shared_ptr<Expression> name, std::shared_ptr<GenericType> type) : name(name), value_type(type) {}
+    std::shared_ptr<Type> value_type;
+    inline FunctionParameter(std::shared_ptr<Expression> name, std::shared_ptr<Type> type) : name(name), value_type(type) {}
     inline NodeType type() override { return NodeType::FunctionParameter; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -133,11 +142,12 @@ class FunctionStatement : public Statement {
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<FunctionParameter>> parameters;
     std::vector<std::shared_ptr<FunctionParameter>> closure_parameters;
-    std::shared_ptr<GenericType> return_type;
+    std::shared_ptr<Type> return_type;
     std::shared_ptr<BlockStatement> body;
+    std::vector<std::shared_ptr<GenericType>> generic;
     inline FunctionStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<FunctionParameter>> parameters, std::vector<std::shared_ptr<FunctionParameter>> closure_parameters,
-                             std::shared_ptr<GenericType> return_type, std::shared_ptr<BlockStatement> body)
-        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body) {}
+                             std::shared_ptr<Type> return_type, std::shared_ptr<BlockStatement> body, std::vector<std::shared_ptr<GenericType>> generic)
+        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {}
     inline NodeType type() override { return NodeType::FunctionStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -198,10 +208,10 @@ class ImportStatement : public Statement {
 class VariableDeclarationStatement : public Statement {
   public:
     std::shared_ptr<Expression> name;
-    std::shared_ptr<GenericType> value_type;
+    std::shared_ptr<Type> value_type;
     std::shared_ptr<Expression> value;
     bool is_volatile = false;
-    inline VariableDeclarationStatement(std::shared_ptr<Expression> name, std::shared_ptr<GenericType> type, std::shared_ptr<Expression> value = nullptr, bool is_volatile = true)
+    inline VariableDeclarationStatement(std::shared_ptr<Expression> name, std::shared_ptr<Type> type, std::shared_ptr<Expression> value = nullptr, bool is_volatile = true)
         : name(name), value_type(type), value(value), is_volatile(is_volatile) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;

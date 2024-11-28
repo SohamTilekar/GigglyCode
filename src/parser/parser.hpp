@@ -115,6 +115,7 @@ class Parser {
     std::shared_ptr<AST::Statement> _parseVariableAssignment(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
     std::shared_ptr<AST::ReturnStatement> _parseReturnStatement();
     std::shared_ptr<AST::FunctionStatement> _parseFunctionStatement();
+    std::shared_ptr<AST::Statement> _parseDeco();
     std::shared_ptr<AST::Expression> _parseFunctionCall(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
     std::shared_ptr<AST::BlockStatement> _parseBlockStatement();
     std::shared_ptr<AST::Statement> _parseIfElseStatement();
@@ -124,7 +125,7 @@ class Parser {
     std::shared_ptr<AST::ImportStatement> _parseImportStatement();
     std::shared_ptr<AST::StructStatement> _parseStructStatement();
 
-    std::shared_ptr<AST::GenericType> _parseType();
+    std::shared_ptr<AST::Type> _parseType();
 
     std::shared_ptr<AST::Expression> _parseExpression(PrecedenceType precedence, std::shared_ptr<AST::Expression> leftNode = nullptr, int st_line_no = -1, int st_col_no = -1);
 

@@ -25,9 +25,9 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
     case NodeType::ReturnStatement:
         return std::make_shared<std::string>("ReturnStatement");
     case NodeType::Type:
-        return std::make_shared<std::string>("TypeStatement");
-    case NodeType::UnionType:
-        return std::make_shared<std::string>("UnionType");
+        return std::make_shared<std::string>("Type");
+    case NodeType::GenericType:
+        return std::make_shared<std::string>("GenericType");
     case NodeType::InfixedExpression:
         return std::make_shared<std::string>("InfixedExpression");
     case NodeType::IntegerLiteral:
@@ -61,13 +61,24 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
     }
 };
 
-std::shared_ptr<nlohmann::json> AST::GenericType::toJSON() {
+std::shared_ptr<nlohmann::json> AST::Type::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["generics"] = nlohmann::json::array();
     for(auto& gen : this->generics) {
         jsonAst["generics"].push_back(*gen->toJSON());
+    }
+    return std::make_shared<nlohmann::json>(jsonAst);
+};
+
+std::shared_ptr<nlohmann::json> AST::GenericType::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["name"] = *this->name->toJSON();
+    jsonAst["generic_union"] = nlohmann::json::array();
+    for(auto& gen : this->generic_union) {
+        jsonAst["generic_union"].push_back(*gen->toJSON());
     }
     return std::make_shared<nlohmann::json>(jsonAst);
 };
@@ -116,6 +127,10 @@ std::shared_ptr<nlohmann::json> AST::FunctionStatement::toJSON() {
     }
     jsonAst["return_type"] = *this->return_type->toJSON();
     jsonAst["body"] = this->body ? *this->body->toJSON() : nullptr;
+    jsonAst["generic"] = nlohmann::json::array();
+    for(auto& gen : this->generic) {
+        jsonAst["generic"].push_back(*gen->toJSON());
+    }
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
