@@ -54,7 +54,9 @@ bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> fu
             return false;
         }
     }
-    return func_record->varArg || func_record->arguments.size() == params.size();
+
+    bool result = func_record->varArg || func_record->arguments.size() == params.size();
+    return result;
 };
 
 bool enviornment::RecordStructType::is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types) {
@@ -68,6 +70,7 @@ bool enviornment::RecordStructType::is_method(const std::string& name, const std
 
 std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types) {
     for(auto [method_name, method] : this->methods) {
+        std::cout << "Name: " << name + " : " + method->name << std::endl;
         if(method->name == name && _checkFunctionParameterType(method, params_types)) {
             return method;
         }

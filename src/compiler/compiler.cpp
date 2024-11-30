@@ -221,7 +221,7 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
 };
 
 
-std::tuple<llvm::Value*, llvm::AllocaInst*,
+std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args,
                                std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
@@ -296,8 +296,6 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
                 this->compile(body);
             } catch(compiler::DoneRet) {
                 // Ignoringrecord
-            } catch(std::exception) {
-                throw;
             }
             gfunc->env->add(func_record);
             this->function_entery_block.pop_back();
@@ -320,7 +318,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
 
 
 
-std::tuple<llvm::Value*, llvm::AllocaInst*,
+std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> infixed_expression) {
     auto op = infixed_expression->op;
@@ -351,8 +349,11 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                         idx++;
                     }
                     auto type = left_type->struct_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
-                    llvm::AllocaInst* gep = llvm::cast<llvm::AllocaInst>(this->llvm_ir_builder.CreateStructGEP(left_type->struct_type->struct_type, left_alloca, idx));
-                    llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->struct_type->stand_alone_type, gep);
+                    llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type->struct_type, left_alloca, idx);
+                    if (left_type->struct_type->struct_type) {
+                        return {gep, gep, type, compiler::resolveType::StructInst};
+                    }
+                    llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->struct_type->stand_alone_type, gep); // TODO: Fix
                     return {loaded, gep, type, compiler::resolveType::StructInst};
                 } else {
                     std::cerr << "Struct does not have member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
@@ -779,7 +780,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
     }
 };
 
-std::tuple<llvm::Value*, llvm::AllocaInst*,
+std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression) {
     auto [left, _, _left_generic, ltt] = this->_resolveValue(index_expression->left);
@@ -805,7 +806,7 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
     auto element = this->llvm_ir_builder.CreateGEP(
         left_generic->generic[0]->struct_type->stand_alone_type ? left_generic->generic[0]->struct_type->stand_alone_type : left_generic->generic[0]->struct_type->struct_type, left, index, "element");
     auto load = left_generic->generic[0]->struct_type->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->generic[0]->struct_type->stand_alone_type, element) : element;
-    return {load, llvm::cast<llvm::AllocaInst>(element), left_generic->generic[0], compiler::resolveType::StructInst};
+    return {load, element, left_generic->generic[0], compiler::resolveType::StructInst};
 };
 
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
@@ -881,7 +882,7 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
         std::cerr << "Cannot assign missmatch type" << std::endl;
         exit(1);
     }
-    if(assignmentType->struct_type->struct_type) {
+    if(assignmentType->struct_type->stand_alone_type) {
         auto store = this->llvm_ir_builder.CreateStore(value, alloca);
     } else {
         auto load = this->llvm_ir_builder.CreateLoad(assignmentType->struct_type->struct_type, value);
@@ -889,7 +890,7 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
     }
 };
 
-std::tuple<llvm::Value*, llvm::AllocaInst*,
+std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
     switch(node->type()) {
@@ -952,7 +953,7 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
     }
 };
 
-std::tuple<llvm::Value*, llvm::AllocaInst*,
+std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal) {
     std::vector<llvm::Value*> values;
@@ -993,13 +994,18 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
 void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement) {
     auto value = return_statement->value;
     auto [return_value, return_alloca, _, rtt] = this->_resolveValue(value);
-    if(rtt != compiler::resolveType::StructInst) {
-        std::cerr << "Return statement with multiple values" << std::endl;
-        exit(1);
-    }
     if(this->enviornment->current_function == nullptr) {
         std::cerr << "Return Outside of function" << std::endl;
         exit(1);
+    }
+    if(rtt != compiler::resolveType::StructInst) {
+        if(rtt == compiler::resolveType::StructType && std::get<std::shared_ptr<enviornment::RecordStructType>>(_)->name == "void") {
+            this->llvm_ir_builder.CreateRetVoid();
+            return;
+        } else {
+            std::cerr << "Return statement with multiple values" << std::endl;
+            exit(1);
+        }
     }
     if(!enviornment::_checkType(this->enviornment->current_function->return_inst, std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_))) {
         std::cerr << "Return Type Miss Match" << std::endl;
@@ -1070,14 +1076,15 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         this->enviornment = std::make_shared<enviornment::Enviornment>(prev_env, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>{}, name);
         this->enviornment->current_function = func_record;
         for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
-            llvm::AllocaInst* alloca = nullptr;
+            llvm::Value* alloca = nullptr;
             if(!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->get_struct("array"))) {
                 alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
                 auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
             } else {
-                alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
-                auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
-                auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
+                alloca = &arg;
+                // alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
+                // auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
+                // auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
             }
             auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
             func_record->arguments.push_back({arg.getName().str(), param_type_record});
@@ -1090,8 +1097,6 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             this->compile(body);
         } catch(compiler::DoneRet) {
             // Ignoring
-        } catch(std::exception) {
-            throw;
         }
         this->enviornment = prev_env;
         this->function_entery_block.pop_back();
@@ -1113,7 +1118,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         this->enviornment->add(func_record);
 };
 
-std::tuple<llvm::Value*, llvm::AllocaInst*,
+std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> call_expression) {
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
@@ -1149,7 +1154,6 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
         auto struct_record = this->enviornment->get_struct(name);
         auto struct_type = struct_record->struct_type;
         auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
-        auto func = struct_record->get_method(struct_record->name, params_types);
         params_types.push_back(std::make_shared<enviornment::RecordStructInstance>(struct_record));
         args.push_back(alloca);
         for(auto arg : param) {
@@ -1161,6 +1165,7 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
             params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructInstance>>(param_type));
             args.push_back(value);
         }
+        auto func = struct_record->get_method(struct_record->name, params_types);
         if(func)
             this->llvm_ir_builder.CreateCall(func->function, args);
         else {
@@ -1199,8 +1204,6 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             this->llvm_ir_builder.SetInsertPoint(ContBB);
         } catch(compiler::DoneRet) {
             // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
-        } catch(std::exception) {
-            throw;
         }
     } else {
         auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
@@ -1214,8 +1217,6 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             this->llvm_ir_builder.SetInsertPoint(ContBB);
         } catch(compiler::DoneRet) {
             // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
-        } catch(std::exception) {
-            throw;
         }
         try {
             this->llvm_ir_builder.SetInsertPoint(ElseBB);
@@ -1224,8 +1225,6 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             this->llvm_ir_builder.SetInsertPoint(ContBB);
         } catch(compiler::DoneRet) {
             // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
-        } catch(std::exception) {
-            throw;
         }
     }
 };
@@ -1260,8 +1259,6 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
         this->llvm_ir_builder.SetInsertPoint(ContBB);
     } catch(compiler::DoneRet) {
         // Doing Noting cz We want to Ignore to compile the foollowing comands if DoneRet exception occur;
-    } catch(std::exception) {
-        throw;
     }
     this->enviornment->loop_body_block.pop_back();
     this->enviornment->loop_end_block.pop_back();

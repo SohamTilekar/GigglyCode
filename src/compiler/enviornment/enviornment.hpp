@@ -85,10 +85,10 @@ class RecordStructInstance {
 class RecordVariable : public Record {
   public:
     llvm::Value* value = nullptr;
-    llvm::AllocaInst* allocainst = nullptr;
+    llvm::Value* allocainst = nullptr;
     std::shared_ptr<RecordStructInstance> variableType = nullptr;
     RecordVariable(const std::string& name) : Record(RecordType::RecordVariable, name) {};
-    RecordVariable(const std::string& name, llvm::Value* value, llvm::AllocaInst* allocainst, std::shared_ptr<RecordStructInstance> generic)
+    RecordVariable(const std::string& name, llvm::Value* value, llvm::Value* allocainst, std::shared_ptr<RecordStructInstance> generic)
         : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variableType(generic) {};
 };
 
