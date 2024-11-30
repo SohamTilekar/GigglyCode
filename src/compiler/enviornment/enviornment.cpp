@@ -57,7 +57,7 @@ bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> fu
     return func_record->varArg || func_record->arguments.size() == params.size();
 };
 
-bool enviornment::RecordStructType::is_method(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
+bool enviornment::RecordStructType::is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types) {
     for(auto [method_name, method] : this->methods) {
         if(method->name == name && _checkFunctionParameterType(method, params_types)) {
             return true;
@@ -66,7 +66,7 @@ bool enviornment::RecordStructType::is_method(std::string name, std::vector<std:
     return false;
 };
 
-std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_method(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
+std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types) {
     for(auto [method_name, method] : this->methods) {
         if(method->name == name && _checkFunctionParameterType(method, params_types)) {
             return method;
@@ -75,7 +75,7 @@ std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_
     return nullptr;
 };
 
-bool enviornment::RecordModule::is_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
+bool enviornment::RecordModule::is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types) {
     for(auto [func_name, func_record] : record_map) {
         if(func_record->type == RecordType::RecordFunction) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(func_record);
@@ -87,7 +87,7 @@ bool enviornment::RecordModule::is_function(std::string name, std::vector<std::s
     return false;
 }
 
-bool enviornment::RecordModule::is_struct(std::string name) {
+bool enviornment::RecordModule::is_struct(const std::string& name) {
     for(auto [struct_name, struct_record] : record_map) {
         if(struct_record->type == RecordType::RecordStructInst) {
             auto struct_type = std::static_pointer_cast<enviornment::RecordStructType>(struct_record);
@@ -99,7 +99,7 @@ bool enviornment::RecordModule::is_struct(std::string name) {
     return false;
 }
 
-bool enviornment::RecordModule::is_module(std::string name) {
+bool enviornment::RecordModule::is_module(const std::string& name) {
     for(auto [module_name, module_record] : record_map) {
         if(module_record->type == RecordType::RecordModule) {
             auto module = std::static_pointer_cast<enviornment::RecordModule>(module_record);
@@ -111,7 +111,7 @@ bool enviornment::RecordModule::is_module(std::string name) {
     return false;
 }
 
-bool enviornment::RecordModule::is_Gfunc(std::string name) {
+bool enviornment::RecordModule::is_Gfunc(const std::string& name) {
     for(auto [module_name, module_record] : record_map) {
         if(module_record->type == RecordType::RecordGenericFunction) {
             auto module = std::static_pointer_cast<enviornment::RecordGenericFunction>(module_record);
@@ -123,7 +123,7 @@ bool enviornment::RecordModule::is_Gfunc(std::string name) {
     return false;
 }
 
-std::shared_ptr<enviornment::RecordFunction> enviornment::RecordModule::get_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
+std::shared_ptr<enviornment::RecordFunction> enviornment::RecordModule::get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types) {
     for(auto [func_name, func_record] : record_map) {
         if(func_record->type == RecordType::RecordFunction) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(func_record);
@@ -135,7 +135,7 @@ std::shared_ptr<enviornment::RecordFunction> enviornment::RecordModule::get_func
     return nullptr;
 };
 
-std::shared_ptr<enviornment::RecordStructType> enviornment::RecordModule::get_struct(std::string name) {
+std::shared_ptr<enviornment::RecordStructType> enviornment::RecordModule::get_struct(const std::string& name) {
     for(auto [struct_name, struct_record] : record_map) {
         if(struct_record->type == RecordType::RecordStructInst) {
             auto struct_type = std::static_pointer_cast<enviornment::RecordStructType>(struct_record);
@@ -147,7 +147,7 @@ std::shared_ptr<enviornment::RecordStructType> enviornment::RecordModule::get_st
     return nullptr;
 };
 
-std::shared_ptr<enviornment::RecordModule> enviornment::RecordModule::get_module(std::string name) {
+std::shared_ptr<enviornment::RecordModule> enviornment::RecordModule::get_module(const std::string& name) {
     for(auto [module_name, module_record] : record_map) {
         if(module_record->type == RecordType::RecordModule) {
             auto module = std::static_pointer_cast<enviornment::RecordModule>(module_record);
@@ -159,7 +159,7 @@ std::shared_ptr<enviornment::RecordModule> enviornment::RecordModule::get_module
     return nullptr;
 };
 
-std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::RecordModule::get_Gfunc(std::string name) {
+std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::RecordModule::get_Gfunc(const std::string& name) {
     std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> matching_gfuncs;
     for(auto [Gf_name, Gf_record] : record_map) {
         if(Gf_record->type == RecordType::RecordGenericFunction) {
@@ -174,16 +174,16 @@ std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::Re
 
 void enviornment::Enviornment::add(std::shared_ptr<Record> record) { record_map.push_back({record->name, record}); }
 
-bool enviornment::Enviornment::is_variable(std::string name, bool limit2current_scope) {
+bool enviornment::Enviornment::is_variable(const std::string& name, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordVariable && record->name == name) {
             return true;
         }
     }
-    return (parent != nullptr & !limit2current_scope) ? parent->is_variable(name) : false;
+    return (parent != nullptr && !limit2current_scope) ? parent->is_variable(name) : false;
 };
 
-bool enviornment::Enviornment::is_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types, bool limit2current_scope) {
+bool enviornment::Enviornment::is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordFunction && record->name == name) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(record);
@@ -192,10 +192,10 @@ bool enviornment::Enviornment::is_function(std::string name, std::vector<std::sh
             }
         }
     }
-    return (parent != nullptr & !limit2current_scope) ? parent->is_function(name, params_types) : false;
+    return (parent != nullptr && !limit2current_scope) ? parent->is_function(name, params_types) : false;
 };
 
-bool enviornment::Enviornment::is_struct(std::string name, bool limit2current_scope) {
+bool enviornment::Enviornment::is_struct(const std::string& name, bool limit2current_scope) {
     for(auto [record_name, record] : this->record_map) {
         if(record->type == RecordType::RecordStructInst && record->name == name) {
             return true;
@@ -204,7 +204,7 @@ bool enviornment::Enviornment::is_struct(std::string name, bool limit2current_sc
     return this->parent ? this->parent->is_struct(name) : false;
 };
 
-bool enviornment::Enviornment::is_module(std::string name, bool limit2current_scope) {
+bool enviornment::Enviornment::is_module(const std::string& name, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordModule && record->name == name) {
             return true;
@@ -213,7 +213,7 @@ bool enviornment::Enviornment::is_module(std::string name, bool limit2current_sc
     return this->parent ? this->parent->is_module(name) : false;
 };
 
-bool enviornment::Enviornment::is_Gfunc(std::string name) {
+bool enviornment::Enviornment::is_Gfunc(const std::string& name) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordGenericFunction && record->name == name) {
             return true;
@@ -222,16 +222,16 @@ bool enviornment::Enviornment::is_Gfunc(std::string name) {
     return this->parent ? this->parent->is_Gfunc(name) : false;
 };
 
-std::shared_ptr<enviornment::RecordVariable> enviornment::Enviornment::get_variable(std::string name, bool limit2current_scope) {
+std::shared_ptr<enviornment::RecordVariable> enviornment::Enviornment::get_variable(const std::string& name, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordVariable && record->name == name) {
             return std::static_pointer_cast<enviornment::RecordVariable>(record);
         }
     }
-    return (parent != nullptr & !limit2current_scope) ? parent->get_variable(name) : nullptr;
+    return (parent != nullptr && !limit2current_scope) ? parent->get_variable(name) : nullptr;
 };
 
-std::shared_ptr<enviornment::RecordFunction> enviornment::Enviornment::get_function(std::string name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types,
+std::shared_ptr<enviornment::RecordFunction> enviornment::Enviornment::get_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types,
                                                                                     bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordFunction && record->name == name) {
@@ -241,28 +241,28 @@ std::shared_ptr<enviornment::RecordFunction> enviornment::Enviornment::get_funct
             }
         }
     }
-    return (parent != nullptr & !limit2current_scope) ? parent->get_function(name, params_types) : nullptr;
+    return (parent != nullptr && !limit2current_scope) ? parent->get_function(name, params_types) : nullptr;
 };
 
-std::shared_ptr<enviornment::RecordStructType> enviornment::Enviornment::get_struct(std::string name, bool limit2current_scope) {
+std::shared_ptr<enviornment::RecordStructType> enviornment::Enviornment::get_struct(const std::string& name, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordStructInst && record->name == name) {
             return std::static_pointer_cast<enviornment::RecordStructType>(record);
         }
     }
-    return (parent != nullptr & !limit2current_scope) ? parent->get_struct(name) : nullptr;
+    return (parent != nullptr && !limit2current_scope) ? parent->get_struct(name) : nullptr;
 };
 
-std::shared_ptr<enviornment::RecordModule> enviornment::Enviornment::get_module(std::string name, bool limit2current_scope) {
+std::shared_ptr<enviornment::RecordModule> enviornment::Enviornment::get_module(const std::string& name, bool limit2current_scope) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordModule && record->name == name) {
             return std::static_pointer_cast<enviornment::RecordModule>(record);
         }
     }
-    return (parent != nullptr & !limit2current_scope) ? parent->get_module(name) : nullptr;
+    return (parent != nullptr && !limit2current_scope) ? parent->get_module(name) : nullptr;
 };
 
-std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::Enviornment::get_Gfunc(std::string name) {
+std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> enviornment::Enviornment::get_Gfunc(const std::string& name) {
     std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> matching_gfuncs;
     for(auto [Gf_name, Gf_record] : record_map) {
         if(Gf_record->type == RecordType::RecordGenericFunction) {

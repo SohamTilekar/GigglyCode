@@ -1,6 +1,5 @@
 #include "parser.hpp"
 
-#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -9,10 +8,9 @@
 
 #include "AST/ast.hpp"
 
-parser::Parser::Parser(std::shared_ptr<Lexer> lexer) {
-    this->lexer = lexer;
-    current_token = nullptr;
-    peek_token = nullptr;
+parser::Parser::Parser(std::shared_ptr<Lexer> lexer) : lexer(lexer) {
+
+
     this->_nextToken();
     this->_nextToken();
 }
@@ -345,8 +343,8 @@ std::shared_ptr<AST::ReturnStatement> parser::Parser::_parseReturnStatement() {
 
 std::shared_ptr<AST::BlockStatement> parser::Parser::_parseBlockStatement() {
     this->_nextToken();
-    int st_line_no = current_token->line_no;
-    int st_col_no = current_token->col_no;
+
+
     std::vector<std::shared_ptr<AST::Statement>> statements;
     while(!this->_currentTokenIs(token::TokenType::RightBrace) && !this->_currentTokenIs(token::TokenType::EndOfFile)) {
         auto stmt = this->_parseStatement();
@@ -358,8 +356,8 @@ std::shared_ptr<AST::BlockStatement> parser::Parser::_parseBlockStatement() {
     if(this->_peekTokenIs(token::TokenType::Semicolon)) {
         this->_nextToken();
     }
-    int end_line_no = current_token->line_no;
-    int end_col_no = current_token->col_no;
+
+
     auto block_statement = std::make_shared<AST::BlockStatement>(statements);
     return block_statement;
 }
@@ -702,14 +700,14 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseArrayLiteral() {
 };
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseIdentifier() {
-    int st_line_no = this->current_token->line_no;
-    int st_col_no = this->current_token->col_no;
     if(this->current_token->type != token::TokenType::Identifier) {
         std::cerr << this->current_token->literal + " is not Identifier" << std::endl;
         exit(1);
     }
     auto identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
     if(_peekTokenIs(token::TokenType::LeftParen)) {
+        int st_line_no = this->current_token->line_no;
+        int st_col_no = this->current_token->col_no;
         return _parseFunctionCall(std::make_shared<AST::IdentifierLiteral>(this->current_token->literal), st_line_no, st_col_no);
     }
     identifier->set_meta_data(current_token->line_no, current_token->col_no, current_token->line_no, current_token->end_col_no);

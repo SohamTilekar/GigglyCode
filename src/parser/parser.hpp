@@ -69,8 +69,8 @@ static const std::unordered_map<token::TokenType, PrecedenceType> token_preceden
 class Parser {
   public:
     std::shared_ptr<Lexer> lexer;
-    std::shared_ptr<token::Token> current_token;
-    std::shared_ptr<token::Token> peek_token;
+    std::shared_ptr<token::Token> current_token = nullptr;
+    std::shared_ptr<token::Token> peek_token = nullptr;
     std::vector<std::shared_ptr<errors::Error>> errors;
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>()>> prefix_parse_fns = {
         {token::TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},      {token::TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},

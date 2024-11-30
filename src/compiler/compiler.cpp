@@ -27,7 +27,6 @@
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
-#include "llvm/Linker/Linker.h"
 
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map, std::filesystem::path buildDir, std::filesystem::path relativePath)
     : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map), buildDir(buildDir), relativePath(relativePath) {
@@ -77,7 +76,7 @@ void compiler::Compiler::_initializeBuiltins() {
     auto _uint32 = std::make_shared<enviornment::RecordStructType>("uint32", llvm::Type::getInt32Ty(llvm_context));
     this->enviornment->parent->add(_uint32);
     auto _uint128 = std::make_shared<enviornment::RecordStructType>("uint128", llvm::Type::getInt64Ty(llvm_context));
-    this->enviornment->parent->add(_int128);
+    this->enviornment->parent->add(_uint128);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
     this->enviornment->parent->add(_float);
     auto _float32 = std::make_shared<enviornment::RecordStructType>("float32", llvm::Type::getFloatTy(llvm_context));
@@ -223,8 +222,9 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
 
 
 std::tuple<llvm::Value*, llvm::AllocaInst*,
-        std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
-compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
+           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args,
+                               std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
     for(auto gfunc : gfuncs) {
         if(gfunc->env->is_function(name, params_types)) {
             auto func = gfunc->env->get_function(name, params_types);
@@ -234,19 +234,13 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
     }
     auto prev_env = this->enviornment;
     for(auto gfunc : gfuncs) {
-        this->enviornment = std::make_shared<enviornment::Enviornment>(gfunc->env);
+        this->enviornment = std::make_shared<enviornment::Enviornment>(prev_env, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>{}, name);
         bool x = false;
         for(auto [gparam, pparam] : llvm::zip(gfunc->func->parameters, params_types)) {
-            bool x = false;
-            for(auto gen : gfunc->func->generic) {
-                if(std::static_pointer_cast<AST::IdentifierLiteral>(gen->name)->value == std::static_pointer_cast<AST::IdentifierLiteral>(gparam->value_type->name)->value) {
-                    x = true;
-                    break;
-                }
-            }
-            if(gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral && x) {
-                auto struc = std::make_shared<enviornment::RecordStructType>(*pparam->struct_type); // TODO: Copy
+            if(gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
+                auto struc = std::make_shared<enviornment::RecordStructType>(*pparam->struct_type);
                 struc->name = std::static_pointer_cast<AST::IdentifierLiteral>(gparam->value_type->name)->value;
+                std::cout << "Type Name: " << struc->name << std::endl;
                 this->enviornment->add(struc);
             } else if(std::get<3>(this->_resolveValue(gparam->value_type->name)) == compiler::resolveType::StructType) {
             } else {
@@ -255,7 +249,6 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
         }
         if(x)
             continue;
-        auto name = std::static_pointer_cast<AST::IdentifierLiteral>(gfunc->func->name)->value;
         auto body = gfunc->func->body;
         auto params = gfunc->func->parameters;
         std::vector<std::string> param_name;
@@ -282,8 +275,6 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
             this->function_entery_block.push_back(bb);
             this->llvm_ir_builder.SetInsertPoint(bb);
-            auto prev_env = this->enviornment;
-            this->enviornment = std::make_shared<enviornment::Enviornment>(prev_env, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>{}, name);
             this->enviornment->current_function = func_record;
             for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
                 llvm::AllocaInst* alloca = nullptr;
@@ -301,7 +292,6 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             }
             func_record->set_meta_data(gfunc->func->meta_data.st_line_no, gfunc->func->meta_data.st_col_no, gfunc->func->meta_data.end_line_no, gfunc->func->meta_data.end_col_no);
             this->enviornment->add(func_record);
-            gfunc->env->add(func_record);
             try {
                 this->compile(body);
             } catch(compiler::DoneRet) {
@@ -309,7 +299,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             } catch(std::exception) {
                 throw;
             }
-            this->enviornment = prev_env;
+            gfunc->env->add(func_record);
             this->function_entery_block.pop_back();
             if(!this->function_entery_block.empty()) {
                 this->llvm_ir_builder.SetInsertPoint(this->function_entery_block.at(this->function_entery_block.size() - 1));
@@ -318,17 +308,17 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
                 func_record->arguments.push_back({arg.getName().str(), param_type_record});
             };
-            this->enviornment->add(func_record);
             gfunc->env->add(func_record);
         }
         auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, args);
         this->enviornment = prev_env;
         return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
     }
-    this->enviornment = prev_env;
     std::cerr << "No Mach Viable Overload can be created" << std::endl;
     exit(1);
 };
+
+
 
 std::tuple<llvm::Value*, llvm::AllocaInst*,
            std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
@@ -638,13 +628,11 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         common_type = right_type;
     } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isIntegerTy() && (!right_type->struct_type->stand_alone_type->isIntegerTy(1))) {
         right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getDoubleTy(this->llvm_context));
-        common_type = left_type;
     } else if((!left_type->struct_type->stand_alone_type->isIntegerTy(1)) && left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isFloatTy()) {
         left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getFloatTy(this->llvm_context));
         common_type = right_type;
     } else if(left_type->struct_type->stand_alone_type->isFloatTy() && right_type->struct_type->stand_alone_type->isIntegerTy() && (!right_type->struct_type->stand_alone_type->isIntegerTy(1))) {
         right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getFloatTy(this->llvm_context));
-        common_type = left_type;
     } else if((left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy()) ||
               (left_type->struct_type->stand_alone_type->isIntegerTy(1) && right_type->struct_type->stand_alone_type->isIntegerTy(1)) ||
               left_type->struct_type->stand_alone_type->isFloatTy() && right_type->struct_type->stand_alone_type->isFloatTy() ||
@@ -1017,7 +1005,6 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         std::cerr << "Return Type Miss Match" << std::endl;
         exit(1);
     }
-    llvm::Instruction* retInst = nullptr;
     if(this->enviornment->current_function->function->getReturnType()->isPointerTy() && return_value->getType()->isPointerTy()) {
         this->llvm_ir_builder.CreateRet(return_value);
     } else if(this->enviornment->current_function->function->getReturnType()->isPointerTy() && !return_value->getType()->isPointerTy()) {

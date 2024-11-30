@@ -84,8 +84,8 @@ class Type : public Node {
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Type>> generics;
     inline Type(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Type>> generics) : name(name), generics(generics) {}
-    inline NodeType type() { return NodeType::Type; };
-    std::shared_ptr<nlohmann::json> toJSON();
+    inline NodeType type() override { return NodeType::Type; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
 class GenericType : public Node {
@@ -93,8 +93,8 @@ class GenericType : public Node {
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Type>> generic_union;
     inline GenericType(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Type>> generic_union) : name(name), generic_union(generic_union) {}
-    inline NodeType type() { return NodeType::GenericType; };
-    std::shared_ptr<nlohmann::json> toJSON();
+    inline NodeType type() override { return NodeType::GenericType; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
 class Program : public Node {

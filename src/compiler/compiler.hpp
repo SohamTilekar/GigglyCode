@@ -94,8 +94,9 @@ class Compiler {
                std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
         _visitCallExpression(std::shared_ptr<AST::CallExpression>);
     std::tuple<llvm::Value*, llvm::AllocaInst*,
-                std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-        _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
+               std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
+    _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args,
+               std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types);
     std::tuple<llvm::Value*, llvm::AllocaInst*,
                std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
     _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
