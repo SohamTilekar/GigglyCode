@@ -13,6 +13,7 @@
 #include <llvm/IR/Value.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
+#include <llvm/Support/Alignment.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
@@ -275,14 +276,10 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             this->llvm_ir_builder.SetInsertPoint(bb);
             this->enviornment->current_function = func_record;
             for(const auto& [arg, param_type_record] : llvm::zip(func->args(), param_inst_record)) {
-                llvm::AllocaInst* alloca = nullptr;
+                llvm::Value* alloca = &arg;
                 if(!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->get_struct("array"))) {
                     alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
                     auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
-                } else {
-                    alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type, nullptr, arg.getName());
-                    auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type, &arg, arg.getName() + ".load");
-                    auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
                 }
                 auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
                 func_record->arguments.push_back({arg.getName().str(), param_type_record});
@@ -440,7 +437,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                     if (left_type->struct_type) {
                         return {gep, gep, type, compiler::resolveType::StructInst};
                     }
-                    llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->stand_alone_type, gep);
+                    llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(std::sqrt(type->stand_alone_type->getScalarSizeInBits())));
                     return {loaded, gep, type, compiler::resolveType::StructInst};
                 } else {
                     std::cerr << "Struct does not have member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
@@ -887,7 +884,7 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
     auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_index_generic);
     if(enviornment::_checkType(left_generic, this->enviornment->get_struct("array"))) {
         auto element = this->llvm_ir_builder.CreateGEP(left_generic->sub_types["valueType"]->stand_alone_type ? left_generic->sub_types["valueType"]->stand_alone_type : left_generic->sub_types["valueType"]->struct_type, left, index, "element");
-        auto load = left_generic->sub_types["valueType"]->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->sub_types["valueType"]->stand_alone_type, element) : element;
+        auto load = left_generic->sub_types["valueType"]->stand_alone_type ? this->llvm_ir_builder.CreateAlignedLoad(left_generic->sub_types["valueType"]->stand_alone_type, element, llvm::MaybeAlign(std::sqrt(left_generic->sub_types["valueType"]->stand_alone_type->getScalarSizeInBits()))) : element;
         return {load, element, left_generic->sub_types["valueType"], compiler::resolveType::StructInst};
     }
     std::cerr << "TODO: Call the __index__ function for non array type" << std::endl;
@@ -902,12 +899,10 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
 
     if (var_value == nullptr) {
         if (var_type->struct_type == nullptr) {
-            std::cerr << "Allocating standalone type" << std::endl;
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
             auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, alloca, var_type);
             this->enviornment->add(var);
         } else {
-            std::cerr << "Allocating struct type" << std::endl;
             auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
             auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, alloca, var_type);
             this->enviornment->add(var);
@@ -925,16 +920,11 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
         }
         if(vartt == compiler::resolveType::StructInst) {
             if(var_type->struct_type == nullptr) {
-                std::cerr << "Allocating standalone type" << std::endl;
                 auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
-                auto store = this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
+                auto store = this->llvm_ir_builder.CreateAlignedStore(var_value_resolved, alloca, llvm::MaybeAlign(std::sqrt(var_type->stand_alone_type->getScalarSizeInBits())), variable_declaration_statement->is_volatile);
                 auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
                 this->enviornment->add(var);
             } else {
-                std::cerr << "Allocating struct type" << std::endl;
-                // auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
-                // auto load = this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved);
-                // auto store = this->llvm_ir_builder.CreateStore(load, var_value_resolved, variable_declaration_statement->is_volatile);
                 auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, var_value_resolved, var_generic);
                 var->variableType = var_generic;
                 this->enviornment->add(var);
@@ -979,10 +969,10 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
         exit(1);
     }
     if(assignmentType->stand_alone_type) {
-        auto store = this->llvm_ir_builder.CreateStore(value, alloca);
+        auto store = this->llvm_ir_builder.CreateAlignedStore(value, alloca, llvm::MaybeAlign(std::sqrt(var_type->stand_alone_type->getScalarSizeInBits())));
     } else {
-        auto load = this->llvm_ir_builder.CreateLoad(assignmentType->struct_type, value);
-        auto store = this->llvm_ir_builder.CreateStore(load, alloca);
+        auto load = this->llvm_ir_builder.CreateAlignedLoad(var_type->struct_type, value, llvm::MaybeAlign(std::sqrt(var_type->struct_type->getScalarSizeInBits())));
+        auto store = this->llvm_ir_builder.CreateAlignedStore(load, alloca, llvm::MaybeAlign(std::sqrt(var_type->struct_type->getScalarSizeInBits()))); // TODO: Insted of loading & storing Use the another way to update the alloca
     }
 };
 
@@ -1011,7 +1001,7 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
         if(this->enviornment->is_variable(identifier_literal->value)) {
             currentStructType = this->enviornment->get_variable(identifier_literal->value)->variableType;
             if(currentStructType->stand_alone_type) {
-                auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, this->enviornment->get_variable(identifier_literal->value)->allocainst);
+                auto loadInst = this->llvm_ir_builder.CreateAlignedLoad(currentStructType->stand_alone_type, this->enviornment->get_variable(identifier_literal->value)->allocainst, llvm::MaybeAlign(std::sqrt(currentStructType->stand_alone_type->getScalarSizeInBits())));
                 return {loadInst, this->enviornment->get_variable(identifier_literal->value)->allocainst, currentStructType, compiler::resolveType::StructInst};
             } else {
                 return {this->enviornment->get_variable(identifier_literal->value)->allocainst, this->enviornment->get_variable(identifier_literal->value)->allocainst, currentStructType,
@@ -1077,7 +1067,7 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
                 .raise();
             exit(1);
         }
-        auto loadInst = struct_type->struct_type ? value : this->llvm_ir_builder.CreateLoad(struct_type->stand_alone_type, value_alloca);
+        auto loadInst = struct_type->struct_type ? value : this->llvm_ir_builder.CreateAlignedLoad(struct_type->stand_alone_type, value_alloca, llvm::MaybeAlign(std::sqrt(struct_type->stand_alone_type->getScalarSizeInBits())));
         values.push_back(loadInst);
     }
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
@@ -1114,7 +1104,7 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     } else if(this->enviornment->current_function->function->getReturnType()->isPointerTy() && !return_value->getType()->isPointerTy()) {
         this->llvm_ir_builder.CreateRet(return_alloca);
     } else if(!this->enviornment->current_function->function->getReturnType()->isPointerTy() && return_value->getType()->isPointerTy()) {
-        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateLoad(this->enviornment->current_function->function->getReturnType(), return_value));
+        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateAlignedLoad(this->enviornment->current_function->function->getReturnType(), return_value, llvm::MaybeAlign(std::sqrt(this->enviornment->current_function->function->getReturnType()->getScalarSizeInBits()))));
     } else {
         this->llvm_ir_builder.CreateRet(return_value);
     }
@@ -1241,12 +1231,9 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             llvm::Value* alloca = nullptr;
             if(!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->get_struct("array"))) {
                 alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
-                auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
+                auto storeInst = this->llvm_ir_builder.CreateAlignedStore(&arg, alloca, llvm::MaybeAlign(std::sqrt(arg.getType()->getScalarSizeInBits())));
             } else {
                 alloca = &arg;
-                // alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
-                // auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
-                // auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
             }
             auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
             func_record->arguments.push_back({arg.getName().str(), param_type_record});

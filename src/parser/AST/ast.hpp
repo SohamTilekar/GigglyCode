@@ -10,7 +10,6 @@
 #include "../../include/json.hpp"
 #include "../../lexer/token.hpp"
 
-
 namespace AST {
 enum class NodeType {
     Program,
