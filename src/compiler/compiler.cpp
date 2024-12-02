@@ -69,14 +69,10 @@ void compiler::Compiler::_initializeBuiltins() {
     this->enviornment->parent->add(_int);
     auto _int32 = std::make_shared<enviornment::RecordStructType>("int32", llvm::Type::getInt32Ty(llvm_context));
     this->enviornment->parent->add(_int32);
-    auto _int128 = std::make_shared<enviornment::RecordStructType>("int128", llvm::Type::getInt64Ty(llvm_context));
-    this->enviornment->parent->add(_int128);
     auto _uint = std::make_shared<enviornment::RecordStructType>("uint", llvm::Type::getInt64Ty(llvm_context));
     this->enviornment->parent->add(_uint);
     auto _uint32 = std::make_shared<enviornment::RecordStructType>("uint32", llvm::Type::getInt32Ty(llvm_context));
     this->enviornment->parent->add(_uint32);
-    auto _uint128 = std::make_shared<enviornment::RecordStructType>("uint128", llvm::Type::getInt64Ty(llvm_context));
-    this->enviornment->parent->add(_uint128);
     auto _float = std::make_shared<enviornment::RecordStructType>("float", llvm::Type::getDoubleTy(llvm_context));
     this->enviornment->parent->add(_float);
     auto _float32 = std::make_shared<enviornment::RecordStructType>("float32", llvm::Type::getFloatTy(llvm_context));
@@ -402,6 +398,104 @@ compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::Record
 
 std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+compiler::Compiler::_convertType(std::tuple<llvm::Value*, llvm::Value*, std::shared_ptr<enviornment::RecordStructType>> of, std::shared_ptr<enviornment::RecordStructType> to) {
+    auto [ofloadedval, ofalloca, oftype] = of;
+    if (enviornment::_checkType(oftype, to)) {
+        return {std::get<0>(of), std::get<1>(of), std::get<2>(of), compiler::resolveType::StructInst};
+    }
+    if(oftype->name == "int32" && to->name == "int") {
+        auto int_type = this->llvm_ir_builder.CreateSExt(ofloadedval, this->enviornment->get_struct("int")->stand_alone_type);
+        return {int_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "int" && to->name == "int32") {
+        auto int32_type = this->llvm_ir_builder.CreateTrunc(ofloadedval, this->enviornment->get_struct("int32")->stand_alone_type);
+        return {int32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "uint32" && to->name == "uint") {
+        auto uint_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->get_struct("uint")->stand_alone_type);
+        return {uint_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "uint" && to->name == "uint32") {
+        auto uint32_type = this->llvm_ir_builder.CreateTrunc(ofloadedval, this->enviornment->get_struct("uint32")->stand_alone_type);
+        return {uint32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "float32" && to->name == "float") {
+        auto float_type = this->llvm_ir_builder.CreateFPExt(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type);
+        return {float_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "float" && to->name == "float32") {
+        auto float32_type = this->llvm_ir_builder.CreateFPTrunc(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type);
+        return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "int" && to->name == "float") {
+        auto float_type = this->llvm_ir_builder.CreateSIToFP(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type);
+        return {float_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "int32" && to->name == "float32") {
+        auto float32_type = this->llvm_ir_builder.CreateSIToFP(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type);
+        return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "uint" && to->name == "float") {
+        auto float_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type);
+        return {float_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "uint32" && to->name == "float32") {
+        auto float32_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type);
+        return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "float" && to->name == "int") {
+        auto int_type = this->llvm_ir_builder.CreateFPToSI(ofloadedval, this->enviornment->get_struct("int")->stand_alone_type);
+        return {int_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "float32" && to->name == "int32") {
+        auto int32_type = this->llvm_ir_builder.CreateFPToSI(ofloadedval, this->enviornment->get_struct("int32")->stand_alone_type);
+        return {int32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "float" && to->name == "uint") {
+        auto uint_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->get_struct("uint")->stand_alone_type);
+        return {uint_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    else if(oftype->name == "float32" && to->name == "uint32") {
+        auto uint32_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->get_struct("uint32")->stand_alone_type);
+        return {uint32_type, ofalloca, to, compiler::resolveType::StructInst};
+    }
+    std::cerr << "Unknown type conversion from " << oftype->name << " to " << to->name << std::endl;
+    exit(1);
+};
+
+bool compiler::Compiler::_canConvertType(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to) {
+    if((from->name == "int32" && to->name == "int") ||
+       (from->name == "int" && to->name == "int32") ||
+       (from->name == "uint32" && to->name == "uint") ||
+       (from->name == "uint" && to->name == "uint32") ||
+       (from->name == "float32" && to->name == "float") ||
+       (from->name == "float" && to->name == "float32") ||
+       (from->name == "int" && to->name == "float") ||
+       (from->name == "int32" && to->name == "float32") ||
+       (from->name == "uint" && to->name == "float") ||
+       (from->name == "uint32" && to->name == "float32") ||
+       (from->name == "float" && to->name == "int") ||
+       (from->name == "float32" && to->name == "int32") ||
+       (from->name == "float" && to->name == "uint") ||
+       (from->name == "float32" && to->name == "uint32")) {
+        return true;
+    }
+    return false;
+};
+
+bool compiler::Compiler::_conversionPrecidence(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to) {
+    if(((from->name == "int32" || from->name == "uint32" || from->name == "uint") && to->name == "int") ||
+        (from->name == "uint32" && to->name == "uint") ||
+        ((from->name == "float32" || from->name == "int32" || from->name == "uint32" || from->name == "uint" || from->name == "int") && to->name == "float") ||
+        ((from->name == "int32" || from->name == "uint32" || from->name == "uint" || from->name == "int") && to->name == "float32")
+    ) {
+        return true;
+    }
+    return false;
+};
+
+std::tuple<llvm::Value*, llvm::Value*,
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> infixed_expression) {
     auto op = infixed_expression->op;
     auto left = infixed_expression->left;
@@ -437,7 +531,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                     if (left_type->struct_type) {
                         return {gep, gep, type, compiler::resolveType::StructInst};
                     }
-                    llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(std::sqrt(type->stand_alone_type->getScalarSizeInBits())));
+                    llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(type->stand_alone_type->getScalarSizeInBits() / 8));
                     return {loaded, gep, type, compiler::resolveType::StructInst};
                 } else {
                     std::cerr << "Struct does not have member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
@@ -486,10 +580,6 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                         exit(1);
                     }
                     for(unsigned int i = 0; i < args.size(); ++i) {
-                        if(!enviornment::_checkType(struct_record->sub_types[struct_record->fields[i]], params_types[i])) {
-                            std::cerr << "Struct Type MissMatch" << std::endl;
-                            exit(1);
-                        }
                         auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
                         this->llvm_ir_builder.CreateStore(args[i], field_ptr);
                     }
@@ -519,10 +609,25 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         std::cerr << "Infix Expression Value Error" << std::endl;
         exit(1);
     }
+    // Handle type conversion
     auto left_val = left_value;
     auto right_val = right_value;
     auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
     auto right_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_right_type);
+    if(!enviornment::_checkType(left_type, right_type) && (this->_canConvertType(left_type, right_type) || this->_canConvertType(right_type, left_type)) && left_type->stand_alone_type && right_type->stand_alone_type) {
+        if(this->_conversionPrecidence(left_type, right_type)) {
+            auto x = this->_convertType({left_val, left_alloca, left_type}, right_type);
+            right_val = std::get<0>(x);
+            right_alloca = std::get<1>(x);
+            right_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
+        }
+        else {
+            auto x = this->_convertType({right_val, right_alloca, right_type}, left_type);
+            left_val = std::get<0>(x);
+            left_alloca = std::get<1>(x);
+            left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
+        }
+    }
     std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type1{left_type, right_type};
     std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type2{right_type, left_type};
     if(left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
@@ -701,35 +806,29 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         }
     }
-    if(!enviornment::_checkType(left_type, right_type)) {
-        std::cerr << "Type mismatch" << std::endl;
-        exit(1);
-    }
-
     llvm::Value* left_val_converted = left_val;
     llvm::Value* right_val_converted = right_val;
     auto common_type = left_type;
 
-    // Handle type conversion
-    if((!left_type->stand_alone_type->isIntegerTy(1)) && left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isDoubleTy()) {
-        left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getDoubleTy(this->llvm_context));
-        common_type = right_type;
-    } else if(left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isIntegerTy() && (!right_type->stand_alone_type->isIntegerTy(1))) {
-        right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getDoubleTy(this->llvm_context));
-    } else if((!left_type->stand_alone_type->isIntegerTy(1)) && left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isFloatTy()) {
-        left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getFloatTy(this->llvm_context));
-        common_type = right_type;
-    } else if(left_type->stand_alone_type->isFloatTy() && right_type->stand_alone_type->isIntegerTy() && (!right_type->stand_alone_type->isIntegerTy(1))) {
-        right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getFloatTy(this->llvm_context));
-    } else if((left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isIntegerTy()) ||
-              (left_type->stand_alone_type->isIntegerTy(1) && right_type->stand_alone_type->isIntegerTy(1)) ||
-              left_type->stand_alone_type->isFloatTy() && right_type->stand_alone_type->isFloatTy() ||
-              left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isDoubleTy()) {
-        // No conversion Needed
-    } else {
-        std::cerr << "Unknown Type" << std::endl;
-        exit(1);
-    }
+    // if((!left_type->stand_alone_type->isIntegerTy(1)) && left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isDoubleTy()) {
+    //     left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getDoubleTy(this->llvm_context));
+    //     common_type = right_type;
+    // } else if(left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isIntegerTy() && (!right_type->stand_alone_type->isIntegerTy(1))) {
+    //     right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getDoubleTy(this->llvm_context));
+    // } else if((!left_type->stand_alone_type->isIntegerTy(1)) && left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isFloatTy()) {
+    //     left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getFloatTy(this->llvm_context));
+    //     common_type = right_type;
+    // } else if(left_type->stand_alone_type->isFloatTy() && right_type->stand_alone_type->isIntegerTy() && (!right_type->stand_alone_type->isIntegerTy(1))) {
+    //     right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getFloatTy(this->llvm_context));
+    // } else if((left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isIntegerTy()) ||
+    //           (left_type->stand_alone_type->isIntegerTy(1) && right_type->stand_alone_type->isIntegerTy(1)) ||
+    //           left_type->stand_alone_type->isFloatTy() && right_type->stand_alone_type->isFloatTy() ||
+    //           left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isDoubleTy()) {
+    //     // No conversion Needed
+    // } else {
+    //     std::cerr << "Unknown Type" << std::endl;
+    //     exit(1);
+    // }
 
     if(common_type->stand_alone_type->isIntegerTy()) {
         switch(op) {
@@ -747,7 +846,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         case(token::TokenType::ForwardSlash): {
             llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32")
                 inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
@@ -755,7 +854,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         case(token::TokenType::Percent): {
             llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32")
                 inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
@@ -771,7 +870,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         case(token::TokenType::LessThan): {
             llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32")
                 inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
@@ -779,7 +878,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         case(token::TokenType::GreaterThan): {
             llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32")
                 inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
@@ -787,7 +886,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         case(token::TokenType::LessThanOrEqual): {
             llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32")
                 inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
@@ -795,7 +894,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
         case(token::TokenType::GreaterThanOrEqual): {
             llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32")
                 inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
@@ -884,7 +983,7 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
     auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_index_generic);
     if(enviornment::_checkType(left_generic, this->enviornment->get_struct("array"))) {
         auto element = this->llvm_ir_builder.CreateGEP(left_generic->sub_types["valueType"]->stand_alone_type ? left_generic->sub_types["valueType"]->stand_alone_type : left_generic->sub_types["valueType"]->struct_type, left, index, "element");
-        auto load = left_generic->sub_types["valueType"]->stand_alone_type ? this->llvm_ir_builder.CreateAlignedLoad(left_generic->sub_types["valueType"]->stand_alone_type, element, llvm::MaybeAlign(std::sqrt(left_generic->sub_types["valueType"]->stand_alone_type->getScalarSizeInBits()))) : element;
+        auto load = left_generic->sub_types["valueType"]->stand_alone_type ? this->llvm_ir_builder.CreateAlignedLoad(left_generic->sub_types["valueType"]->stand_alone_type, element, llvm::MaybeAlign(left_generic->sub_types["valueType"]->stand_alone_type->getScalarSizeInBits() / 8)) : element;
         return {load, element, left_generic->sub_types["valueType"], compiler::resolveType::StructInst};
     }
     std::cerr << "TODO: Call the __index__ function for non array type" << std::endl;
@@ -914,14 +1013,22 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
             exit(1);
         }
         auto var_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_var_generic);
-        if(!enviornment::_checkType(var_generic, this->_parseType(variable_declaration_statement->value_type))) {
-            std::cerr << "Cannot assign missmatch type" << std::endl;
-            exit(1);
+        if(!enviornment::_checkType(var_generic, var_type)) {
+            if(this->_canConvertType(var_generic, var_type)) {
+                auto x = this->_convertType({var_value_resolved, var_value_alloca, var_generic}, var_type);
+                var_value_resolved = std::get<0>(x);
+                var_value_alloca = std::get<1>(x);
+                var_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
+            }
+            else {
+                std::cerr << "Cannot assign missmatch type" << std::endl;
+                exit(1);
+            }
         }
         if(vartt == compiler::resolveType::StructInst) {
             if(var_type->struct_type == nullptr) {
                 auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
-                auto store = this->llvm_ir_builder.CreateAlignedStore(var_value_resolved, alloca, llvm::MaybeAlign(std::sqrt(var_type->stand_alone_type->getScalarSizeInBits())), variable_declaration_statement->is_volatile);
+                auto store = this->llvm_ir_builder.CreateAlignedStore(var_value_resolved, alloca, llvm::MaybeAlign(var_type->stand_alone_type->getScalarSizeInBits() / 8), variable_declaration_statement->is_volatile);
                 auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
                 this->enviornment->add(var);
             } else {
@@ -965,14 +1072,23 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
     }
     auto var_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_var_type);
     if(!enviornment::_checkType(var_type, assignmentType)) {
-        std::cerr << "Cannot assign missmatch type" << std::endl;
-        exit(1);
+        if(this->_canConvertType(assignmentType, var_type)) {
+            auto x = this->_convertType({value, value_aloca, assignmentType}, var_type);
+            value = std::get<0>(x);
+            value_aloca = std::get<1>(x);
+            assignmentType = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
+        }
+        else {
+            std::cerr << "Cannot assign missmatch type" << std::endl;
+            exit(1);
+        }
+
     }
     if(assignmentType->stand_alone_type) {
-        auto store = this->llvm_ir_builder.CreateAlignedStore(value, alloca, llvm::MaybeAlign(std::sqrt(var_type->stand_alone_type->getScalarSizeInBits())));
+        auto store = this->llvm_ir_builder.CreateAlignedStore(value, alloca, llvm::MaybeAlign(var_type->stand_alone_type->getScalarSizeInBits() / 8));
     } else {
-        auto load = this->llvm_ir_builder.CreateAlignedLoad(var_type->struct_type, value, llvm::MaybeAlign(std::sqrt(var_type->struct_type->getScalarSizeInBits())));
-        auto store = this->llvm_ir_builder.CreateAlignedStore(load, alloca, llvm::MaybeAlign(std::sqrt(var_type->struct_type->getScalarSizeInBits()))); // TODO: Insted of loading & storing Use the another way to update the alloca
+        auto load = this->llvm_ir_builder.CreateAlignedLoad(var_type->struct_type, value, llvm::MaybeAlign(var_type->struct_type->getScalarSizeInBits() / 8));
+        auto store = this->llvm_ir_builder.CreateAlignedStore(load, alloca, llvm::MaybeAlign(var_type->struct_type->getScalarSizeInBits() / 8)); // TODO: Insted of loading & storing Use the another way to update the alloca
     }
 };
 
@@ -1001,7 +1117,7 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
         if(this->enviornment->is_variable(identifier_literal->value)) {
             currentStructType = this->enviornment->get_variable(identifier_literal->value)->variableType;
             if(currentStructType->stand_alone_type) {
-                auto loadInst = this->llvm_ir_builder.CreateAlignedLoad(currentStructType->stand_alone_type, this->enviornment->get_variable(identifier_literal->value)->allocainst, llvm::MaybeAlign(std::sqrt(currentStructType->stand_alone_type->getScalarSizeInBits())));
+                auto loadInst = this->llvm_ir_builder.CreateAlignedLoad(currentStructType->stand_alone_type, this->enviornment->get_variable(identifier_literal->value)->allocainst, llvm::MaybeAlign(currentStructType->stand_alone_type->getScalarSizeInBits() / 8));
                 return {loadInst, this->enviornment->get_variable(identifier_literal->value)->allocainst, currentStructType, compiler::resolveType::StructInst};
             } else {
                 return {this->enviornment->get_variable(identifier_literal->value)->allocainst, this->enviornment->get_variable(identifier_literal->value)->allocainst, currentStructType,
@@ -1062,12 +1178,20 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
             generics.push_back(generic);
         }
         if(!_checkType(first_generic, generic)) {
-            errors::CompletionError("Array with multiple types or generics", this->source, array_literal->meta_data.st_line_no, array_literal->meta_data.end_line_no,
-                                    "Array contains elements of different types or generics")
-                .raise();
-            exit(1);
+            if(this->_canConvertType(generic, first_generic)) {
+                auto x = this->_convertType({value, value_alloca, generic}, first_generic);
+                value = std::get<0>(x);
+                value_alloca = std::get<1>(x);
+                generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
+            }
+            else {
+                errors::CompletionError("Array with multiple types or generics", this->source, array_literal->meta_data.st_line_no, array_literal->meta_data.end_line_no,
+                                        "Array contains elements of different types or generics")
+                    .raise();
+                exit(1);
+            }
         }
-        auto loadInst = struct_type->struct_type ? value : this->llvm_ir_builder.CreateAlignedLoad(struct_type->stand_alone_type, value_alloca, llvm::MaybeAlign(std::sqrt(struct_type->stand_alone_type->getScalarSizeInBits())));
+        auto loadInst = struct_type->struct_type ? value : this->llvm_ir_builder.CreateAlignedLoad(struct_type->stand_alone_type, value_alloca, llvm::MaybeAlign(struct_type->stand_alone_type->getScalarSizeInBits() / 8));
         values.push_back(loadInst);
     }
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
@@ -1096,15 +1220,22 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         }
     }
     if(!enviornment::_checkType(this->enviornment->current_function->return_inst, std::get<std::shared_ptr<enviornment::RecordStructType>>(_))) {
-        std::cerr << "Return Type Miss Match" << std::endl;
-        exit(1);
+        if(this->_canConvertType(std::get<std::shared_ptr<enviornment::RecordStructType>>(_), this->enviornment->current_function->return_inst)) {
+            auto x = this->_convertType({return_value, return_alloca, std::get<std::shared_ptr<enviornment::RecordStructType>>(_)}, this->enviornment->current_function->return_inst);
+            return_value = std::get<0>(x);
+            return_alloca = std::get<1>(x);
+            // generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
+        } else {
+            std::cerr << "Return Type Miss Match" << std::endl;
+            exit(1);
+        }
     }
     if(this->enviornment->current_function->function->getReturnType()->isPointerTy() && return_value->getType()->isPointerTy()) {
         this->llvm_ir_builder.CreateRet(return_value);
     } else if(this->enviornment->current_function->function->getReturnType()->isPointerTy() && !return_value->getType()->isPointerTy()) {
         this->llvm_ir_builder.CreateRet(return_alloca);
     } else if(!this->enviornment->current_function->function->getReturnType()->isPointerTy() && return_value->getType()->isPointerTy()) {
-        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateAlignedLoad(this->enviornment->current_function->function->getReturnType(), return_value, llvm::MaybeAlign(std::sqrt(this->enviornment->current_function->function->getReturnType()->getScalarSizeInBits()))));
+        this->llvm_ir_builder.CreateRet(this->llvm_ir_builder.CreateAlignedLoad(this->enviornment->current_function->function->getReturnType(), return_value, llvm::MaybeAlign(this->enviornment->current_function->function->getReturnType()->getScalarSizeInBits() / 8)));
     } else {
         this->llvm_ir_builder.CreateRet(return_value);
     }
@@ -1231,7 +1362,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             llvm::Value* alloca = nullptr;
             if(!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->get_struct("array"))) {
                 alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
-                auto storeInst = this->llvm_ir_builder.CreateAlignedStore(&arg, alloca, llvm::MaybeAlign(std::sqrt(arg.getType()->getScalarSizeInBits())));
+                auto storeInst = this->llvm_ir_builder.CreateAlignedStore(&arg, alloca, llvm::MaybeAlign(arg.getType()->getScalarSizeInBits() / 8));
             } else {
                 alloca = &arg;
             }
@@ -1350,8 +1481,13 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
     }
     auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition);
     if(!enviornment::_checkType(bool_condition, this->enviornment->get_struct("bool"))) {
-        std::cerr << "Condition type Must be Bool" << std::endl;
-        exit(1);
+        if(this->_canConvertType(bool_condition, this->enviornment->get_struct("bool"))) {
+            auto x = this->_convertType({condition_val, _, bool_condition}, this->enviornment->get_struct("bool"));
+            condition_val = std::get<0>(x);
+        } else {
+            std::cerr << "Condition type Must be Bool" << std::endl;
+            exit(1);
+        }
     }
     if(alternative == nullptr) {
         auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
@@ -1406,8 +1542,14 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     }
     auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition);
     if(!enviornment::_checkType(bool_condition, this->enviornment->get_struct("bool"))) {
-        std::cerr << "Condition type Must be Bool" << std::endl;
-        exit(1);
+        if(this->_canConvertType(bool_condition, this->enviornment->get_struct("bool"))) {
+            auto x = this->_convertType({condition_val, _, bool_condition}, this->enviornment->get_struct("bool"));
+            condition_val = std::get<0>(x);
+        } else {
+            std::cerr << "Condition type Must be Bool" << std::endl;
+            exit(1);
+        }
+
     }
     auto condBr = this->llvm_ir_builder.CreateCondBr(condition_val, BodyBB, ContBB);
     this->enviornment->loop_body_block.push_back(BodyBB);
