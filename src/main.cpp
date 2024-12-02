@@ -88,10 +88,10 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
     // Check if the file has changed
     std::hash<std::string> hasher;
     size_t currentHash = hasher(fileContent);
-    if(compiledFilesRecord.contains(filePath) && compiledFilesRecord[filePath] == currentHash) {
-        std::cout << "Skipping unchanged file: " << filePath << std::endl;
-        return;
-    }
+    // if(compiledFilesRecord.contains(filePath) && compiledFilesRecord[filePath] == currentHash) {
+    //     std::cout << "Skipping unchanged file: " << filePath << std::endl;
+    //     return;
+    // }
     std::cout << "Working on file: " << filePath << std::endl;
     if(filePath.ends_with(".gc")) {
 #ifdef DEBUG_LEXER
@@ -250,7 +250,6 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
 }
 
 void compileDirectory(const std::string& srcDir, const std::string& buildDir, json& compiledFilesRecord, const std::string& optimizationLevel) {
-    std::unordered_set<std::string> currentFiles;
 
     // update the ir_gc_map file
     for(const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
@@ -280,14 +279,12 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
                         filesRecord.pop_back();
                     } catch(const compiler::NotCompiledError& e) {
                         auto gcFile = e.path;
-                        std::string relativePath = std::filesystem::relative(gcFile, srcDir).string();
-                        std::string outputFilePath = buildDir + "/ir/" + relativePath + ".ll";
-                        std::filesystem::create_directories(std::filesystem::path(outputFilePath).parent_path());
-                        std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath + ".json";
-                        std::string objFilePath = buildDir + "/obj/" + relativePath + ".o";
-                        filesRecord.push_back({gcFile, outputFilePath, ir_gc_map, objFilePath, relativePath});
-                    } catch(std::exception e) {
-                        throw;
+                        std::string _relativePath = std::filesystem::relative(gcFile, srcDir).string();
+                        std::string _outputFilePath = buildDir + "/ir/" + _relativePath + ".ll";
+                        std::filesystem::create_directories(std::filesystem::path(_outputFilePath).parent_path());
+                        std::string _ir_gc_map = buildDir + "/ir_gc_map/" + _relativePath + ".json";
+                        std::string _objFilePath = buildDir + "/obj/" + _relativePath + ".o";
+                        filesRecord.push_back({gcFile, _outputFilePath, _ir_gc_map, _objFilePath, _relativePath});
                     }
                 }
             }

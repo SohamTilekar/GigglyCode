@@ -9,8 +9,6 @@
 #include "AST/ast.hpp"
 
 parser::Parser::Parser(std::shared_ptr<Lexer> lexer) : lexer(lexer) {
-
-
     this->_nextToken();
     this->_nextToken();
 }
@@ -88,7 +86,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseDeco() {
             return nullptr;
         }
         this->_nextToken();
-        std::vector<std::shared_ptr<AST::GenericType>> generic;
+        std::vector<std::shared_ptr<AST::GenericType>> generics;
         while(this->current_token->type != token::TokenType::RightParen) {
             if(this->current_token->type == token::TokenType::Identifier) {
                 auto identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);
@@ -106,7 +104,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseDeco() {
                         break;
                     }
                 }
-                generic.push_back(std::make_shared<AST::GenericType>(identifier, type));
+                generics.push_back(std::make_shared<AST::GenericType>(identifier, type));
                 if(this->_peekTokenIs(token::TokenType::Comma)) {
                     this->_nextToken();
                     this->_nextToken();
@@ -121,10 +119,16 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseDeco() {
         if(!this->_expectPeek(token::TokenType::RightParen)) {
             return nullptr;
         }
-        if(this->_expectPeek(token::TokenType::Def)) {
+        if(this->_peekTokenIs(token::TokenType::Def)) {
+            this->_nextToken();
             auto func = this->_parseFunctionStatement();
-            func->generic = generic;
+            func->generic = generics;
             return func;
+        } else if(this->_peekTokenIs(token::TokenType::Struct)) {
+            this->_nextToken();
+            auto _struct = this->_parseStructStatement();
+            _struct->generics = generics;
+            return _struct;
         }
         this->_peekError(this->current_token->type, token::TokenType::Def);
     }
@@ -292,7 +296,7 @@ std::shared_ptr<AST::ImportStatement> parser::Parser::_parseImportStatement() {
 }
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseFunctionCall(std::shared_ptr<AST::Expression> identifier, int st_line_no, int st_col_no) {
-    if(identifier == nullptr) {
+    if(!identifier) {
         st_line_no = current_token->line_no;
         st_col_no = current_token->col_no;
         identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token->literal);

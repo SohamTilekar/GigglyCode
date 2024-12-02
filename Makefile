@@ -15,11 +15,19 @@ run:
 	@echo ---------------------------------------------------------
 	./dump/exec $(ARGS)
 
+runr:
+	@echo ---------------------------------------------------------
+	cmake --build ./build --config Release --target all -j 4 --
+	@echo ---------------------------------------------------------
+	./build/gigly ./gpm/ -o ./dump/exec
+	@echo ---------------------------------------------------------
+	./dump/exec $(ARGS)
+
 orun:
 	@echo ---------------------------------------------------------
 	cmake --build ./build --config Debug --target all -j 4 --
 	@echo ---------------------------------------------------------
-	./build/gigly ./test/ -O3 -o ./dump/exec
+	./build/gigly ./gpm/ -O3 -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec
 
@@ -32,5 +40,9 @@ gdb:
 	@echo ---------------------------------------------------------
 	cmake --build ./build --config Debug --target all -j 4 --
 	gdb ./build/gigly
+
 cppcheck:
-	cppcheck --enable=all --check-level=exhaustive --error-exitcode=1 src/ -i src/include/json.hpp -I src/ --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unmatchedSuppression --force
+	cppcheck --enable=all --check-level=exhaustive --error-exitcode=1 src/ -i src/include/ -I src/ --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unmatchedSuppression --suppress=noExplicitConstructor --force
+
+format:
+	clang-format -i src/compiler/compiler.cpp src/compiler/compiler.hpp src/compiler/enviornment/enviornment.cpp src/compiler/enviornment/enviornment.hpp src/errors/errors.cpp src/errors/errors.hpp src/lexer/lexer.cpp src/lexer/lexer.hpp src/lexer/token.cpp src/lexer/token.hpp src/parser/AST/ast.cpp src/parser/AST/ast.hpp src/parser/parser.cpp src/parser/parser.hpp src/main.cpp

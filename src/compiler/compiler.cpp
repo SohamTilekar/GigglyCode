@@ -1,6 +1,5 @@
 #include "compiler.hpp"
 #include <algorithm>
-#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -102,27 +101,27 @@ void compiler::Compiler::_initializeBuiltins() {
     // Create the global variable 'false'
     llvm::GlobalVariable* globalFalse = new llvm::GlobalVariable(*this->llvm_module, this->enviornment->parent->get_struct("bool")->stand_alone_type, true, llvm::GlobalValue::InternalLinkage,
                                                                  llvm::ConstantInt::get(this->enviornment->parent->get_struct("bool")->stand_alone_type, 0), "False");
-    auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->parent->get_struct("bool")));
+    auto recordTrue = std::make_shared<enviornment::RecordVariable>("True", globalTrue, nullptr, this->enviornment->parent->get_struct("bool"));
     this->enviornment->parent->add(recordTrue);
-    auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->parent->get_struct("bool")));
+    auto recordFalse = std::make_shared<enviornment::RecordVariable>("False", globalFalse, nullptr, this->enviornment->parent->get_struct("bool"));
     this->enviornment->parent->add(recordFalse);
 
     // Create the function type: void puts(const char*)
     llvm::FunctionType* putsType = llvm::FunctionType::get(_void->stand_alone_type, _string->stand_alone_type, false);
     auto puts = llvm::Function::Create(putsType, llvm::Function::ExternalLinkage, "puts", this->llvm_module.get());
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> putsParams = {{"string", std::make_shared<enviornment::RecordStructInstance>(_string)}};
-    this->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, std::make_shared<enviornment::RecordStructInstance>(_void), true));
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> putsParams = {{"string", _string}};
+    this->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>("puts", puts, putsType, putsParams, _void, true));
     // Create the function type: int printf(const char*, ...)
     llvm::FunctionType* printfType = llvm::FunctionType::get(_int->stand_alone_type, {_string->stand_alone_type}, true);
     auto printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", this->llvm_module.get());
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> printfParams = {{"format", std::make_shared<enviornment::RecordStructInstance>(_string)}};
-    this->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>("printf", printfFunc, printfType, printfParams, std::make_shared<enviornment::RecordStructInstance>(_int), true));
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> printfParams = {{"format", _string}};
+    this->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>("printf", printfFunc, printfType, printfParams, _int, true));
 
     // Create the function type: int scanf(const char*, ...)
     llvm::FunctionType* scanfType = llvm::FunctionType::get(_int->stand_alone_type, {_string->stand_alone_type}, true);
     auto scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", this->llvm_module.get());
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> scanfParams = {{"format", std::make_shared<enviornment::RecordStructInstance>(_string)}};
-    this->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>("scanf", scanfFunc, scanfType, scanfParams, std::make_shared<enviornment::RecordStructInstance>(_int), true));
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> scanfParams = {{"format", _string}};
+    this->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>("scanf", scanfFunc, scanfType, scanfParams, _int, true));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
@@ -222,9 +221,9 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
 
 
 std::tuple<llvm::Value*, llvm::Value*,
-           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args,
-                               std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types) {
+                               std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
     for(auto gfunc : gfuncs) {
         if(gfunc->env->is_function(name, params_types)) {
             auto func = gfunc->env->get_function(name, params_types);
@@ -238,9 +237,8 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
         bool x = false;
         for(auto [gparam, pparam] : llvm::zip(gfunc->func->parameters, params_types)) {
             if(gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
-                auto struc = std::make_shared<enviornment::RecordStructType>(*pparam->struct_type);
+                auto struc = std::make_shared<enviornment::RecordStructType>(*pparam);
                 struc->name = std::static_pointer_cast<AST::IdentifierLiteral>(gparam->value_type->name)->value;
-                std::cout << "Type Name: " << struc->name << std::endl;
                 this->enviornment->add(struc);
             } else if(std::get<3>(this->_resolveValue(gparam->value_type->name)) == compiler::resolveType::StructType) {
             } else {
@@ -253,15 +251,15 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
         auto params = gfunc->func->parameters;
         std::vector<std::string> param_name;
         std::vector<llvm::Type*> param_types;
-        std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
+        std::vector<std::shared_ptr<enviornment::RecordStructType>> param_inst_record;
         for(auto [param, param_type] : llvm::zip(params, params_types)) {
             auto param_name_str = std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value;
             param_name.push_back(param_name_str);
             param_inst_record.push_back(param_type);
-            param_types.push_back(param_type->struct_type->stand_alone_type ? param_type->struct_type->stand_alone_type : llvm::PointerType::get(param_type->struct_type->struct_type, 0));
+            param_types.push_back(param_type->stand_alone_type ? param_type->stand_alone_type : llvm::PointerType::get(param_type->struct_type, 0));
         }
         auto return_type = this->_parseType(gfunc->func->return_type);
-        auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
+        auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type->getPointerTo();
         auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
         auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
         this->ir_gc_map_json["functions"][name] = func->getName().str();
@@ -269,7 +267,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
         for(auto& arg : func->args()) {
             arg.setName(param_name[idx++]);
         }
-        std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
+        std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> arguments;
         auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
         if(body) {
             auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
@@ -282,8 +280,8 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
                     alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
                     auto storeInst = this->llvm_ir_builder.CreateStore(&arg, alloca);
                 } else {
-                    alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type->struct_type, nullptr, arg.getName());
-                    auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type->struct_type, &arg, arg.getName() + ".load");
+                    alloca = this->llvm_ir_builder.CreateAlloca(param_type_record->struct_type, nullptr, arg.getName());
+                    auto loaded_arg = this->llvm_ir_builder.CreateLoad(param_type_record->struct_type, &arg, arg.getName() + ".load");
                     auto storeInst = this->llvm_ir_builder.CreateStore(loaded_arg, alloca);
                 }
                 auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), &arg, alloca, param_type_record);
@@ -317,9 +315,96 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
 };
 
 
+std::tuple<llvm::Value*, llvm::Value*,
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::string name, std::vector<llvm::Value*> args,
+                               std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
+    auto prev_env = this->enviornment;
+    for (auto gstruct : gstructs) {
+        if(params_types.size() < gstruct->structt->generics.size()) {
+            continue;
+        }
+        this->enviornment = std::make_shared<enviornment::Enviornment>(gstruct->env);
+        auto genorics = std::vector<std::shared_ptr<enviornment::RecordStructType>>();
+        auto remaining_args = std::vector<llvm::Value*>();
+        std::copy(args.begin(), args.end(), std::back_inserter(remaining_args));
+        auto remaining_params_types = std::vector<std::shared_ptr<enviornment::RecordStructType>>();
+        std::copy(params_types.begin(), params_types.end(), std::back_inserter(remaining_params_types));
+        for (auto [pt, _] : llvm::zip(params_types, gstruct->structt->generics)) {
+            pt = std::make_shared<enviornment::RecordStructType>(*pt);
+            pt->name = std::static_pointer_cast<AST::IdentifierLiteral>(_->name)->value;
+            std::cout << pt->name << std::endl;
+            this->enviornment->add(pt);
+            genorics.push_back(pt);
+            remaining_args.erase(remaining_args.begin());
+            remaining_params_types.erase(remaining_params_types.begin());
+        }
+        std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(gstruct->structt->name)->value;
+        auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
+        if (!gstruct->env->is_struct(struct_name, false, genorics)) {
+            std::vector<llvm::Type*> field_types;
+            auto fields = gstruct->structt->fields;
+            this->enviornment->add(struct_record);
+            for(auto field : fields) {
+                if(field->type() == AST::NodeType::VariableDeclarationStatement) {
+                    auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
+                    std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
+                    struct_record->fields.push_back(field_name);
+                    auto field_type = this->_parseType(field_decl->value_type);
+                    if(field_type->stand_alone_type == nullptr) {
+                        field_types.push_back(field_type->struct_type);
+                    } else {
+                        field_types.push_back(field_type->stand_alone_type);
+                    }
+                    if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
+                        auto field_value = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->value_type->name)->value;
+                        bool is_generic = false;
+                        for (const auto& generic : gstruct->structt->generics) {
+                            if (field_value == std::static_pointer_cast<AST::IdentifierLiteral>(generic->name)->value) {
+                                is_generic = true;
+                                break;
+                            }
+                        }
+                        if (is_generic) {
+                            struct_record->generic_sub_types.push_back(field_type);
+                        }
+                    }
+                    struct_record->sub_types[field_name] = field_type;
+                    auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
+                    struct_type->setBody(field_types);
+                    struct_record->struct_type = struct_type;
+                } else if(field->type() == AST::NodeType::FunctionStatement) {
+                    auto func_dec = std::static_pointer_cast<AST::FunctionStatement>(field);
+                    if(func_dec->generic.size() != 0) {
+                        continue;
+                    }
+                    this->_visitFunctionDeclarationStatement(func_dec, struct_record);
+                }
+            }
+        } else {
+            struct_record = gstruct->env->get_struct(struct_name, false, genorics);
+        }
+        auto struct_type = struct_record->struct_type;
+        auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+        remaining_params_types.insert(remaining_params_types.begin(), struct_record);
+        remaining_args.insert(remaining_args.begin(), alloca);
+        auto func = struct_record->get_method(struct_record->name, remaining_params_types);
+        if(func)
+            this->llvm_ir_builder.CreateCall(func->function, remaining_args);
+        else {
+            std::cerr << "Initilaxation method is not Created for the struct: `" + struct_record->name + "`" << std::endl;
+            exit(1);
+        }
+        gstruct->env->add(struct_record);
+        this->enviornment = prev_env;
+        return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
+    }
+    std::cerr << "No generic struct" << std::endl;
+    exit(1);
+};
 
 std::tuple<llvm::Value*, llvm::Value*,
-           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> infixed_expression) {
     auto op = infixed_expression->op;
     auto left = infixed_expression->left;
@@ -334,26 +419,28 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                     return std::make_tuple(nullptr, nullptr, module->get_module(name), compiler::resolveType::Module);
                 } else if(module->is_struct(name)) {
                     return std::make_tuple(nullptr, nullptr, module->get_struct(name), compiler::resolveType::StructType);
+                } else if(module->is_Gstruct(name)) {
+                    return std::make_tuple(nullptr, nullptr, module->get_Gstruct(name), compiler::resolveType::GStructType);
                 } else {
                     std::cerr << "no member `" << name << "` not found in module " << module->name << std::endl;
                     exit(1);
                 }
             } else if(ltt == compiler::resolveType::StructInst) {
-                auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
-                if(left_type->struct_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
+                auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
+                if(left_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
                     unsigned int idx = 0;
-                    for(auto field : left_type->struct_type->fields) {
+                    for(auto field : left_type->fields) {
                         if(field == std::static_pointer_cast<AST::IdentifierLiteral>(right)->value) {
                             break;
                         }
                         idx++;
                     }
-                    auto type = left_type->struct_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
-                    llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type->struct_type, left_alloca, idx);
-                    if (left_type->struct_type->struct_type) {
+                    auto type = left_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
+                    llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx);
+                    if (left_type->struct_type) {
                         return {gep, gep, type, compiler::resolveType::StructInst};
                     }
-                    llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->struct_type->stand_alone_type, gep); // TODO: Fix
+                    llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->stand_alone_type, gep);
                     return {loaded, gep, type, compiler::resolveType::StructInst};
                 } else {
                     std::cerr << "Struct does not have member " + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value << std::endl;
@@ -365,7 +452,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
             auto param = call_expression->arguments;
             std::vector<llvm::Value*> args;
-            std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types;
+            std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types;
             for(auto arg : param) {
                 auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
                 if(ptt == compiler::resolveType::Module) {
@@ -375,7 +462,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                     std::cerr << "Cannot pass struct type to function" << std::endl;
                     exit(1);
                 }
-                params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructInstance>>(param_type));
+                params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
                 args.push_back(value);
             }
             if(ltt == compiler::resolveType::Module) {
@@ -387,6 +474,9 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                 } else if(left_type->is_Gfunc(name)) {
                     auto gfuncs = left_type->get_Gfunc(name);
                     return this->_CallGfunc(gfuncs, name, args, params_types);
+                } else if(left_type->is_Gstruct(name)) {
+                    auto gstruct = left_type->get_Gstruct(name);
+                    return this->_CallGstruct(gstruct, name, args, params_types);
                 } else if(left_type->is_struct(name)) {
                     auto struct_record = left_type->get_struct(name);
                     auto struct_type = struct_record->struct_type;
@@ -406,15 +496,15 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                         auto field_ptr = this->llvm_ir_builder.CreateStructGEP(struct_type, alloca, i);
                         this->llvm_ir_builder.CreateStore(args[i], field_ptr);
                     }
-                    return {alloca, alloca, std::make_shared<enviornment::RecordStructInstance>(struct_record), compiler::resolveType::StructInst};
+                    return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
                 } else {
                     std::cerr << "Struct Or Function " << name << " overload Dose Not Exit." << std::endl;
                     exit(1);
                 }
             } else if(ltt == compiler::resolveType::StructInst) {
-                auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
-                if(left_type->struct_type->is_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types)) {
-                    auto method = left_type->struct_type->get_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types);
+                auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
+                if(left_type->is_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types)) {
+                    auto method = left_type->get_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types);
                     auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args);
                     return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
                 } else {
@@ -434,19 +524,19 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
     }
     auto left_val = left_value;
     auto right_val = right_value;
-    auto left_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_type);
-    auto right_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_right_type);
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_type1{left_type, right_type};
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_type2{right_type, left_type};
-    if(left_type->struct_type->struct_type != nullptr || right_type->struct_type->struct_type != nullptr) {
+    auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
+    auto right_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_right_type);
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type1{left_type, right_type};
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type2{right_type, left_type};
+    if(left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
         switch(op) {
         case token::TokenType::Plus: {
-            if(left_type->struct_type->is_method("__add__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__add__", params_type1);
+            if(left_type->is_method("__add__", params_type1)) {
+                auto func_record = left_type->get_method("__add__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__add__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__add__", params_type2);
+            } else if(right_type->is_method("__add__", params_type2)) {
+                auto func_record = right_type->get_method("__add__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -455,12 +545,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::Dash: {
-            if(left_type->struct_type->is_method("__sub__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__sub__", params_type1);
+            if(left_type->is_method("__sub__", params_type1)) {
+                auto func_record = left_type->get_method("__sub__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__sub__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__sub__", params_type2);
+            } else if(right_type->is_method("__sub__", params_type2)) {
+                auto func_record = right_type->get_method("__sub__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -469,12 +559,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::Asterisk: {
-            if(left_type->struct_type->is_method("__mul__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__mul__", params_type1);
+            if(left_type->is_method("__mul__", params_type1)) {
+                auto func_record = left_type->get_method("__mul__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__mul__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__mul__", params_type2);
+            } else if(right_type->is_method("__mul__", params_type2)) {
+                auto func_record = right_type->get_method("__mul__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -483,12 +573,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::ForwardSlash: {
-            if(left_type->struct_type->is_method("__div__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__div__", params_type1);
+            if(left_type->is_method("__div__", params_type1)) {
+                auto func_record = left_type->get_method("__div__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__div__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__div__", params_type2);
+            } else if(right_type->is_method("__div__", params_type2)) {
+                auto func_record = right_type->get_method("__div__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -497,12 +587,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::Percent: {
-            if(left_type->struct_type->is_method("__mod__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__mod__", params_type1);
+            if(left_type->is_method("__mod__", params_type1)) {
+                auto func_record = left_type->get_method("__mod__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__mod__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__mod__", params_type2);
+            } else if(right_type->is_method("__mod__", params_type2)) {
+                auto func_record = right_type->get_method("__mod__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -511,12 +601,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::EqualEqual: {
-            if(left_type->struct_type->is_method("__eq__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__eq__", params_type1);
+            if(left_type->is_method("__eq__", params_type1)) {
+                auto func_record = left_type->get_method("__eq__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__eq__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__eq__", params_type2);
+            } else if(right_type->is_method("__eq__", params_type2)) {
+                auto func_record = right_type->get_method("__eq__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -525,12 +615,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::NotEquals: {
-            if(left_type->struct_type->is_method("__neq__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__neq__", params_type1);
+            if(left_type->is_method("__neq__", params_type1)) {
+                auto func_record = left_type->get_method("__neq__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__neq__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__neq__", params_type2);
+            } else if(right_type->is_method("__neq__", params_type2)) {
+                auto func_record = right_type->get_method("__neq__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -539,12 +629,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::LessThan: {
-            if(left_type->struct_type->is_method("__lt__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__lt__", params_type1);
+            if(left_type->is_method("__lt__", params_type1)) {
+                auto func_record = left_type->get_method("__lt__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__lt__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__lt__", params_type2);
+            } else if(right_type->is_method("__lt__", params_type2)) {
+                auto func_record = right_type->get_method("__lt__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -553,12 +643,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::GreaterThan: {
-            if(left_type->struct_type->is_method("__gt__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__gt__", params_type1);
+            if(left_type->is_method("__gt__", params_type1)) {
+                auto func_record = left_type->get_method("__gt__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__gt__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__gt__", params_type2);
+            } else if(right_type->is_method("__gt__", params_type2)) {
+                auto func_record = right_type->get_method("__gt__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -567,12 +657,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::LessThanOrEqual: {
-            if(left_type->struct_type->is_method("__lte__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__lte__", params_type1);
+            if(left_type->is_method("__lte__", params_type1)) {
+                auto func_record = left_type->get_method("__lte__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__lte__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__lte__", params_type2);
+            } else if(right_type->is_method("__lte__", params_type2)) {
+                auto func_record = right_type->get_method("__lte__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -581,12 +671,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::GreaterThanOrEqual: {
-            if(left_type->struct_type->is_method("__gte__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__gte__", params_type1);
+            if(left_type->is_method("__gte__", params_type1)) {
+                auto func_record = left_type->get_method("__gte__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__gte__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__gte__", params_type2);
+            } else if(right_type->is_method("__gte__", params_type2)) {
+                auto func_record = right_type->get_method("__gte__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -595,12 +685,12 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             }
         }
         case token::TokenType::AsteriskAsterisk: {
-            if(left_type->struct_type->is_method("__pow__", params_type1)) {
-                auto func_record = left_type->struct_type->get_method("__pow__", params_type1);
+            if(left_type->is_method("__pow__", params_type1)) {
+                auto func_record = left_type->get_method("__pow__", params_type1);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->struct_type->is_method("__pow__", params_type2)) {
-                auto func_record = right_type->struct_type->get_method("__pow__", params_type2);
+            } else if(right_type->is_method("__pow__", params_type2)) {
+                auto func_record = right_type->get_method("__pow__", params_type2);
                 auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
                 return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
             } else {
@@ -624,95 +714,95 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
     auto common_type = left_type;
 
     // Handle type conversion
-    if((!left_type->struct_type->stand_alone_type->isIntegerTy(1)) && left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
+    if((!left_type->stand_alone_type->isIntegerTy(1)) && left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isDoubleTy()) {
         left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getDoubleTy(this->llvm_context));
         common_type = right_type;
-    } else if(left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isIntegerTy() && (!right_type->struct_type->stand_alone_type->isIntegerTy(1))) {
+    } else if(left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isIntegerTy() && (!right_type->stand_alone_type->isIntegerTy(1))) {
         right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getDoubleTy(this->llvm_context));
-    } else if((!left_type->struct_type->stand_alone_type->isIntegerTy(1)) && left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isFloatTy()) {
+    } else if((!left_type->stand_alone_type->isIntegerTy(1)) && left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isFloatTy()) {
         left_val_converted = this->llvm_ir_builder.CreateSIToFP(left_val, llvm::Type::getFloatTy(this->llvm_context));
         common_type = right_type;
-    } else if(left_type->struct_type->stand_alone_type->isFloatTy() && right_type->struct_type->stand_alone_type->isIntegerTy() && (!right_type->struct_type->stand_alone_type->isIntegerTy(1))) {
+    } else if(left_type->stand_alone_type->isFloatTy() && right_type->stand_alone_type->isIntegerTy() && (!right_type->stand_alone_type->isIntegerTy(1))) {
         right_val_converted = this->llvm_ir_builder.CreateSIToFP(right_val, llvm::Type::getFloatTy(this->llvm_context));
-    } else if((left_type->struct_type->stand_alone_type->isIntegerTy() && right_type->struct_type->stand_alone_type->isIntegerTy()) ||
-              (left_type->struct_type->stand_alone_type->isIntegerTy(1) && right_type->struct_type->stand_alone_type->isIntegerTy(1)) ||
-              left_type->struct_type->stand_alone_type->isFloatTy() && right_type->struct_type->stand_alone_type->isFloatTy() ||
-              left_type->struct_type->stand_alone_type->isDoubleTy() && right_type->struct_type->stand_alone_type->isDoubleTy()) {
+    } else if((left_type->stand_alone_type->isIntegerTy() && right_type->stand_alone_type->isIntegerTy()) ||
+              (left_type->stand_alone_type->isIntegerTy(1) && right_type->stand_alone_type->isIntegerTy(1)) ||
+              left_type->stand_alone_type->isFloatTy() && right_type->stand_alone_type->isFloatTy() ||
+              left_type->stand_alone_type->isDoubleTy() && right_type->stand_alone_type->isDoubleTy()) {
         // No conversion Needed
     } else {
         std::cerr << "Unknown Type" << std::endl;
         exit(1);
     }
 
-    if(common_type->struct_type->stand_alone_type->isIntegerTy()) {
+    if(common_type->stand_alone_type->isIntegerTy()) {
         switch(op) {
         case(token::TokenType::Plus): {
             auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("int")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Dash): {
             auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("int")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Asterisk): {
             auto inst = this->llvm_ir_builder.CreateMul(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("int")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::ForwardSlash): {
             llvm::Value* inst;
-            if(left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
                 inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("int")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Percent): {
             llvm::Value* inst;
-            if(left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
                 inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("int")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::EqualEqual): {
             auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::NotEquals): {
             auto inst = this->llvm_ir_builder.CreateICmpNE(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThan): {
             llvm::Value* inst;
-            if(left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
                 inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThan): {
             llvm::Value* inst;
-            if(left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
                 inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThanOrEqual): {
             llvm::Value* inst;
-            if(left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
                 inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThanOrEqual): {
             llvm::Value* inst;
-            if(left_type->struct_type->name == "int" || left_type->struct_type->name == "int32" || left_type->struct_type->name == "int128")
+            if(left_type->name == "int" || left_type->name == "int32" || left_type->name == "int128")
                 inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
             else
                 inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::AsteriskAsterisk): {
             std::cerr << "Power operator not supported for int" << std::endl;
@@ -723,47 +813,47 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
             exit(1);
         }
         }
-    } else if(common_type->struct_type->stand_alone_type->isDoubleTy()) {
+    } else if(common_type->stand_alone_type->isDoubleTy()) {
         switch(op) {
         case(token::TokenType::Plus): {
             auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("float")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Dash): {
             auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("float")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::Asterisk): {
             auto inst = this->llvm_ir_builder.CreateFMul(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("float")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::ForwardSlash): {
             auto inst = this->llvm_ir_builder.CreateFDiv(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("float")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::EqualEqual): {
             auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::NotEquals): {
             auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThan): {
             auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThan): {
             auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::LessThanOrEqual): {
             auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::GreaterThanOrEqual): {
             auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
-            return {inst, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
         }
         case(token::TokenType::AsteriskAsterisk): {
             std::cerr << "Power operator not supported for float" << std::endl;
@@ -781,72 +871,78 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
 };
 
 std::tuple<llvm::Value*, llvm::Value*,
-           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression) {
     auto [left, _, _left_generic, ltt] = this->_resolveValue(index_expression->left);
     if(ltt == compiler::resolveType::StructInst) {
         std::cerr << "Cant index Module" << std::endl;
         exit(1);
     }
-    auto left_generic = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_left_generic);
+    auto left_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_generic);
     auto [index, __, _index_generic, itt] = this->_resolveValue(index_expression->index);
     if(itt == compiler::resolveType::StructInst) {
         std::cerr << "Index Must be Intiger Not Module" << std::endl;
         exit(1);
     }
-    auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_index_generic);
-    if(!enviornment::_checkType(left_generic, this->enviornment->get_struct("array"))) {
-        std::cerr << "Error: Left type is not an array. Left type: " << left_generic->struct_type->name << std::endl;
-        exit(1);
+    auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_index_generic);
+    if(enviornment::_checkType(left_generic, this->enviornment->get_struct("array"))) {
+        auto element = this->llvm_ir_builder.CreateGEP(left_generic->sub_types["valueType"]->stand_alone_type ? left_generic->sub_types["valueType"]->stand_alone_type : left_generic->sub_types["valueType"]->struct_type, left, index, "element");
+        auto load = left_generic->sub_types["valueType"]->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->sub_types["valueType"]->stand_alone_type, element) : element;
+        return {load, element, left_generic->sub_types["valueType"], compiler::resolveType::StructInst};
     }
-    if(!enviornment::_checkType(index_generic, this->enviornment->get_struct("int"))) {
-        std::cerr << "Error: Index type is not an int. Index type: " << index_generic->struct_type->name << std::endl;
-        exit(1);
-    }
-    auto element = this->llvm_ir_builder.CreateGEP(
-        left_generic->generic[0]->struct_type->stand_alone_type ? left_generic->generic[0]->struct_type->stand_alone_type : left_generic->generic[0]->struct_type->struct_type, left, index, "element");
-    auto load = left_generic->generic[0]->struct_type->stand_alone_type ? this->llvm_ir_builder.CreateLoad(left_generic->generic[0]->struct_type->stand_alone_type, element) : element;
-    return {load, element, left_generic->generic[0], compiler::resolveType::StructInst};
+    std::cerr << "TODO: Call the __index__ function for non array type" << std::endl;
+    exit(1);
 };
 
+
 void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement) {
-    std::cerr << "Entering _visitVariableDeclarationStatement" << std::endl;
     auto var_name = std::static_pointer_cast<AST::IdentifierLiteral>(variable_declaration_statement->name);
-    std::cerr << "Variable name: " << var_name->value << std::endl;
     auto var_value = variable_declaration_statement->value;
-    std::cerr << "Resolving variable type" << std::endl;
     auto var_type = this->_parseType(variable_declaration_statement->value_type);
-    std::cerr << "Variable type: " << var_type->struct_type->name << std::endl;
-    auto [var_value_resolved, var_value_alloca, _var_generic, vartt] = this->_resolveValue(var_value);
-    std::cerr << "Resolved variable value" << std::endl;
-    if(vartt != compiler::resolveType::StructInst) {
-        std::cerr << "Cant Assign Modult to Variable" << std::endl;
-        exit(1);
-    }
-    auto var_generic = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_var_generic);
-    if(!enviornment::_checkType(var_generic, this->_parseType(variable_declaration_statement->value_type))) {
-        std::cerr << "Cannot assign missmatch type" << std::endl;
-        exit(1);
-    }
-    if(vartt == compiler::resolveType::StructInst) {
-        if(var_type->struct_type->struct_type == nullptr) {
+
+    if (var_value == nullptr) {
+        if (var_type->struct_type == nullptr) {
             std::cerr << "Allocating standalone type" << std::endl;
-            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type->stand_alone_type);
-            auto store = this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
-            auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
+            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
+            auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, alloca, var_type);
             this->enviornment->add(var);
         } else {
             std::cerr << "Allocating struct type" << std::endl;
-            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type->struct_type, nullptr);
-            auto load = this->llvm_ir_builder.CreateLoad(var_type->struct_type->struct_type, var_value_resolved);
-            auto store = this->llvm_ir_builder.CreateStore(load, alloca, variable_declaration_statement->is_volatile);
-            auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
-            var->variableType = var_generic;
+            auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
+            auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, alloca, var_type);
             this->enviornment->add(var);
         }
     } else {
-        std::cerr << "Variable declaration with multiple values" << std::endl;
-        exit(1);
+        auto [var_value_resolved, var_value_alloca, _var_generic, vartt] = this->_resolveValue(var_value);
+        if(vartt != compiler::resolveType::StructInst) {
+            std::cerr << "Cant Assign Modult to Variable" << std::endl;
+            exit(1);
+        }
+        auto var_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_var_generic);
+        if(!enviornment::_checkType(var_generic, this->_parseType(variable_declaration_statement->value_type))) {
+            std::cerr << "Cannot assign missmatch type" << std::endl;
+            exit(1);
+        }
+        if(vartt == compiler::resolveType::StructInst) {
+            if(var_type->struct_type == nullptr) {
+                std::cerr << "Allocating standalone type" << std::endl;
+                auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
+                auto store = this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
+                auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
+                this->enviornment->add(var);
+            } else {
+                std::cerr << "Allocating struct type" << std::endl;
+                // auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
+                // auto load = this->llvm_ir_builder.CreateLoad(var_type->struct_type, var_value_resolved);
+                // auto store = this->llvm_ir_builder.CreateStore(load, var_value_resolved, variable_declaration_statement->is_volatile);
+                auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, var_value_resolved, var_generic);
+                var->variableType = var_generic;
+                this->enviornment->add(var);
+            }
+        } else {
+            std::cerr << "Variable declaration with multiple values" << std::endl;
+            exit(1);
+        }
     }
     std::cerr << "Exiting _visitVariableDeclarationStatement" << std::endl;
 }
@@ -867,7 +963,7 @@ std::vector<std::string> splitString(const std::string& input) {
 void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::VariableAssignmentStatement> variable_assignment_statement) {
     auto var_value = variable_assignment_statement->value;
     auto [value, value_aloca, _assignmentType, vtt] = this->_resolveValue(var_value);
-    auto assignmentType = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_assignmentType);
+    auto assignmentType = std::get<std::shared_ptr<enviornment::RecordStructType>>(_assignmentType);
     if(vtt != compiler::resolveType::StructInst) {
         std::cerr << "Cant Assign Modult or type to Variable" << std::endl;
         exit(1);
@@ -877,45 +973,45 @@ void compiler::Compiler::_visitVariableAssignmentStatement(std::shared_ptr<AST::
         std::cerr << "Cant Assign to ltype" << std::endl;
         exit(1);
     }
-    auto var_type = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_var_type);
+    auto var_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_var_type);
     if(!enviornment::_checkType(var_type, assignmentType)) {
         std::cerr << "Cannot assign missmatch type" << std::endl;
         exit(1);
     }
-    if(assignmentType->struct_type->stand_alone_type) {
+    if(assignmentType->stand_alone_type) {
         auto store = this->llvm_ir_builder.CreateStore(value, alloca);
     } else {
-        auto load = this->llvm_ir_builder.CreateLoad(assignmentType->struct_type->struct_type, value);
+        auto load = this->llvm_ir_builder.CreateLoad(assignmentType->struct_type, value);
         auto store = this->llvm_ir_builder.CreateStore(load, alloca);
     }
 };
 
 std::tuple<llvm::Value*, llvm::Value*,
-           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
     switch(node->type()) {
     case AST::NodeType::IntegerLiteral: {
         auto integer_literal = std::static_pointer_cast<AST::IntegerLiteral>(node);
         auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value));
-        return {value, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("int")), compiler::resolveType::StructInst};
+        return {value, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
     }
     case AST::NodeType::FloatLiteral: {
         auto float_literal = std::static_pointer_cast<AST::FloatLiteral>(node);
         auto value = llvm::ConstantFP::get(llvm_context, llvm::APFloat(float_literal->value));
-        return {value, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("float")), compiler::resolveType::StructInst};
+        return {value, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
     }
     case AST::NodeType::StringLiteral: {
         auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
         auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
-        return {value, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("str")), compiler::resolveType::StructInst};
+        return {value, nullptr, this->enviornment->get_struct("str"), compiler::resolveType::StructInst};
     }
     case AST::NodeType::IdentifierLiteral: {
         auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
-        std::shared_ptr<enviornment::RecordStructInstance> currentStructType = nullptr;
+        std::shared_ptr<enviornment::RecordStructType> currentStructType = nullptr;
         if(this->enviornment->is_variable(identifier_literal->value)) {
             currentStructType = this->enviornment->get_variable(identifier_literal->value)->variableType;
-            if(currentStructType->struct_type->stand_alone_type) {
-                auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->struct_type->stand_alone_type, this->enviornment->get_variable(identifier_literal->value)->allocainst);
+            if(currentStructType->stand_alone_type) {
+                auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, this->enviornment->get_variable(identifier_literal->value)->allocainst);
                 return {loadInst, this->enviornment->get_variable(identifier_literal->value)->allocainst, currentStructType, compiler::resolveType::StructInst};
             } else {
                 return {this->enviornment->get_variable(identifier_literal->value)->allocainst, this->enviornment->get_variable(identifier_literal->value)->allocainst, currentStructType,
@@ -925,6 +1021,8 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
             return {nullptr, nullptr, this->enviornment->get_module(identifier_literal->value), compiler::resolveType::Module};
         } else if(this->enviornment->is_struct(identifier_literal->value)) {
             return {nullptr, nullptr, this->enviornment->get_struct(identifier_literal->value), compiler::resolveType::StructType};
+        } else if(this->enviornment->is_Gstruct(identifier_literal->value)) {
+            return {nullptr, nullptr, this->enviornment->get_Gstruct(identifier_literal->value), compiler::resolveType::GStructType};
         }
         std::cerr << "Variable not defined: " << identifier_literal->value << std::endl;
         exit(1);
@@ -941,7 +1039,7 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
     case AST::NodeType::BooleanLiteral: {
         auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
         auto value = boolean_literal->value ? this->enviornment->get_variable("True")->value : this->enviornment->get_variable("False")->value;
-        return {value, nullptr, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("bool")), compiler::resolveType::StructInst};
+        return {value, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
     }
     case AST::NodeType::ArrayLiteral: {
         return this->_visitArrayLiteral(std::static_pointer_cast<AST::ArrayLiteral>(node));
@@ -954,12 +1052,12 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
 };
 
 std::tuple<llvm::Value*, llvm::Value*,
-           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal) {
     std::vector<llvm::Value*> values;
     std::shared_ptr<enviornment::RecordStructType> struct_type = nullptr;
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> generics;
-    std::shared_ptr<enviornment::RecordStructInstance> first_generic;
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> generics;
+    std::shared_ptr<enviornment::RecordStructType> first_generic;
 
     for(auto element : array_literal->elements) {
         auto [value, value_alloca, _generic, vtt] = this->_resolveValue(element);
@@ -967,9 +1065,9 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
             std::cerr << "Cant add Module or type in Array" << std::endl;
             exit(1);
         }
-        auto generic = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_generic);
+        auto generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_generic);
         if(!struct_type) {
-            struct_type = generic->struct_type;
+            struct_type = generic;
             first_generic = generic;
             generics.push_back(generic);
         }
@@ -988,7 +1086,7 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
         auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
         auto storeInst = this->llvm_ir_builder.CreateStore(values[i], element);
     }
-    return {array, array, std::make_shared<enviornment::RecordStructInstance>(this->enviornment->get_struct("array"), generics), compiler::resolveType::StructInst};
+    return {array, array, this->enviornment->get_struct("array"), compiler::resolveType::StructInst};
 };
 
 void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement) {
@@ -1007,7 +1105,7 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
             exit(1);
         }
     }
-    if(!enviornment::_checkType(this->enviornment->current_function->return_inst, std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_))) {
+    if(!enviornment::_checkType(this->enviornment->current_function->return_inst, std::get<std::shared_ptr<enviornment::RecordStructType>>(_))) {
         std::cerr << "Return Type Miss Match" << std::endl;
         exit(1);
     }
@@ -1023,19 +1121,83 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     throw compiler::DoneRet();
 };
 
-std::shared_ptr<enviornment::RecordStructInstance> compiler::Compiler::_parseType(std::shared_ptr<AST::Type> type) {
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> generics = {};
+std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(std::shared_ptr<AST::Type> type) {
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> generics = {};
     for(auto gen : type->generics) {
         generics.push_back(this->_parseType(gen));
     }
     auto [_, __, _struct, stt] = this->_resolveValue(type->name);
     if(stt != compiler::resolveType::StructType) {
+        if (stt == compiler::resolveType::GStructType) {
+            auto gstructs = std::get<std::vector<std::shared_ptr<enviornment::RecordGStructType>>>(_struct);
+            auto prev_env = this->enviornment;
+            for (auto gstruct : gstructs) {
+                if(generics.size() != gstruct->structt->generics.size()) {
+                    continue;
+                }
+                this->enviornment = std::make_shared<enviornment::Enviornment>(gstruct->env);
+                std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(gstruct->structt->name)->value;
+                auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
+                if (!gstruct->env->is_struct(struct_name, false, generics)) {
+                    for (auto [generic, rg] : llvm::zip(generics, gstruct->structt->generics)) {
+                        auto generic_copy = std::make_shared<enviornment::RecordStructType>(*generic);
+                        generic_copy->name = std::static_pointer_cast<AST::IdentifierLiteral>(rg->name)->value;
+                        this->enviornment->add(generic_copy);
+                    }
+                    std::vector<llvm::Type*> field_types;
+                    auto fields = gstruct->structt->fields;
+                    this->enviornment->add(struct_record);
+                    for(auto field : fields) {
+                        if(field->type() == AST::NodeType::VariableDeclarationStatement) {
+                            auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
+                            std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
+                            struct_record->fields.push_back(field_name);
+                            auto field_type = this->_parseType(field_decl->value_type);
+                            if(field_type->stand_alone_type == nullptr) {
+                                field_types.push_back(field_type->struct_type);
+                            } else {
+                                field_types.push_back(field_type->stand_alone_type);
+                            }
+                            if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
+                                auto field_value = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->value_type->name)->value;
+                                bool is_generic = false;
+                                for (const auto& generic : gstruct->structt->generics) {
+                                    if (field_value == std::static_pointer_cast<AST::IdentifierLiteral>(generic->name)->value) {
+                                        is_generic = true;
+                                        break;
+                                    }
+                                }
+                                if (is_generic) {
+                                    struct_record->generic_sub_types.push_back(field_type);
+                                }
+                            }
+                            struct_record->sub_types[field_name] = field_type;
+                            auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
+                            struct_type->setBody(field_types);
+                            struct_record->struct_type = struct_type;
+                        } else if(field->type() == AST::NodeType::FunctionStatement) {
+                            auto func_dec = std::static_pointer_cast<AST::FunctionStatement>(field);
+                            if(func_dec->generic.size() != 0) {
+                                continue;
+                            }
+                            this->_visitFunctionDeclarationStatement(func_dec, struct_record);
+                        }
+                    }
+                } else {
+                    struct_record = gstruct->env->get_struct(struct_name, false, generics);
+                }
+                gstruct->env->add(struct_record);
+                this->enviornment = prev_env;
+                return struct_record;
+            }
+            std::cerr << "No GStruct viable" << std::endl;
+            exit(1);
+        }
         std::cerr << "Type is Wrong" << std::endl;
         exit(1);
     }
     auto struct_ = std::get<std::shared_ptr<enviornment::RecordStructType>>(_struct);
-    auto x = std::make_shared<enviornment::RecordStructInstance>(struct_, generics);
-    return x;
+    return struct_;
 };
 
 void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordStructType> struct_) {
@@ -1049,16 +1211,16 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     auto params = function_declaration_statement->parameters;
     std::vector<std::string> param_name;
     std::vector<llvm::Type*> param_types;
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_record;
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> param_inst_record;
     for(auto param : params) {
         auto param_name_str = std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value;
         param_name.push_back(param_name_str);
         auto param_type = this->_parseType(param->value_type);
         param_inst_record.push_back(param_type);
-        param_types.push_back(param_type->struct_type->stand_alone_type ? param_type->struct_type->stand_alone_type : llvm::PointerType::get(param_type->struct_type->struct_type, 0));
+        param_types.push_back(param_type->stand_alone_type ? param_type->stand_alone_type : llvm::PointerType::get(param_type->struct_type, 0));
     }
     auto return_type = this->_parseType(function_declaration_statement->return_type);
-    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
+    auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
     this->ir_gc_map_json["functions"][name] = func->getName().str();
@@ -1066,7 +1228,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
     for(auto& arg : func->args()) {
         arg.setName(param_name[idx++]);
     }
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> arguments;
     auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
     if(body) {
         auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
@@ -1119,12 +1281,12 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
 };
 
 std::tuple<llvm::Value*, llvm::Value*,
-           std::variant<std::shared_ptr<enviornment::RecordStructInstance>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, compiler::resolveType>
 compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> call_expression) {
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
     auto param = call_expression->arguments;
     std::vector<llvm::Value*> args;
-    std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types;
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types;
     if(this->enviornment->is_function(name, params_types)) {
         for(auto arg : param) {
             auto [value, _, param_type, ptt] = this->_resolveValue(arg);
@@ -1132,7 +1294,7 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
                 std::cerr << "Cant pass Module or type to the Function" << std::endl;
                 exit(1);
             }
-            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructInstance>>(param_type));
+            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
             args.push_back(value);
         }
         auto func_record = this->enviornment->get_function(name, params_types);
@@ -1142,19 +1304,31 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
         for(auto arg : param) {
             auto [value, _, param_type, ptt] = this->_resolveValue(arg);
             if(ptt != compiler::resolveType::StructInst) {
-                std::cerr << "Cant pass Module or type to the Function" << std::endl;
+
                 exit(1);
             }
-            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructInstance>>(param_type));
+            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
             args.push_back(value);
         }
         auto gfuncs = this->enviornment->get_Gfunc(name);
         return this->_CallGfunc(gfuncs, name, args, params_types);
+    } else if(this->enviornment->is_Gstruct(name)) {
+        for(auto arg : param) {
+            auto [value, _, param_type, ptt] = this->_resolveValue(arg);
+            if(ptt != compiler::resolveType::StructInst && ptt != compiler::resolveType::StructType) {
+                std::cerr << "Cant pass Module or type to the Function" << std::endl;
+                exit(1);
+            }
+            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
+            args.push_back(value);
+        }
+        auto gstruct = this->enviornment->get_Gstruct(name);
+        return this->_CallGstruct(gstruct, name, args, params_types);
     } else if(this->enviornment->is_struct(name)) {
         auto struct_record = this->enviornment->get_struct(name);
         auto struct_type = struct_record->struct_type;
         auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
-        params_types.push_back(std::make_shared<enviornment::RecordStructInstance>(struct_record));
+        params_types.push_back(struct_record);
         args.push_back(alloca);
         for(auto arg : param) {
             auto [value, _, param_type, ptt] = this->_resolveValue(arg);
@@ -1162,7 +1336,7 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
                 std::cerr << "Cant pass Module or type to the struct Initilazior" << std::endl;
                 exit(1);
             }
-            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructInstance>>(param_type));
+            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
             args.push_back(value);
         }
         auto func = struct_record->get_method(struct_record->name, params_types);
@@ -1172,7 +1346,7 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
             std::cerr << "Initilaxation method is not Created for the struct: `" + struct_record->name + "`" << std::endl;
             exit(1);
         }
-        return {alloca, alloca, std::make_shared<enviornment::RecordStructInstance>(struct_record), compiler::resolveType::StructInst};
+        return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
     }
     errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no, "Function `" + name + "` not defined").raise();
     exit(1);
@@ -1187,7 +1361,7 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
         std::cerr << "Condition Cant Be Module" << std::endl;
         exit(1);
     }
-    auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_condition);
+    auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition);
     if(!enviornment::_checkType(bool_condition, this->enviornment->get_struct("bool"))) {
         std::cerr << "Condition type Must be Bool" << std::endl;
         exit(1);
@@ -1243,7 +1417,7 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
         std::cerr << "Condition Cant Be Module" << std::endl;
         exit(1);
     }
-    auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructInstance>>(_condition);
+    auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition);
     if(!enviornment::_checkType(bool_condition, this->enviornment->get_struct("bool"))) {
         std::cerr << "Condition type Must be Bool" << std::endl;
         exit(1);
@@ -1267,9 +1441,14 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
 
 void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement) {
     std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(struct_statement->name)->value;
+    auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
+    if(!struct_statement->generics.empty()) {
+        auto gsr = std::make_shared<enviornment::RecordGStructType>(struct_name, struct_statement, this->enviornment);
+        this->enviornment->add(gsr);
+        return;
+    };
     std::vector<llvm::Type*> field_types;
     auto fields = struct_statement->fields;
-    auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
     this->enviornment->add(struct_record);
     for(auto field : fields) {
         if(field->type() == AST::NodeType::VariableDeclarationStatement) {
@@ -1277,10 +1456,10 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
             struct_record->fields.push_back(field_name);
             auto field_type = this->_parseType(field_decl->value_type);
-            if(field_type->struct_type->stand_alone_type == nullptr) {
-                field_types.push_back(field_type->struct_type->struct_type);
+            if(field_type->stand_alone_type == nullptr) {
+                field_types.push_back(field_type->struct_type);
             } else {
-                field_types.push_back(field_type->struct_type->stand_alone_type);
+                field_types.push_back(field_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
             auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
@@ -1398,17 +1577,17 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
     auto params = function_declaration_statement->parameters;
     std::vector<std::string> param_names;
     std::vector<llvm::Type*> param_types;
-    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
+    std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> arguments;
 
     for(auto param : params) {
         param_names.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
-        param_types.push_back(this->_parseType(param->value_type)->struct_type->stand_alone_type ? this->_parseType(param->value_type)->struct_type->stand_alone_type
-                                                                                                 : llvm::PointerType::get(this->_parseType(param->value_type)->struct_type->struct_type, 0));
+        param_types.push_back(this->_parseType(param->value_type)->stand_alone_type ? this->_parseType(param->value_type)->stand_alone_type
+                                                                                                 : llvm::PointerType::get(this->_parseType(param->value_type)->struct_type, 0));
         arguments.push_back({std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value, this->_parseType(param->value_type)});
     }
 
     auto return_type = this->_parseType(function_declaration_statement->return_type);
-    auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
+    auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type->getPointerTo();
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, ir_gc_map_json["functions"][name].get<std::string>(), this->llvm_module.get());
     unsigned idx = 0;
@@ -1432,10 +1611,10 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
             std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
             struct_record->fields.push_back(field_name);
             auto field_type = this->_parseType(field_decl->value_type);
-            if(field_type->struct_type->stand_alone_type == nullptr) {
-                field_types.push_back(field_type->struct_type->struct_type);
+            if(field_type->stand_alone_type == nullptr) {
+                field_types.push_back(field_type->struct_type);
             } else {
-                field_types.push_back(field_type->struct_type->stand_alone_type);
+                field_types.push_back(field_type->stand_alone_type);
             }
             struct_record->sub_types[field_name] = field_type;
         } else if(field->type() == AST::NodeType::FunctionStatement) {
@@ -1444,19 +1623,19 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
             auto method_params = field_decl->parameters;
             std::vector<std::string> param_names;
             std::vector<llvm::Type*> param_types;
-            std::vector<std::shared_ptr<enviornment::RecordStructInstance>> param_inst_records;
-            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructInstance>>> arguments;
+            std::vector<std::shared_ptr<enviornment::RecordStructType>> param_inst_records;
+            std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> arguments;
 
             for(auto param : method_params) {
                 param_names.push_back(std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value);
                 param_inst_records.push_back(this->_parseType(param->value_type));
-                param_types.push_back(param_inst_records.back()->struct_type->stand_alone_type ? param_inst_records.back()->struct_type->stand_alone_type
-                                                                                               : llvm::PointerType::get(param_inst_records.back()->struct_type->struct_type, 0));
+                param_types.push_back(param_inst_records.back()->stand_alone_type ? param_inst_records.back()->stand_alone_type
+                                                                                               : llvm::PointerType::get(param_inst_records.back()->struct_type, 0));
                 arguments.push_back({std::static_pointer_cast<AST::IdentifierLiteral>(param->name)->value, this->_parseType(param->value_type)});
             }
 
             auto return_type = this->_parseType(field_decl->return_type);
-            auto llvm_return_type = return_type->struct_type->stand_alone_type ? return_type->struct_type->stand_alone_type : return_type->struct_type->struct_type->getPointerTo();
+            auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type->getPointerTo();
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
             auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, struct_name + "::" + method_name, this->llvm_module.get());
 

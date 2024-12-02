@@ -14,7 +14,7 @@
 #include "../../parser/AST/ast.hpp"
 
 namespace enviornment {
-enum class RecordType { RecordStructInst, RecordVariable, RecordFunction, RecordModule, RecordGenericFunction };
+enum class RecordType { RecordGStructType, RecordStructInst, RecordVariable, RecordFunction, RecordModule, RecordGenericFunction };
 
 class Record {
   public:
@@ -32,22 +32,21 @@ class Record {
 
 class RecordVariable;
 class RecordStructType;
-class RecordStructInstance;
 class Enviornment;
 
 class RecordFunction : public Record {
   public:
     llvm::Function* function = nullptr;
     llvm::FunctionType* function_type = nullptr;
-    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments;
-    std::shared_ptr<RecordStructInstance> return_inst;
+    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments;
+    std::shared_ptr<RecordStructType> return_inst;
     bool varArg = false;
     RecordFunction(const std::string& name) : Record(RecordType::RecordFunction, name) {};
-    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments,
-                   std::shared_ptr<RecordStructInstance> return_inst)
+    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
+                   std::shared_ptr<RecordStructType> return_inst)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
-    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructInstance>>> arguments,
-                   std::shared_ptr<RecordStructInstance> return_inst, bool isVarArg)
+    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
+        std::shared_ptr<RecordStructType> return_inst, bool isVarArg)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst), varArg(isVarArg) {};
 };
 
@@ -59,56 +58,56 @@ class RecordGenericFunction : public Record {
         : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {};
 };
 
+class RecordGStructType : public Record {
+  public:
+    std::shared_ptr<AST::StructStatement> structt = nullptr;
+    std::shared_ptr<Enviornment> env = nullptr;
+    RecordGStructType(const std::string& name, std::shared_ptr<AST::StructStatement> structt, std::shared_ptr<Enviornment> env)
+        : Record(RecordType::RecordGStructType, name), structt(structt), env(env) {};
+};
+
 class RecordStructType : public Record {
   public:
     llvm::Type* stand_alone_type = nullptr;
     llvm::StructType* struct_type = nullptr;
     std::vector<std::string> fields = {};
-    std::unordered_map<std::string, std::shared_ptr<RecordStructInstance>> sub_types = {};
+    std::unordered_map<std::string, std::shared_ptr<RecordStructType>> sub_types = {};
+    std::vector<std::shared_ptr<RecordStructType>> generic_sub_types = {};
     std::vector<std::tuple<std::string, std::shared_ptr<RecordFunction>>> methods = {};
     RecordStructType(const std::string& name) : Record(RecordType::RecordStructInst, name) {};
     RecordStructType(const std::string& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
-    bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types);
-    std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types);
-};
-
-class RecordStructInstance {
-  public:
-    std::shared_ptr<RecordStructType> struct_type = nullptr;
-    std::vector<std::shared_ptr<RecordStructInstance>> generic = {};
-    bool unknown = false;
-    RecordStructInstance() : unknown(true) {};
-    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type) : struct_type(struct_type) {};
-    RecordStructInstance(std::shared_ptr<RecordStructType> struct_type, std::vector<std::shared_ptr<RecordStructInstance>> generic) : struct_type(struct_type), generic(generic) {};
+    bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
 };
 
 class RecordVariable : public Record {
   public:
     llvm::Value* value = nullptr;
     llvm::Value* allocainst = nullptr;
-    std::shared_ptr<RecordStructInstance> variableType = nullptr;
+    std::shared_ptr<RecordStructType> variableType = nullptr;
     RecordVariable(const std::string& name) : Record(RecordType::RecordVariable, name) {};
-    RecordVariable(const std::string& name, llvm::Value* value, llvm::Value* allocainst, std::shared_ptr<RecordStructInstance> generic)
+    RecordVariable(const std::string& name, llvm::Value* value, llvm::Value* allocainst, std::shared_ptr<RecordStructType> generic)
         : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variableType(generic) {};
 };
 
-bool _checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructInstance> type2);
-bool _checkType(std::shared_ptr<enviornment::RecordStructInstance> type1, std::shared_ptr<enviornment::RecordStructType> type2);
 bool _checkType(std::shared_ptr<enviornment::RecordStructType> type1, std::shared_ptr<enviornment::RecordStructType> type2);
+bool _checkType(std::shared_ptr<enviornment::RecordGStructType> type1, std::shared_ptr<enviornment::RecordGStructType> type2);
 
 class RecordModule : public Record {
   public:
     std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map;
     RecordModule(const std::string& name, std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {};
     RecordModule(const std::string& name) : Record(RecordType::RecordModule, name) {};
-    bool is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types);
-    std::shared_ptr<RecordFunction> get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructInstance>>& params_types);
-    bool is_struct(const std::string& name);
-    std::shared_ptr<RecordStructType> get_struct(const std::string& name);
+    bool is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    std::shared_ptr<RecordFunction> get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    bool is_struct(const std::string& name, std::vector<std::shared_ptr<RecordStructType>> gen = {});
+    std::shared_ptr<RecordStructType> get_struct(const std::string& name, std::vector<std::shared_ptr<RecordStructType>> gen = {});
     bool is_module(const std::string& name);
     std::shared_ptr<RecordModule> get_module(const std::string& name);
     bool is_Gfunc(const std::string& name);
     std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> get_Gfunc(const std::string& name);
+    bool is_Gstruct(const std::string& name);
+    std::vector<std::shared_ptr<enviornment::RecordGStructType>> get_Gstruct(const std::string& name);
 };
 
 class Enviornment {
@@ -128,13 +127,15 @@ class Enviornment {
     void add(std::shared_ptr<Record> record);
     bool is_variable(const std::string& name, bool limit2current_scope = false);
     std::shared_ptr<RecordVariable> get_variable(const std::string& name, bool limit2current_scope = false);
-    bool is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types, bool limit2current_scope = false);
-    std::shared_ptr<RecordFunction> get_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructInstance>> params_types, bool limit2current_scope = false);
-    bool is_struct(const std::string& name, bool limit2current_scope = false);
-    std::shared_ptr<RecordStructType> get_struct(const std::string& name, bool limit2current_scope = false);
+    bool is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope = false);
+    std::shared_ptr<RecordFunction> get_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope = false);
+    bool is_struct(const std::string& name, bool limit2current_scope = false, std::vector<std::shared_ptr<RecordStructType>> gen = {});
+    std::shared_ptr<RecordStructType> get_struct(const std::string& name, bool limit2current_scope = false, std::vector<std::shared_ptr<RecordStructType>> gen = {});
     bool is_module(const std::string& name, bool limit2current_scope = false);
     std::shared_ptr<RecordModule> get_module(const std::string& name, bool limit2current_scope = false);
     bool is_Gfunc(const std::string& name);
     std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> get_Gfunc(const std::string& name);
+    bool is_Gstruct(const std::string& name);
+    std::vector<std::shared_ptr<enviornment::RecordGStructType>> get_Gstruct(const std::string& name);
 }; // class Environment
 } // namespace enviornment

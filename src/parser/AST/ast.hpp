@@ -1,5 +1,6 @@
 #ifndef AST_HPP
 #define AST_HPP
+#include <memory>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -156,6 +157,7 @@ class CallExpression : public Expression {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Expression>> arguments;
+    std::vector<std::shared_ptr<Expression>> generics;
     inline CallExpression(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Expression>> arguments = {}) : name(name), arguments(arguments) {}
     inline NodeType type() override { return NodeType::CallExpression; };
     std::shared_ptr<nlohmann::json> toJSON() override;
@@ -292,6 +294,7 @@ class StructStatement : public Statement {
   public:
     std::shared_ptr<Expression> name = nullptr;
     std::vector<std::shared_ptr<Statement>> fields = {};
+    std::vector<std::shared_ptr<GenericType>> generics = {};
     inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields) : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;

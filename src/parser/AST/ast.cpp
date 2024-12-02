@@ -1,8 +1,8 @@
 #include "ast.hpp"
+#include "../../lexer/token.hpp"
 
 #include <memory>
 
-#include "../../lexer/token.hpp"
 
 std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
     switch(type) {
@@ -268,6 +268,10 @@ std::shared_ptr<nlohmann::json> AST::StructStatement::toJSON() {
     jsonAst["fields"] = nlohmann::json::array();
     for(auto& field : this->fields) {
         jsonAst["fields"].push_back(*field->toJSON());
+    }
+    jsonAst["generics"] = nlohmann::json::array();
+    for(auto& field : this->generics) {
+        jsonAst["generics"].push_back(*field->toJSON());
     }
     return std::make_shared<nlohmann::json>(jsonAst);
 }
