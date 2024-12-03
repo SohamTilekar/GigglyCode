@@ -27,7 +27,8 @@ class Record {
         this->meta_data.end_line_no = end_line_no;
         this->meta_data.end_col_no = end_col_no;
     };
-    Record(RecordType type, std::string name) : type(type), name(name) {};
+    std::unordered_map<std::string, std::any> extra_info = {};
+    Record(RecordType type, std::string name, std::unordered_map<std::string, std::any> extra_info = {}) : type(type), name(name), extra_info(extra_info) {};
 }; // class Record
 
 class RecordVariable;
@@ -43,8 +44,8 @@ class RecordFunction : public Record {
     bool varArg = false;
     RecordFunction(const std::string& name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
-                   std::shared_ptr<RecordStructType> return_inst)
-        : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
+                   std::shared_ptr<RecordStructType> return_inst, std::unordered_map<std::string, std::any> extra_info = {})
+        : Record(RecordType::RecordFunction, name, extra_info), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
     RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
         std::shared_ptr<RecordStructType> return_inst, bool isVarArg)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst), varArg(isVarArg) {};
@@ -76,8 +77,8 @@ class RecordStructType : public Record {
     std::vector<std::tuple<std::string, std::shared_ptr<RecordFunction>>> methods = {};
     RecordStructType(const std::string& name) : Record(RecordType::RecordStructInst, name) {};
     RecordStructType(const std::string& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
-    bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
-    std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
+    std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
 };
 
 class RecordVariable : public Record {

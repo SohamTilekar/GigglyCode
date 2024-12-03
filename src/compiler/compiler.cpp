@@ -265,7 +265,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             arg.setName(param_name[idx++]);
         }
         std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> arguments;
-        auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
+        auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type, gfunc->func->extra_info);
         if(body) {
             auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
             this->function_entery_block.push_back(bb);
@@ -458,6 +458,12 @@ compiler::Compiler::_convertType(std::tuple<llvm::Value*, llvm::Value*, std::sha
     else if(oftype->name == "float32" && to->name == "uint32") {
         auto uint32_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->get_struct("uint32")->stand_alone_type);
         return {uint32_type, ofalloca, to, compiler::resolveType::StructInst};
+    } else if(oftype->struct_type) {
+        if(oftype->is_method("", {oftype}, {{"autocast", true}}, to)) {
+            auto method = oftype->get_method("", {oftype}, {{"autocast", true}}, to);
+            auto returnValue = this->llvm_ir_builder.CreateCall(method->function, {ofalloca});
+            return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
+        }
     }
     std::cerr << "Unknown type conversion from " << oftype->name << " to " << to->name << std::endl;
     exit(1);
@@ -479,6 +485,10 @@ bool compiler::Compiler::_canConvertType(std::shared_ptr<enviornment::RecordStru
        (from->name == "float" && to->name == "uint") ||
        (from->name == "float32" && to->name == "uint32")) {
         return true;
+    } else if(from->struct_type) {
+        if(from->is_method("", {from}, {{"autocast", true}}), to) {
+            return true;
+        }
     }
     return false;
 };
@@ -528,7 +538,7 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
                     }
                     auto type = left_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
                     llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx);
-                    if (left_type->struct_type) {
+                    if (type->struct_type) {
                         return {gep, gep, type, compiler::resolveType::StructInst};
                     }
                     llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(type->stand_alone_type->getScalarSizeInBits() / 8));
@@ -1224,7 +1234,6 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
             auto x = this->_convertType({return_value, return_alloca, std::get<std::shared_ptr<enviornment::RecordStructType>>(_)}, this->enviornment->current_function->return_inst);
             return_value = std::get<0>(x);
             return_alloca = std::get<1>(x);
-            // generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(std::get<2>(x));
         } else {
             std::cerr << "Return Type Miss Match" << std::endl;
             exit(1);
@@ -1350,7 +1359,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         arg.setName(param_name[idx++]);
     }
     std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>> arguments;
-    auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
+    auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
     if(body) {
         auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
         this->function_entery_block.push_back(bb);
@@ -1724,7 +1733,7 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
         arg.setName(param_names[idx++]);
     }
 
-    auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type);
+    auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
     module->record_map.push_back({func_record->name, func_record});
 }
 
@@ -1773,7 +1782,7 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
                 arg.setName(param_names[idx++]);
             }
 
-            auto func_record = std::make_shared<enviornment::RecordFunction>(method_name, func, func_type, arguments, return_type);
+            auto func_record = std::make_shared<enviornment::RecordFunction>(method_name, func, func_type, arguments, return_type, field_decl->extra_info);
             struct_record->methods.push_back({method_name, func_record});
         }
     }

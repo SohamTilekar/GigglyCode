@@ -19,7 +19,7 @@ std::shared_ptr<AST::Program> parser::Parser::parseProgram() {
     int st_col_no = current_token->col_no;
     while(current_token->type != token::TokenType::EndOfFile) {
         auto statement = this->_parseStatement();
-        if(statement != nullptr) {
+        if(statement) {
             program->statements.push_back(statement);
         }
         this->_nextToken();
@@ -129,6 +129,34 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseDeco() {
             auto _struct = this->_parseStructStatement();
             _struct->generics = generics;
             return _struct;
+        } else if(this->_peekTokenIs(token::TokenType::AtTheRate)) {
+            this->_nextToken();
+            auto _deco = this->_parseDeco();
+            if(_deco->type() == AST::NodeType::FunctionStatement) {
+                auto deco = std::static_pointer_cast<AST::FunctionStatement>(_deco);
+                deco->generic = generics;
+                return deco;
+            } else if (_deco->type() == AST::NodeType::StructStatement) {
+                auto deco = std::static_pointer_cast<AST::StructStatement>(_deco);
+                deco->generics = generics;
+                return deco;
+            }
+        }
+        this->_peekError(this->current_token->type, token::TokenType::Def);
+    } else if (name == "autocast") {
+        if(this->_peekTokenIs(token::TokenType::Def)) {
+            this->_nextToken();
+            auto func = this->_parseFunctionStatement();
+            func->extra_info["autocast"] = true;
+            return func;
+        } else if(this->_peekTokenIs(token::TokenType::AtTheRate)) {
+            this->_nextToken();
+            auto _deco = this->_parseDeco();
+            if(_deco->type() == AST::NodeType::FunctionStatement) {
+                auto deco = std::static_pointer_cast<AST::FunctionStatement>(_deco);
+                deco->extra_info["autocast"] = true;
+                return deco;
+            }
         }
         this->_peekError(this->current_token->type, token::TokenType::Def);
     }
@@ -352,7 +380,7 @@ std::shared_ptr<AST::BlockStatement> parser::Parser::_parseBlockStatement() {
     std::vector<std::shared_ptr<AST::Statement>> statements;
     while(!this->_currentTokenIs(token::TokenType::RightBrace) && !this->_currentTokenIs(token::TokenType::EndOfFile)) {
         auto stmt = this->_parseStatement();
-        if(stmt != nullptr) {
+        if(stmt) {
             statements.push_back(stmt);
         }
         this->_nextToken();
@@ -496,17 +524,19 @@ std::shared_ptr<AST::StructStatement> parser::Parser::_parseStructStatement() {
     while(!this->_currentTokenIs(token::TokenType::RightBrace) && !this->_currentTokenIs(token::TokenType::EndOfFile)) {
         if(this->_currentTokenIs(token::TokenType::Def)) {
             auto stmt = this->_parseFunctionStatement();
-            if(stmt != nullptr) {
+            if(stmt)
                 statements.push_back(stmt);
-            } else {
-            }
-            this->_nextToken();
-            continue;
-        }
-        auto stmt = this->_parseVariableDeclaration();
-        if(stmt != nullptr) {
-            statements.push_back(stmt);
+        } else if(this->_currentTokenIs(token::TokenType::Identifier)) {
+            auto stmt = this->_parseVariableDeclaration();
+            if(stmt)
+                statements.push_back(stmt);
+        } else if(this->_currentTokenIs(token::TokenType::AtTheRate)) {
+            auto stmt = this->_parseDeco();
+            if(stmt)
+                statements.push_back(stmt);
         } else {
+            this->_peekError(this->current_token->type, token::TokenType::Identifier);
+            return nullptr;
         }
         this->_nextToken();
     }
@@ -694,7 +724,7 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseArrayLiteral() {
             continue;
         }
         auto expr = _parseExpression(PrecedenceType::LOWEST);
-        if(expr != nullptr) {
+        if(expr) {
             elements.push_back(expr);
         }
     }

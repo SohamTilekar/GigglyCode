@@ -25,18 +25,51 @@ bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> fu
     return result;
 };
 
-bool enviornment::RecordStructType::is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
-    for(auto [method_name, method] : this->methods) {
-        if(method->name == name && _checkFunctionParameterType(method, params_types)) {
+bool enviornment::RecordStructType::is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info, std::shared_ptr<enviornment::RecordStructType> return_type) {
+    for(const auto& [method_name, method] : this->methods) {
+        // Check if all keys in ex_info are present in this->extra_info and their values match
+        bool match = true;
+        for(const auto& [key, value] : ex_info) {
+            if(key == "autocast") {
+                if(method->extra_info.find(key) == method->extra_info.end() || std::any_cast<bool>(method->extra_info.at(key)) != std::any_cast<bool>(value)) {
+                    match = false;
+                    break;
+                }
+            } else {
+                std::cerr << "Unsupported key found in ex_info: " << key << std::endl;
+                throw std::runtime_error("Unsupported key found in ex_info: " + key);
+            }
+        }
+        bool return_correct = true;
+        if(return_type && !enviornment::_checkType(return_type, method->return_inst)) {
+            return_correct = false;
+        }
+        if(return_correct && match && (name == "" || method->name == name) && _checkFunctionParameterType(method, params_types)) {
             return true;
         }
     }
     return false;
 };
 
-std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
+
+std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info, std::shared_ptr<enviornment::RecordStructType> return_type) {
     for(auto [method_name, method] : this->methods) {
-        if(method->name == name && _checkFunctionParameterType(method, params_types)) {
+        // Check if all keys in ex_info are present in this->extra_info and their values match
+        bool match = true;
+        for(const auto& [key, value] : ex_info) {
+            if(key == "autocast") {
+                if(method->extra_info.find(key) == method->extra_info.end() || std::any_cast<bool>(method->extra_info.at(key)) != std::any_cast<bool>(value)) {
+                    match = false;
+                    break;
+                }
+            } else {
+                throw std::runtime_error("Unsupported key found in ex_info: " + key);
+            }
+        }
+        bool return_correct = true;
+        if(return_type && !enviornment::_checkType(return_type, method->return_inst))
+            return_correct = false;
+        if(return_correct && match && (name == "" || method->name == name) && _checkFunctionParameterType(method, params_types)) {
             return method;
         }
     }
