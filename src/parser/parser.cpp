@@ -393,13 +393,16 @@ std::shared_ptr<AST::BlockStatement> parser::Parser::_parseBlockStatement() {
     return block_statement;
 }
 
-std::shared_ptr<AST::ExpressionStatement> parser::Parser::_parseExpressionStatement(std::shared_ptr<AST::Expression> identifier, int st_line_no, int st_col_no) {
+std::shared_ptr<AST::Statement> parser::Parser::_parseExpressionStatement(std::shared_ptr<AST::Expression> identifier, int st_line_no, int st_col_no) {
     if(identifier == nullptr) {
         st_line_no = current_token->line_no;
         st_col_no = current_token->col_no;
         identifier = std::make_shared<AST::IdentifierLiteral>(this->current_token);
     }
     auto expr = this->_parseExpression(PrecedenceType::LOWEST, identifier, st_line_no, st_col_no);
+    if(this->_peekTokenIs(token::TokenType::Equals)) {
+        return this->_parseVariableAssignment(expr, expr->meta_data.st_col_no, expr->meta_data.end_col_no);
+    }
     if(this->_peekTokenIs(token::TokenType::Semicolon)) {
         this->_nextToken();
     }
