@@ -1,4 +1,5 @@
 // TODO: Add Meta Data to all of the Record.
+// TODO: Fix Import
 #include "compiler.hpp"
 #include <algorithm>
 #include <filesystem>
@@ -27,6 +28,7 @@
 
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
+#include "enviornment/enviornment.hpp"
 
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map, std::filesystem::path buildDir, std::filesystem::path relativePath)
     : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map), buildDir(buildDir), relativePath(relativePath) {
@@ -986,18 +988,21 @@ std::tuple<llvm::Value*, llvm::Value*,
            compiler::resolveType>
 compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression) {
     auto [left, _, _left_generic, ltt] = this->_resolveValue(index_expression->left);
-    if(ltt == compiler::resolveType::StructInst) {
+    if(ltt != compiler::resolveType::StructInst) {
         errors::Cantindex(this->source, index_expression, false, "Cannot index Module or type", "Ensure the left-hand side is an array or a valid indexable type.").raise();
         exit(1);
     }
     auto left_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_generic);
     auto [index, __, _index_generic, itt] = this->_resolveValue(index_expression->index);
-    if(itt == compiler::resolveType::StructInst) {
+    if(itt != compiler::resolveType::StructInst) {
         errors::Cantindex(this->source, index_expression, true, "Index must be an integer, not a Module or type", "Ensure the index is an integer.").raise();
         exit(1);
     }
     auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_index_generic);
     if(enviornment::_checkType(left_generic, this->enviornment->get_struct("array"))) {
+        if(!enviornment::_checkType(index_generic, this->enviornment->get_struct("int"))) {
+            errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
+        }
         auto element = this->llvm_ir_builder.CreateGEP(left_generic->sub_types["valueType"]->stand_alone_type ? left_generic->sub_types["valueType"]->stand_alone_type
                                                                                                               : left_generic->sub_types["valueType"]->struct_type,
                                                        left, index, "element");
@@ -1211,10 +1216,7 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
                 exit(1);
             }
         }
-        auto loadInst = struct_type->struct_type
-                            ? value
-                            : this->llvm_ir_builder.CreateAlignedLoad(struct_type->stand_alone_type, value_alloca, llvm::MaybeAlign(struct_type->stand_alone_type->getScalarSizeInBits() / 8));
-        values.push_back(loadInst);
+        values.push_back(value);
     }
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
     auto array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
@@ -1222,7 +1224,9 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
         auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
         auto storeInst = this->llvm_ir_builder.CreateStore(values[i], element);
     }
-    return {array, array, this->enviornment->get_struct("array"), compiler::resolveType::StructInst};
+    auto x = std::make_shared<enviornment::RecordStructType>(*this->enviornment->get_struct("array"));
+    x->sub_types["valueType"] = first_generic;
+    return {array, array, x, compiler::resolveType::StructInst};
 };
 
 void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement) {
@@ -1711,18 +1715,15 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
         case AST::NodeType::FunctionStatement: {
             this->_importFunctionDeclarationStatement(std::static_pointer_cast<AST::FunctionStatement>(stmt), module, ir_gc_map_json);
             break;
-        }
-        case AST::NodeType::StructStatement: {
+        } case AST::NodeType::StructStatement: {
             this->_importStructStatement(std::static_pointer_cast<AST::StructStatement>(stmt), module, ir_gc_map_json);
             break;
-        }
-        case AST::NodeType::ImportStatement: {
+        } case AST::NodeType::ImportStatement: {
             this->file_path = gc_source_path;
             this->_visitImportStatement(std::static_pointer_cast<AST::ImportStatement>(stmt), module);
             this->file_path = prev_path;
             break;
-        }
-        default:
+        } default:
             std::cerr << "Unknown statement type, skipping" << std::endl;
             break;
         }
