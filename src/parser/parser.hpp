@@ -103,8 +103,9 @@ class Parser {
     void _nextToken();
     bool _currentTokenIs(token::TokenType type);
     bool _peekTokenIs(token::TokenType type);
-    bool _expectPeek(token::TokenType type);
-    void _peekError(token::TokenType type, token::TokenType expected_type, std::string suggestedFix = "");
+    bool _expectPeek(std::vector<token::TokenType> type, std::string suggestedFix = "");
+    void _peekTokenError(token::TokenType type, std::vector<token::TokenType> expected_type, std::string suggestedFix = "");
+    void _currentTokenError(token::TokenType type, std::vector<token::TokenType> expected_type, std::string suggestedFix = "");
     void _noPrefixParseFnError(token::TokenType type);
     PrecedenceType _currentPrecedence();
     PrecedenceType _peekPrecedence();

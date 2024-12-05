@@ -1,6 +1,5 @@
 #include "./token.hpp"
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -14,7 +13,7 @@ std::string token::Token::toString(bool color) {
     const std::string colorMagenta = "\x1b[95m";
 
     // Convert variables to strings
-    std::string typeString = *tokenTypeString(type);
+    std::string typeString = tokenTypeString(type);
     std::string literalString = literal;
     std::unordered_map<std::string, std::string> replacements = {{"\n", "\\$(n)"}, {"\t", "\\$(t)"}};
 
@@ -52,154 +51,154 @@ std::string token::Token::toString(bool color) {
            endColNoString + (color ? colorReset : "") + (color ? colorRed : "") + "]" + (color ? colorReset : "");
 }
 
-std::shared_ptr<std::string> token::tokenTypeString(TokenType type) {
+std::string token::tokenTypeString(TokenType type) {
     switch(type) {
     case TokenType::Identifier:
-        return std::make_shared<std::string>("Identifier");
+        return "Identifier";
     case TokenType::Integer:
-        return std::make_shared<std::string>("INT");
+        return "INT";
     case TokenType::Float:
-        return std::make_shared<std::string>("Float");
+        return "Float";
     case TokenType::PlusEqual:
-        return std::make_shared<std::string>("PlusEqual");
+        return "PlusEqual";
     case TokenType::DashEqual:
-        return std::make_shared<std::string>("DashEqual");
+        return "DashEqual";
     case TokenType::AsteriskEqual:
-        return std::make_shared<std::string>("AsteriskEqual");
+        return "AsteriskEqual";
     case TokenType::PercentEqual:
-        return std::make_shared<std::string>("PercentEqual");
+        return "PercentEqual";
     case TokenType::CaretEqual:
-        return std::make_shared<std::string>("CaretEqual");
+        return "CaretEqual";
     case TokenType::ForwardSlashEqual:
-        return std::make_shared<std::string>("ForwardSlashEqual");
+        return "ForwardSlashEqual";
     case TokenType::BackwardSlashEqual:
-        return std::make_shared<std::string>("BackwardSlashEqual");
+        return "BackwardSlashEqual";
     case TokenType::Increment:
-        return std::make_shared<std::string>("Increment");
+        return "Increment";
     case TokenType::Decrement:
-        return std::make_shared<std::string>("Decrement");
+        return "Decrement";
     case TokenType::Dot:
-        return std::make_shared<std::string>("Dot");
+        return "Dot";
     case TokenType::Ellipsis:
-        return std::make_shared<std::string>("Ellipsis");
+        return "Ellipsis";
     case TokenType::Plus:
-        return std::make_shared<std::string>("Plus");
+        return "Plus";
     case TokenType::Dash:
-        return std::make_shared<std::string>("Dash");
+        return "Dash";
     case TokenType::Asterisk:
-        return std::make_shared<std::string>("Asterisk");
+        return "Asterisk";
     case TokenType::AsteriskAsterisk:
-        return std::make_shared<std::string>("AsteriskAsterisk");
+        return "AsteriskAsterisk";
     case TokenType::Percent:
-        return std::make_shared<std::string>("Percent");
+        return "Percent";
     case TokenType::ForwardSlash:
-        return std::make_shared<std::string>("ForwardSlash");
+        return "ForwardSlash";
     case TokenType::BackwardSlash:
-        return std::make_shared<std::string>("BackwardSlash");
+        return "BackwardSlash";
     case TokenType::LeftParen:
-        return std::make_shared<std::string>("LeftParen");
+        return "LeftParen";
     case TokenType::RightParen:
-        return std::make_shared<std::string>("RightParen");
+        return "RightParen";
     case TokenType::LeftBrace:
-        return std::make_shared<std::string>("LeftBrace");
+        return "LeftBrace";
     case TokenType::RightBrace:
-        return std::make_shared<std::string>("RightBrace");
+        return "RightBrace";
     case TokenType::LeftBracket:
-        return std::make_shared<std::string>("LeftBracket");
+        return "LeftBracket";
     case TokenType::RightBracket:
-        return std::make_shared<std::string>("RightBracket");
+        return "RightBracket";
     case TokenType::Colon:
-        return std::make_shared<std::string>("Colon");
+        return "Colon";
     case TokenType::Semicolon:
-        return std::make_shared<std::string>("Semicolon");
+        return "Semicolon";
     case TokenType::RightArrow:
-        return std::make_shared<std::string>("RightArrow");
+        return "RightArrow";
     case TokenType::Comma:
-        return std::make_shared<std::string>("Comma");
+        return "Comma";
     case TokenType::AtTheRate:
-        return std::make_shared<std::string>("AtTheRate");
+        return "AtTheRate";
     case TokenType::Pipe:
-        return std::make_shared<std::string>("Pipe");
+        return "Pipe";
     case TokenType::Equals:
-        return std::make_shared<std::string>("Equals");
+        return "Equals";
     case TokenType::Illegal:
-        return std::make_shared<std::string>("Illegal");
+        return "Illegal";
     case TokenType::EndOfFile:
-        return std::make_shared<std::string>("EndOfFile");
+        return "EndOfFile";
     case TokenType::Return:
-        return std::make_shared<std::string>("Return");
+        return "Return";
     case TokenType::GreaterThan:
-        return std::make_shared<std::string>("GreaterThan");
+        return "GreaterThan";
     case TokenType::LessThan:
-        return std::make_shared<std::string>("LessThan");
+        return "LessThan";
     case TokenType::GreaterThanOrEqual:
-        return std::make_shared<std::string>("GreaterThanOrEqual");
+        return "GreaterThanOrEqual";
     case TokenType::LessThanOrEqual:
-        return std::make_shared<std::string>("LessThanOrEqual");
+        return "LessThanOrEqual";
     case TokenType::EqualEqual:
-        return std::make_shared<std::string>("EqualEqual");
+        return "EqualEqual";
     case TokenType::NotEquals:
-        return std::make_shared<std::string>("NotEquals");
+        return "NotEquals";
     case TokenType::BitwiseAnd:
-        return std::make_shared<std::string>("BitwiseAnd");
+        return "BitwiseAnd";
     case TokenType::BitwiseOr:
-        return std::make_shared<std::string>("BitwiseOr");
+        return "BitwiseOr";
     case TokenType::BitwiseXor:
-        return std::make_shared<std::string>("BitwiseXor");
+        return "BitwiseXor";
     case TokenType::BitwiseNot:
-        return std::make_shared<std::string>("BitwiseNot");
+        return "BitwiseNot";
     case TokenType::LeftShift:
-        return std::make_shared<std::string>("LeftShift");
+        return "LeftShift";
     case TokenType::RightShift:
-        return std::make_shared<std::string>("RightShift");
+        return "RightShift";
     case TokenType::And:
-        return std::make_shared<std::string>("And");
+        return "And";
     case TokenType::Or:
-        return std::make_shared<std::string>("Or");
+        return "Or";
     case TokenType::Not:
-        return std::make_shared<std::string>("Not");
+        return "Not";
     case TokenType::Def:
-        return std::make_shared<std::string>("Def");
+        return "Def";
     case TokenType::If:
-        return std::make_shared<std::string>("If");
+        return "If";
     case TokenType::Else:
-        return std::make_shared<std::string>("Else");
+        return "Else";
     case TokenType::ElIf:
-        return std::make_shared<std::string>("ElIf");
+        return "ElIf";
     case TokenType::Is:
-        return std::make_shared<std::string>("Is");
+        return "Is";
     case TokenType::While:
-        return std::make_shared<std::string>("While");
+        return "While";
     case TokenType::For:
-        return std::make_shared<std::string>("For");
+        return "For";
     case TokenType::In:
-        return std::make_shared<std::string>("In");
+        return "In";
     case TokenType::Break:
-        return std::make_shared<std::string>("Break");
+        return "Break";
     case TokenType::Continue:
-        return std::make_shared<std::string>("Continue");
+        return "Continue";
     case TokenType::Struct:
-        return std::make_shared<std::string>("Struct");
+        return "Struct";
     case TokenType::True:
-        return std::make_shared<std::string>("True");
+        return "True";
     case TokenType::False:
-        return std::make_shared<std::string>("False");
+        return "False";
     case TokenType::Enum:
-        return std::make_shared<std::string>("Enum");
+        return "Enum";
     case TokenType::Volatile:
-        return std::make_shared<std::string>("Volatile");
+        return "Volatile";
     case TokenType::Use:
-        return std::make_shared<std::string>("Use");
+        return "Use";
     // case TokenType::Maybe:
-    //     return std::make_shared<std::string>("Maybe");
+    //     return "Maybe";
     case TokenType::Import:
-        return std::make_shared<std::string>("Import");
+        return "Import";
     case TokenType::None:
-        return std::make_shared<std::string>("None");
+        return "None";
     case TokenType::String:
-        return std::make_shared<std::string>("String");
+        return "String";
     default:
-        return std::make_shared<std::string>("unknown token type(" + std::to_string(static_cast<int>(type)) + ")");
+        return "unknown token type(" + std::to_string(static_cast<int>(type)) + ")";
     }
 }
 

@@ -1,3 +1,6 @@
+#ifndef ENVIORNMENT_HPP
+#define ENVIORNMENT_HPP
+
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
@@ -47,7 +50,7 @@ class RecordFunction : public Record {
                    std::shared_ptr<RecordStructType> return_inst, std::unordered_map<std::string, std::any> extra_info = {})
         : Record(RecordType::RecordFunction, name, extra_info), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
     RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
-        std::shared_ptr<RecordStructType> return_inst, bool isVarArg)
+                   std::shared_ptr<RecordStructType> return_inst, bool isVarArg)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst), varArg(isVarArg) {};
 };
 
@@ -77,8 +80,10 @@ class RecordStructType : public Record {
     std::vector<std::tuple<std::string, std::shared_ptr<RecordFunction>>> methods = {};
     RecordStructType(const std::string& name) : Record(RecordType::RecordStructInst, name) {};
     RecordStructType(const std::string& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
-    bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
-    std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
+    bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {},
+                   std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
+    std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types,
+                                               const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
 };
 
 class RecordVariable : public Record {
@@ -140,3 +145,4 @@ class Enviornment {
     std::vector<std::shared_ptr<enviornment::RecordGStructType>> get_Gstruct(const std::string& name);
 }; // class Environment
 } // namespace enviornment
+#endif

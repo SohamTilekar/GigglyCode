@@ -101,7 +101,7 @@ enum class TokenType {
     None,   // None type none
 };
 
-std::shared_ptr<std::string> tokenTypeString(TokenType type);
+std::string tokenTypeString(TokenType type);
 
 class Token {
   public:

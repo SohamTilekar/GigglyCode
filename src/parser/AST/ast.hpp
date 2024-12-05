@@ -1,5 +1,6 @@
 #ifndef AST_HPP
 #define AST_HPP
+#include <any>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -61,7 +62,9 @@ struct MetaData {
 class Node {
   public:
     MetaData meta_data;
+    std::unordered_map<std::string, std::any> extra_info;
     inline void set_meta_data(int st_line_num, int st_col_num, int end_line_num, int end_col_num) {
+        if(this->type() == NodeType::IdentifierLiteral) return;
         meta_data.st_line_no = st_line_num;
         meta_data.st_col_no = st_col_num;
         meta_data.end_line_no = end_line_num;
@@ -123,7 +126,7 @@ class BlockStatement : public Statement {
 class ReturnStatement : public Statement {
   public:
     std::shared_ptr<Expression> value;
-    inline ReturnStatement(std::shared_ptr<Expression> value = nullptr) : value(value) {}
+    inline ReturnStatement(std::shared_ptr<Expression> exp = nullptr) : value(exp) {}
     inline NodeType type() override { return NodeType::ReturnStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -147,7 +150,9 @@ class FunctionStatement : public Statement {
     std::vector<std::shared_ptr<GenericType>> generic;
     inline FunctionStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<FunctionParameter>> parameters, std::vector<std::shared_ptr<FunctionParameter>> closure_parameters,
                              std::shared_ptr<Type> return_type, std::shared_ptr<BlockStatement> body, std::vector<std::shared_ptr<GenericType>> generic)
-        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {}
+        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
+        this->extra_info["autocast"] = false;
+    }
     inline NodeType type() override { return NodeType::FunctionStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -276,7 +281,13 @@ class StringLiteral : public Expression {
 class IdentifierLiteral : public Expression {
   public:
     std::string value;
-    inline IdentifierLiteral(std::string value) : value(value) {}
+    inline IdentifierLiteral(std::shared_ptr<token::Token> value) {
+        this->value = value->literal;
+        this->meta_data.st_line_no = value->line_no;
+        this->meta_data.end_line_no = value->line_no;
+        this->meta_data.st_col_no = value->col_no;
+        this->meta_data.end_col_no = value->end_col_no;
+    }
     inline NodeType type() override { return NodeType::IdentifierLiteral; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

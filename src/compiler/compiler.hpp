@@ -1,3 +1,6 @@
+#ifndef COMPILER_HPP
+#define COMPILER_HPP
+
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
@@ -19,8 +22,9 @@
 #include <variant>
 #include <vector>
 
+#include "../errors/errors.hpp"
 #include "../parser/AST/ast.hpp"
-#include "enviornment/enviornment.hpp"
+#include "./enviornment/enviornment.hpp"
 
 
 extern std::filesystem::path GC_STD_DIR;
@@ -95,12 +99,12 @@ class Compiler {
         _visitCallExpression(std::shared_ptr<AST::CallExpression>);
     std::tuple<llvm::Value*, llvm::Value*,
                std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::string name, std::vector<llvm::Value*> args,
+    _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
                std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
     std::tuple<llvm::Value*, llvm::Value*,
                std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::string name, std::vector<llvm::Value*> args,
-               std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
+    _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
+                 std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
     std::tuple<llvm::Value*, llvm::Value*,
                std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
     _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
@@ -127,3 +131,4 @@ class Compiler {
     std::shared_ptr<enviornment::RecordStructType> _parseType(std::shared_ptr<AST::Type> type);
 };
 } // namespace compiler
+#endif

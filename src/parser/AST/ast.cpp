@@ -212,7 +212,7 @@ std::shared_ptr<nlohmann::json> AST::VariableAssignmentStatement::toJSON() {
 std::shared_ptr<nlohmann::json> AST::InfixExpression::toJSON() {
     auto jsonAst = nlohmann::json();
     jsonAst["type"] = *nodeTypeToString(this->type());
-    jsonAst["operator"] = *token::tokenTypeString(this->op);
+    jsonAst["operator"] = token::tokenTypeString(this->op);
     jsonAst["left_node"] = *(left->toJSON());
     jsonAst["right_node"] = this->right == nullptr ? nullptr : *right->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
