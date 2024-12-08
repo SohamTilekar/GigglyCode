@@ -1,12 +1,9 @@
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <tuple>
-#include <unordered_set>
 #include <vector>
 
 #include "compiler/compiler.hpp"
@@ -33,7 +30,6 @@ const std::string readFileToString(const std::string& filePath) {
         std::cerr << "Error: Could not open file " << filePath << std::endl;
         return "";
     }
-
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
@@ -50,6 +46,8 @@ void setIrGcMap(const std::string& filePath, const std::string& ir_gc_map, json&
         ir_gc_map_json["uptodate"] = false;
         ir_gc_map_json["functions"] = json::object();
         ir_gc_map_json["structs"] = json::object();
+        ir_gc_map_json["GSinstance"] = nlohmann::json::object();
+        ir_gc_map_json["GFinstance"] = nlohmann::json::object();
         // Create the ir_gc_map file
         std::filesystem::create_directories(std::filesystem::path(ir_gc_map).parent_path());
         std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
@@ -366,7 +364,7 @@ int main(int argc, char* argv[]) {
         }
     }
     std::cout << objFiles << std::endl;
-    std::string linkCommand = "clang -v -O3 " + objFiles + " -o " + executablePath; //  + std::string(gcStdObj)
+    std::string linkCommand = "clang -O3 " + objFiles + " -o " + executablePath; //  + std::string(gcStdObj)
     int linkResult = std::system(linkCommand.c_str());
     if(linkResult != 0) {
         std::cerr << "Error: Failed to link object files into executable " << executablePath << std::endl;

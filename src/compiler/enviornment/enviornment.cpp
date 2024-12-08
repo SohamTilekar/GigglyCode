@@ -1,26 +1,30 @@
 #include "enviornment.hpp"
+#include "../compiler.hpp"
 #include <memory>
 
 bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructType> type1, std::shared_ptr<enviornment::RecordStructType> type2) {
     for(auto [field_name1, field_name2] : llvm::zip(type1->fields, type2->fields)) {
         if(field_name1 != field_name2) {
+            std::cout << "G" << std::endl;
             return false;
         }
         if(!enviornment::_checkType(type1->sub_types[field_name1], type2->sub_types[field_name2])) {
+            std::cout << "GG" << std::endl;
             return false;
         }
     }
+    std::cout << type1->stand_alone_type << " : " << type2->stand_alone_type << std::endl;
     return type1->stand_alone_type == type2->stand_alone_type;
 };
 
-bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> func_record, std::vector<std::shared_ptr<enviornment::RecordStructType>> params) {
+bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> func_record, std::vector<std::shared_ptr<enviornment::RecordStructType>> params, bool exact = false) {
     for(auto [arg, pass_instanc] : llvm::zip(func_record->arguments, params)) {
         auto [arg_name, accept_instanc] = arg;
-        if(!_checkType(accept_instanc, pass_instanc)) {
+        if(!(_checkType(accept_instanc, pass_instanc) || (!exact && compiler::Compiler::canConvertType(accept_instanc, pass_instanc)))) {
             return false;
         }
     }
-
+    std::cout << func_record->arguments.size() << " : " << params.size() << std::endl;
     bool result = func_record->varArg || func_record->arguments.size() == params.size();
     return result;
 };
@@ -72,18 +76,20 @@ std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_
         bool return_correct = true;
         if(return_type && !enviornment::_checkType(return_type, method->return_inst))
             return_correct = false;
+        std::cout << name << std::endl;
         if(return_correct && match && (name == "" || method->name == name) && _checkFunctionParameterType(method, params_types)) {
             return method;
         }
     }
+    std::cout << "Oh No" << std::endl;
     return nullptr;
 };
 
-bool enviornment::RecordModule::is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
+bool enviornment::RecordModule::is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, bool exact) {
     for(auto [func_name, func_record] : record_map) {
         if(func_record->type == RecordType::RecordFunction) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(func_record);
-            if(func->name == name && _checkFunctionParameterType(func, params_types)) {
+            if(func->name == name && _checkFunctionParameterType(func, params_types, exact)) {
                 return true;
             }
         }
@@ -144,11 +150,11 @@ bool enviornment::RecordModule::is_Gstruct(const std::string& name) {
     return false;
 }
 
-std::shared_ptr<enviornment::RecordFunction> enviornment::RecordModule::get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
+std::shared_ptr<enviornment::RecordFunction> enviornment::RecordModule::get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, bool exact) {
     for(auto [func_name, func_record] : record_map) {
         if(func_record->type == RecordType::RecordFunction) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(func_record);
-            if(func->name == name && _checkFunctionParameterType(func, params_types)) {
+            if(func->name == name && _checkFunctionParameterType(func, params_types, exact)) {
                 return func;
             }
         }
@@ -222,16 +228,16 @@ bool enviornment::Enviornment::is_variable(const std::string& name, bool limit2c
     return (parent != nullptr && !limit2current_scope) ? parent->is_variable(name) : false;
 };
 
-bool enviornment::Enviornment::is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope) {
+bool enviornment::Enviornment::is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope, bool exact) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordFunction && record->name == name) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(record);
-            if(_checkFunctionParameterType(func, params_types)) {
+            if(_checkFunctionParameterType(func, params_types, exact)) {
                 return true;
             }
         }
     }
-    return (parent != nullptr && !limit2current_scope) ? parent->is_function(name, params_types) : false;
+    return (parent != nullptr && !limit2current_scope) ? parent->is_function(name, params_types, exact) : false;
 };
 
 bool enviornment::Enviornment::is_struct(const std::string& name, bool limit2current_scope, std::vector<std::shared_ptr<RecordStructType>> gens) {
@@ -285,11 +291,11 @@ std::shared_ptr<enviornment::RecordVariable> enviornment::Enviornment::get_varia
 };
 
 std::shared_ptr<enviornment::RecordFunction> enviornment::Enviornment::get_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types,
-                                                                                    bool limit2current_scope) {
+                                                                                    bool limit2current_scope, bool exact) {
     for(auto [record_name, record] : record_map) {
         if(record->type == RecordType::RecordFunction && record->name == name) {
             auto func = std::static_pointer_cast<enviornment::RecordFunction>(record);
-            if(_checkFunctionParameterType(func, params_types)) {
+            if(_checkFunctionParameterType(func, params_types, exact)) {
                 return func;
             }
         }

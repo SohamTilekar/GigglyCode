@@ -104,8 +104,8 @@ class RecordModule : public Record {
     std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map;
     RecordModule(const std::string& name, std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {};
     RecordModule(const std::string& name) : Record(RecordType::RecordModule, name) {};
-    bool is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
-    std::shared_ptr<RecordFunction> get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    bool is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, bool exact = false);
+    std::shared_ptr<RecordFunction> get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, bool exact = false);
     bool is_struct(const std::string& name, std::vector<std::shared_ptr<RecordStructType>> gen = {});
     std::shared_ptr<RecordStructType> get_struct(const std::string& name, std::vector<std::shared_ptr<RecordStructType>> gen = {});
     bool is_module(const std::string& name);
@@ -133,8 +133,8 @@ class Enviornment {
     void add(std::shared_ptr<Record> record);
     bool is_variable(const std::string& name, bool limit2current_scope = false);
     std::shared_ptr<RecordVariable> get_variable(const std::string& name, bool limit2current_scope = false);
-    bool is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope = false);
-    std::shared_ptr<RecordFunction> get_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope = false);
+    bool is_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope = false, bool exact = false);
+    std::shared_ptr<RecordFunction> get_function(const std::string& name, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types, bool limit2current_scope = false, bool exact = false);
     bool is_struct(const std::string& name, bool limit2current_scope = false, std::vector<std::shared_ptr<RecordStructType>> gen = {});
     std::shared_ptr<RecordStructType> get_struct(const std::string& name, bool limit2current_scope = false, std::vector<std::shared_ptr<RecordStructType>> gen = {});
     bool is_module(const std::string& name, bool limit2current_scope = false);

@@ -452,7 +452,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::s
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseInfixIdenifier() {
     if(this->current_token->type != token::TokenType::Identifier) {
-        std::cerr << "Cant parser infixIdentifier Expression" << std::endl;
+        std::cerr << "Cant parser infixIdentifier Expression cz: " << token::tokenTypeString(this->current_token->type) << std::endl;
         exit(1);
     }
     if(!this->_peekTokenIs(token::TokenType::Dot)) {
