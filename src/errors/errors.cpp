@@ -18,7 +18,7 @@ const std::string YELLOW = "\033[1;33m";
 class LineIterator {
   public:
     LineIterator(const std::string& multi_line_str, int start_line_no, int end_line_no) : stream(multi_line_str), current_line_no(1), start_line_no(start_line_no), end_line_no(end_line_no) {
-        while(current_line_no < start_line_no && std::getline(stream, current_line)) {
+        while (current_line_no < start_line_no && std::getline(stream, current_line)) {
             ++current_line_no;
             before_start_line = current_line + "\n";
         }
@@ -61,10 +61,10 @@ void print_source_context(const std::string& source, int st_line, int end_line, 
     std::cerr << CYAN << BOLD << "Source Context:" << RESET << "\n";
     LineIterator lineIterator(source, st_line, end_line);
     int c_line = st_line;
-    if(st_line > 1) {
+    if (st_line > 1) {
         std::cerr << BLUE << (st_line - 1) << " |" << RESET << " " << LIGHT_GRAY << lineIterator.get_before_start_line() << RESET;
     }
-    while(lineIterator.has_next()) {
+    while (lineIterator.has_next()) {
         auto line = lineIterator.next();
         std::cerr << BLUE << c_line << " |" << RESET << " " << LIGHT_GRAY << line << RESET << "\n";
 
@@ -76,65 +76,66 @@ void print_source_context(const std::string& source, int st_line, int end_line, 
 
         c_line++;
     }
-    if(end_line < getNumberOfLines(source)) {
+    if (end_line < getNumberOfLines(source)) {
         std::cerr << BLUE << (end_line) << " |" << RESET << " " << LIGHT_GRAY << lineIterator.get_after_end_line() << RESET << "\n";
     }
 }
 
 void print_suggested_fix(const std::string& suggestedFix) {
-    if(!suggestedFix.empty()) {
+    if (!suggestedFix.empty()) {
         std::cerr << "\n" << YELLOW << BOLD << "Suggested Fix:" << RESET << " " << LIGHT_GRAY << suggestedFix << RESET << "\n\n";
     }
 }
 
-void errors::Error::raise(bool terminate) {
+void errors::Error::raise() {
     print_banner("Error");
     print_error_message(message);
     print_source_context(source, st_line, end_line);
     print_suggested_fix(suggestedFix);
-        std::cerr << RED << std::string(70, '=') << RESET << "\n";
-        exit(EXIT_FAILURE);
+    std::cerr << RED << std::string(70, '=') << RESET << "\n";
+    exit(EXIT_FAILURE);
 }
 
-void errors::NoPrefixParseFnError::raise(bool terminate) {
+void errors::NoPrefixParseFnError::raise() {
     print_banner("NoPrefixParseFnError");
     print_error_message(message);
     print_source_context(source, token.line_no, token.line_no);
     print_suggested_fix(suggestedFix);
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
-void errors::SyntaxError::raise(bool terminate) {
+void errors::SyntaxError::raise() {
     print_banner("Syntax Error");
     print_error_message(message);
-    std::vector<std::tuple<int, std::string, std::string>> underlines = {
-        {token.line_no, std::string(token.col_no, ' ') + std::string(token.end_col_no - token.col_no, '^'), RED}
-    };
+    std::vector<std::tuple<int, std::string, std::string>> underlines = {{token.line_no, std::string(token.col_no, ' ') + std::string(token.end_col_no - token.col_no, '^'), RED}};
     print_source_context(source, token.line_no, token.line_no + getNumberOfLines(token.literal) - 1, underlines);
     print_suggested_fix(suggestedFix);
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
-void errors::NodeOutside::raise(bool terminate) {
+void errors::NodeOutside::raise() {
     print_banner("Compilation Error");
     print_error_message(message);
-    std::vector<std::tuple<int, std::string, std::string>> underlines = {
-        {node.meta_data.st_line_no, std::string(node.meta_data.st_col_no + 1, ' ') + std::string(this->nodeType == errors::outsideNodeType::Break ? 5 : this->nodeType == errors::outsideNodeType::Continue ? 8 : 6, '^'), RED}
-    };
+    std::vector<std::tuple<int, std::string, std::string>> underlines = {{node.meta_data.st_line_no,
+                                                                          std::string(node.meta_data.st_col_no + 1, ' ') + std::string(this->nodeType == errors::outsideNodeType::Break      ? 5
+                                                                                                                                       : this->nodeType == errors::outsideNodeType::Continue ? 8
+                                                                                                                                                                                             : 6,
+                                                                                                                                       '^'),
+                                                                          RED}};
     print_source_context(source, node.meta_data.st_line_no, node.meta_data.end_line_no, underlines);
     print_suggested_fix(suggestedFix);
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
-void errors::CompletionError::raise(bool terminate) {
+void errors::CompletionError::raise() {
     print_banner("Completion Error");
     print_error_message(message);
     print_source_context(source, st_line, end_line);
     print_suggested_fix(suggestedFix);
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
-void errors::NoOverload::raise(bool terminate) {
+void errors::NoOverload::raise() {
     print_banner("No Function Overload");
     print_error_message(message);
 
@@ -161,7 +162,7 @@ void errors::NoOverload::raise(bool terminate) {
     exit(EXIT_FAILURE);
 }
 
-void errors::DosentContain::raise(bool terminate) {
+void errors::DosentContain::raise() {
     print_banner("Doesn't Contain");
     print_error_message(message);
 
@@ -187,21 +188,20 @@ void errors::DosentContain::raise(bool terminate) {
     exit(EXIT_FAILURE);
 }
 
-void errors::WrongInfix::raise(bool terminate) {
+void errors::WrongInfix::raise() {
     print_banner("Wrong Infix");
     print_error_message(message);
     std::vector<std::tuple<int, std::string, std::string>> underlines = {
-        {left->meta_data.st_line_no, std::string(left->meta_data.st_col_no + 1, ' ') + std::string(right->meta_data.end_col_no - left->meta_data.st_col_no + 1, '^'), RED}
-    };
+        {left->meta_data.st_line_no, std::string(left->meta_data.st_col_no + 1, ' ') + std::string(right->meta_data.end_col_no - left->meta_data.st_col_no + 1, '^'), RED}};
     print_source_context(source, left->meta_data.st_line_no, right->meta_data.end_line_no, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
 
-void errors::WrongType::raise(bool terminate) {
+void errors::WrongType::raise() {
     print_banner("Wrong Type");
     print_error_message(message);
-    if(!this->expected.empty()) {
+    if (!this->expected.empty()) {
         std::string x = "Expected ";
         for (size_t i = 0; i < this->expected.size(); ++i) {
             x += this->expected[i]->name;
@@ -212,14 +212,13 @@ void errors::WrongType::raise(bool terminate) {
         print_message(x + " but got");
     }
     std::vector<std::tuple<int, std::string, std::string>> underlines = {
-        {exp->meta_data.st_line_no, std::string(exp->meta_data.st_col_no + 1, ' ') + std::string(exp->meta_data.end_col_no - exp->meta_data.st_col_no + 1, '^'), RED}
-    };
+        {exp->meta_data.st_line_no, std::string(exp->meta_data.st_col_no + 1, ' ') + std::string(exp->meta_data.end_col_no - exp->meta_data.st_col_no + 1, '^'), RED}};
     print_source_context(source, exp->meta_data.st_line_no, exp->meta_data.end_line_no, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
 
-void errors::Cantindex::raise(bool terminate) {
+void errors::Cantindex::raise() {
     print_banner("Can't Index");
     print_error_message(message);
 
@@ -244,17 +243,17 @@ void errors::Cantindex::raise(bool terminate) {
     print_source_context(source, start_line, end_line, underlines);
     print_suggested_fix(suggestedFix);
 
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
-void errors::NotDefined::raise(bool terminate) {
+void errors::NotDefined::raise() {
     print_banner("Not Defined");
     print_error_message(message);
     std::string underline = std::string(Name->meta_data.st_col_no + 1, ' ') + std::string(Name->meta_data.end_col_no - Name->meta_data.st_col_no + 1, '^');
     print_source_context(source, Name->meta_data.st_line_no, Name->meta_data.end_line_no, {{Name->meta_data.st_line_no, underline, RED}});
     print_suggested_fix(suggestedFix);
 
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
 void errors::raiseSyntaxError(const std::string& type, const std::string& source, const token::Token& token, const std::string& message, const std::string& suggestedFix) {

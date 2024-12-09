@@ -64,7 +64,8 @@ class Node {
     MetaData meta_data;
     std::unordered_map<std::string, std::any> extra_info;
     inline void set_meta_data(int st_line_num, int st_col_num, int end_line_num, int end_col_num) {
-        if(this->type() == NodeType::IdentifierLiteral) return;
+        if (this->type() == NodeType::IdentifierLiteral)
+            return;
         meta_data.st_line_no = st_line_num;
         meta_data.st_col_no = st_col_num;
         meta_data.end_line_no = end_line_num;

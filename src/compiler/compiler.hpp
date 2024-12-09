@@ -129,6 +129,21 @@ class Compiler {
     void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
 
     std::shared_ptr<enviornment::RecordStructType> _parseType(std::shared_ptr<AST::Type> type);
+
+    std::tuple<llvm::Value*, llvm::Value*,
+               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
+               compiler::resolveType>
+    _memberAccess(std::shared_ptr<AST::InfixExpression> infixed_expression);
+    std::tuple<llvm::Value*, llvm::Value*,
+               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
+               compiler::resolveType>
+    _StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type, std::shared_ptr<enviornment::RecordStructType> right_type,
+                     std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value, llvm::Value* right_value);
+    std::tuple<llvm::Value*, llvm::Value*,
+               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
+               compiler::resolveType>
+    _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
+    void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
 };
 } // namespace compiler
 #endif

@@ -58,17 +58,16 @@ compiler::Compiler::Compiler(const std::string& source, std::filesystem::path fi
 
     this->_initializeBuiltins();
 
-    // Open the ir_gc_map JSON file and attach it to this->ir_gc_map_json
-    std::ifstream ir_gc_map_file(ir_gc_map.string());
-    if (!ir_gc_map_file.is_open()) {
-        throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map.string());
-    }
-    ir_gc_map_file >> this->ir_gc_map_json;
+    // std::ifstream ir_gc_map_file(ir_gc_map.string());
+    // if (!ir_gc_map_file.is_open()) {
+    //     throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map.string());
+    // }
+    // ir_gc_map_file >> this->ir_gc_map_json;
     this->ir_gc_map_json["functions"] = nlohmann::json::object();
     this->ir_gc_map_json["structs"] = nlohmann::json::object();
     this->ir_gc_map_json["GSinstance"] = nlohmann::json::array();
     this->ir_gc_map_json["GFinstance"] = nlohmann::json::array();
-    ir_gc_map_file.close();
+    // ir_gc_map_file.close();
 }
 
 void addBuiltinType(compiler::Compiler* compiler, const std::string& name, llvm::Type* type) {
@@ -76,16 +75,14 @@ void addBuiltinType(compiler::Compiler* compiler, const std::string& name, llvm:
     compiler->enviornment->parent->add(record);
 }
 
-void addGlobalVariable(compiler::Compiler* compiler, const std::string& name, llvm::Type* type, int value) {
-    llvm::GlobalVariable* globalVar = new llvm::GlobalVariable(
-        *compiler->llvm_module, type, true, llvm::GlobalValue::InternalLinkage,
-        llvm::ConstantInt::get(type, value), name
-    );
-    auto record = std::make_shared<enviornment::RecordVariable>(name, globalVar, nullptr, compiler->enviornment->parent->get_struct("bool"));
+void addGlobalVariable(compiler::Compiler* compiler, const std::string& name, llvm::Type* type, int value, std::shared_ptr<enviornment::RecordStructType> st) {
+    llvm::GlobalVariable* globalVar = new llvm::GlobalVariable(*compiler->llvm_module, type, true, llvm::GlobalValue::InternalLinkage, llvm::ConstantInt::get(type, value), name);
+    auto record = std::make_shared<enviornment::RecordVariable>(name, globalVar, nullptr, st);
     compiler->enviornment->parent->add(record);
 }
 
-void addBuiltinFunction(compiler::Compiler* compiler, const std::string& name, llvm::FunctionType* funcType, const std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>>& params, std::shared_ptr<enviornment::RecordStructType> returnType) {
+void addBuiltinFunction(compiler::Compiler* compiler, const std::string& name, llvm::FunctionType* funcType,
+                        const std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>>>& params, std::shared_ptr<enviornment::RecordStructType> returnType) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, compiler->llvm_module.get());
     compiler->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>(name, func, funcType, params, returnType, true));
 }
@@ -106,12 +103,15 @@ void compiler::Compiler::_initializeBuiltins() {
     auto _any = std::make_shared<enviornment::RecordModule>("Any");
     this->enviornment->parent->add(_any);
 
-    addGlobalVariable(this, "True", this->enviornment->parent->get_struct("bool")->stand_alone_type, 1);
-    addGlobalVariable(this, "False", this->enviornment->parent->get_struct("bool")->stand_alone_type, 0);
+    addGlobalVariable(this, "True", this->enviornment->parent->get_struct("bool")->stand_alone_type, 1, this->enviornment->parent->get_struct("bool"));
+    addGlobalVariable(this, "False", this->enviornment->parent->get_struct("bool")->stand_alone_type, 0, this->enviornment->parent->get_struct("bool"));
 
-    addBuiltinFunction(this, "puts", llvm::FunctionType::get(this->enviornment->parent->get_struct("void")->stand_alone_type, this->enviornment->parent->get_struct("str")->stand_alone_type, false), {{"string", this->enviornment->parent->get_struct("str")}}, this->enviornment->parent->get_struct("void"));
-    addBuiltinFunction(this, "printf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true), {{"format", this->enviornment->parent->get_struct("str")}}, this->enviornment->parent->get_struct("int"));
-    addBuiltinFunction(this, "scanf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true), {{"format", this->enviornment->parent->get_struct("str")}}, this->enviornment->parent->get_struct("int"));
+    addBuiltinFunction(this, "puts", llvm::FunctionType::get(this->enviornment->parent->get_struct("void")->stand_alone_type, this->enviornment->parent->get_struct("str")->stand_alone_type, false),
+                       {{"string", this->enviornment->parent->get_struct("str")}}, this->enviornment->parent->get_struct("void"));
+    addBuiltinFunction(this, "printf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true),
+                       {{"format", this->enviornment->parent->get_struct("str")}}, this->enviornment->parent->get_struct("int"));
+    addBuiltinFunction(this, "scanf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true),
+                       {{"format", this->enviornment->parent->get_struct("str")}}, this->enviornment->parent->get_struct("int"));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
@@ -123,7 +123,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             this->_visitExpressionStatement(std::static_pointer_cast<AST::ExpressionStatement>(node));
             break;
         case AST::NodeType::InfixedExpression:
-            this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
+            this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
             break;
         case AST::NodeType::IndexExpression:
             this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
@@ -154,8 +154,8 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             break;
         case AST::NodeType::BreakStatement:
             if (this->enviornment->loop_end_block.empty()) {
-                errors::NodeOutside("Break outside loop", this->source, *node, errors::outsideNodeType::Break,
-                                    "Break statement outside the Loop", "Remove the Break statement, it is not necessary").raise();
+                errors::NodeOutside("Break outside loop", this->source, *node, errors::outsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary")
+                    .raise();
                 exit(1);
             }
             {
@@ -165,8 +165,9 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             break;
         case AST::NodeType::ContinueStatement:
             if (this->enviornment->loop_condition_block.empty()) {
-                errors::NodeOutside("Continue outside loop", this->source, *node, errors::outsideNodeType::Continue,
-                                    "Continue statement outside the Loop", "Remove the Continue statement, it is not necessary").raise();
+                errors::NodeOutside("Continue outside loop", this->source, *node, errors::outsideNodeType::Continue, "Continue statement outside the Loop",
+                                    "Remove the Continue statement, it is not necessary")
+                    .raise();
                 exit(1);
             }
             {
@@ -181,8 +182,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             this->_visitImportStatement(std::static_pointer_cast<AST::ImportStatement>(node));
             break;
         default:
-            errors::CompletionError("Unknown node type", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no,
-                                    "Unknown node type: " + *AST::nodeTypeToString(node->type())).raise();
+            errors::CompletionError("Unknown node type", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no, "Unknown node type: " + *AST::nodeTypeToString(node->type())).raise();
             break;
     }
 }
@@ -193,15 +193,33 @@ void compiler::Compiler::_visitProgram(std::shared_ptr<AST::Program> program) {
     }
 }
 
-void compiler::Compiler::_visitExpressionStatement(std::shared_ptr<AST::ExpressionStatement> expression_statement) {
-    this->compile(expression_statement->expr);
-}
+void compiler::Compiler::_visitExpressionStatement(std::shared_ptr<AST::ExpressionStatement> expression_statement) { this->compile(expression_statement->expr); }
 
 void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement) {
     for (const auto& stmt : block_statement->statements) {
         this->compile(stmt);
     }
 }
+
+void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
+    unsigned short idx = 0;
+    bool type_mismatch = false;
+    std::vector<unsigned short> mismatches;
+
+    for (auto [pt, pst] : llvm::zip(func_record->arguments, params_types)) {
+        if ((!enviornment::_checkType(std::get<1>(pt), pst)) && this->canConvertType(pst, std::get<1>(pt))) {
+            args[idx] = std::get<0>(this->convertType({args[idx], nullptr, pst}, std::get<1>(pt)));
+            type_mismatch = true;
+        } else {
+            mismatches.push_back(idx);
+        }
+        idx++;
+    }
+
+    if (type_mismatch) {
+        errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type");
+    }
+};
 
 
 std::tuple<llvm::Value*, llvm::Value*,
@@ -212,37 +230,20 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
     for (auto gfunc : gfuncs) {
         if (gfunc->env->is_function(name, params_types, false, true)) {
             auto func_record = gfunc->env->get_function(name, params_types, false, true);
-            int idx = 0;
-            bool type_mismatch = false;
-            std::vector<int> mismatches;
-
-            for (auto [pt, pst] : llvm::zip(func_record->arguments, params_types)) {
-                if (!enviornment::_checkType(std::get<1>(pt), pst)) {
-                    if (this->canConvertType(pst, std::get<1>(pt))) {
-                        args[idx] = std::get<0>(this->convertType({args[idx], nullptr, pst}, std::get<1>(pt)));
-                        type_mismatch = true;
-                    }
-                }
-                idx++;
-            }
-
-            if (type_mismatch) {
-                errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type");
-            }
-
+            this->_checkCallType(func_record, func_call, args, params_types);
             auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, args);
             return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
         }
     }
 
     auto prev_env = this->enviornment;
-    std::vector<std::vector<int>> mismatches;
+    std::vector<std::vector<unsigned short>> mismatches;
 
     for (auto gfunc : gfuncs) {
         this->enviornment = std::make_shared<enviornment::Enviornment>(prev_env, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>{}, name);
         bool type_mismatch = false;
         int param_idx = 0;
-        std::vector<int> mismatch;
+        std::vector<unsigned short> mismatch;
 
         for (auto [gparam, pparam] : llvm::zip(gfunc->func->parameters, params_types)) {
             if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
@@ -286,7 +287,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
         auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
         this->ir_gc_map_json["functions"][name] = func->getName().str();
 
-        unsigned idx = 0;
+        unsigned short idx = 0;
         for (auto& arg : func->args()) {
             arg.setName(param_names[idx++]);
         }
@@ -335,7 +336,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
 
         idx = 0;
         type_mismatch = false;
-        std::vector<int> mismatches;
+        std::vector<unsigned short> mismatches;
 
         for (auto [pt, pst] : llvm::zip(func_record->arguments, params_types)) {
             if (!enviornment::_checkType(std::get<1>(pt), pst)) {
@@ -460,7 +461,7 @@ compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::Record
 
         int idx = 0;
         bool type_mismatch = false;
-        std::vector<int> mismatches;
+        std::vector<unsigned short> mismatches;
 
         for (auto [pt, pst] : llvm::zip(func->arguments, remaining_params_types)) {
             if (!enviornment::_checkType(std::get<1>(pt), pst)) {
@@ -561,12 +562,9 @@ compiler::Compiler::convertType(std::tuple<llvm::Value*, llvm::Value*, std::shar
 };
 
 bool compiler::Compiler::canConvertType(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to) {
-    const std::vector<std::pair<std::string, std::string>> convertibleTypes = {
-        {"int32", "int"}, {"int", "int32"}, {"uint32", "uint"}, {"uint", "uint32"},
-        {"float32", "float"}, {"float", "float32"}, {"int", "float"}, {"int32", "float32"},
-        {"uint", "float"}, {"uint32", "float32"}, {"float", "int"}, {"float32", "int32"},
-        {"float", "uint"}, {"float32", "uint32"}
-    };
+    const std::vector<std::pair<std::string, std::string>> convertibleTypes = {{"int32", "int"},     {"int", "int32"},     {"uint32", "uint"},   {"uint", "uint32"},   {"float32", "float"},
+                                                                               {"float", "float32"}, {"int", "float"},     {"int32", "float32"}, {"uint", "float"},    {"uint32", "float32"},
+                                                                               {"float", "int"},     {"float32", "int32"}, {"float", "uint"},    {"float32", "uint32"}};
 
     for (const auto& [fromType, toType] : convertibleTypes) {
         if (from->name == fromType && to->name == toType) {
@@ -582,12 +580,9 @@ bool compiler::Compiler::canConvertType(std::shared_ptr<enviornment::RecordStruc
 };
 
 bool compiler::Compiler::conversionPrecidence(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to) {
-    const std::vector<std::pair<std::string, std::string>> precedencePairs = {
-        {"int32", "int"}, {"uint32", "int"}, {"uint", "int"},
-        {"uint32", "uint"},
-        {"float32", "float"}, {"int32", "float"}, {"uint32", "float"}, {"uint", "float"}, {"int", "float"},
-        {"int32", "float32"}, {"uint32", "float32"}, {"uint", "float32"}, {"int", "float32"}
-    };
+    const std::vector<std::pair<std::string, std::string>> precedencePairs = {{"int32", "int"},      {"uint32", "int"},   {"uint", "int"},   {"uint32", "uint"}, {"float32", "float"},
+                                                                              {"int32", "float"},    {"uint32", "float"}, {"uint", "float"}, {"int", "float"},   {"int32", "float32"},
+                                                                              {"uint32", "float32"}, {"uint", "float32"}, {"int", "float32"}};
 
     for (const auto& pair : precedencePairs) {
         if (from->name == pair.first && to->name == pair.second) {
@@ -598,6 +593,147 @@ bool compiler::Compiler::conversionPrecidence(std::shared_ptr<enviornment::Recor
     return false;
 };
 
+
+std::tuple<llvm::Value*, llvm::Value*,
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
+           compiler::resolveType>
+compiler::Compiler::_memberAccess(std::shared_ptr<AST::InfixExpression> infixed_expression) {
+    auto left = infixed_expression->left;
+    auto right = infixed_expression->right;
+    auto [left_value, left_alloca, _left_type, ltt] = this->_resolveValue(left);
+    if (right->type() == AST::NodeType::IdentifierLiteral) {
+        if (ltt == compiler::resolveType::Module) {
+            auto module = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
+            auto name = std::static_pointer_cast<AST::IdentifierLiteral>(right)->value;
+            if (module->is_module(name)) {
+                return std::make_tuple(nullptr, nullptr, module->get_module(name), compiler::resolveType::Module);
+            } else if (module->is_struct(name)) {
+                return std::make_tuple(nullptr, nullptr, module->get_struct(name), compiler::resolveType::StructType);
+            } else if (module->is_Gstruct(name)) {
+                return std::make_tuple(nullptr, nullptr, module->get_Gstruct(name), compiler::resolveType::GStructType);
+            } else {
+                errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(right), left, "no member `" + name + "` not found in module " + module->name,
+                                      "Check the Member Name in the module is correct")
+                    .raise();
+                exit(1);
+            }
+        } else if (ltt == compiler::resolveType::StructInst) {
+            auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
+            if (left_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
+                unsigned short idx = 0;
+                for (auto field : left_type->fields) {
+                    if (field == std::static_pointer_cast<AST::IdentifierLiteral>(right)->value) {
+                        break;
+                    }
+                    idx++;
+                }
+                auto type = left_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
+                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx);
+                if (type->struct_type) {
+                    return {gep, gep, type, compiler::resolveType::StructInst};
+                }
+                llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(type->stand_alone_type->getScalarSizeInBits() / 8));
+                return {loaded, gep, type, compiler::resolveType::StructInst};
+            } else {
+                errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(right), left,
+                                      "no member `" + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value + "` not found in struct " + left_type->name,
+                                      "Check the Member Name in the struct is correct")
+                    .raise();
+                exit(1);
+            }
+        }
+    } else if (right->type() == AST::NodeType::CallExpression) {
+        auto call_expression = std::static_pointer_cast<AST::CallExpression>(right);
+        auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
+        auto param = call_expression->arguments;
+        std::vector<llvm::Value*> args;
+        std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types;
+        for (auto arg : param) {
+            auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
+            if (ptt == compiler::resolveType::Module) {
+                errors::WrongType(this->source, arg, {}, "Cant pass Module to the Function").raise();
+                exit(1);
+            } else if (ptt == compiler::resolveType::StructType || std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type)->is_Gstruct(name)) {
+                errors::WrongType(this->source, arg, {}, "Cant pass type to the Function").raise();
+                exit(1);
+            }
+            params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
+            args.push_back(value);
+        }
+        if (ltt == compiler::resolveType::Module) {
+            auto left_type = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
+            if (left_type->is_Gfunc(name) ? left_type->is_function(name, params_types, true) : left_type->is_function(name, params_types)) {
+                auto func = left_type->get_function(name, params_types);
+                auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args);
+                return {returnValue, nullptr, func->return_inst, compiler::resolveType::StructInst};
+            } else if (left_type->is_Gfunc(name)) {
+                auto gfuncs = left_type->get_Gfunc(name);
+                return this->_CallGfunc(gfuncs, call_expression, name, args, params_types);
+            } else if (left_type->is_Gstruct(name)) {
+                auto gstruct = left_type->get_Gstruct(name);
+                return this->_CallGstruct(gstruct, call_expression, name, args, params_types);
+            } else if (left_type->is_struct(name)) {
+                auto struct_record = left_type->get_struct(name);
+                auto struct_type = struct_record->struct_type;
+                auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+                params_types.insert(params_types.begin(), struct_record);
+                args.insert(args.begin(), alloca);
+                if (struct_record->is_method("__init__", params_types)) {
+                    auto method = struct_record->get_method("__init__", params_types);
+                    this->llvm_ir_builder.CreateCall(method->function, args);
+                } else {
+                    errors::NoOverload(this->source, {}, call_expression, "Initialization method does not exist for struct " + name + ".", "Check the initialization method name or define the method.")
+                        .raise();
+                    exit(1);
+                }
+                return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
+            } else {
+                errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name), left, "Struct Or Function " + name + " overload Dose Not Exit.",
+                                      "Check the Name is Correct or the params are correct")
+                    .raise();
+                exit(1);
+            }
+        } else if (ltt == compiler::resolveType::StructInst) {
+            auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
+            if (left_type->is_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types)) {
+                auto method = left_type->get_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types);
+                auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args);
+                return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
+            } else {
+                errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + name + ".", "Check the initialization method name or define the method.").raise();
+                exit(1);
+            }
+        }
+    }
+    errors::CompletionError("Wrong Member Access", this->source, right->meta_data.st_line_no, right->meta_data.end_line_no,
+                            "Member access should be identifier of method not " + *AST::nodeTypeToString(right->type()))
+        .raise();
+    exit(1);
+};
+
+std::tuple<llvm::Value*, llvm::Value*,
+           std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
+           compiler::resolveType>
+compiler::Compiler::_StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type,
+                                     std::shared_ptr<enviornment::RecordStructType> right_type, std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value,
+                                     llvm::Value* right_value) {
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type1{left_type, right_type};
+    std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type2{right_type, left_type};
+    if (left_type->is_method(op_method, params_type1)) {
+        auto func_record = left_type->get_method(op_method, params_type1);
+        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
+        return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
+    } else if (right_type->is_method(op_method, params_type2)) {
+        auto func_record = right_type->get_method(op_method, params_type2);
+        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
+        return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
+    } else {
+        errors::WrongInfix(this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct").raise();
+        exit(1);
+    }
+};
+
+
 std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
            compiler::resolveType>
@@ -606,118 +742,11 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
     auto [left_value, left_alloca, _left_type, ltt] = this->_resolveValue(left);
-    if(op == token::TokenType::Dot) {
-        if(right->type() == AST::NodeType::IdentifierLiteral) {
-            if(ltt == compiler::resolveType::Module) {
-                auto module = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
-                auto name = std::static_pointer_cast<AST::IdentifierLiteral>(right)->value;
-                if(module->is_module(name)) {
-                    return std::make_tuple(nullptr, nullptr, module->get_module(name), compiler::resolveType::Module);
-                } else if(module->is_struct(name)) {
-                    return std::make_tuple(nullptr, nullptr, module->get_struct(name), compiler::resolveType::StructType);
-                } else if(module->is_Gstruct(name)) {
-                    return std::make_tuple(nullptr, nullptr, module->get_Gstruct(name), compiler::resolveType::GStructType);
-                } else {
-                    errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(right), left, "no member `" + name + "` not found in module " + module->name,
-                                          "Check the Member Name in the module is correct")
-                        .raise();
-                    exit(1);
-                }
-            } else if(ltt == compiler::resolveType::StructInst) {
-                auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
-                if(left_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
-                    unsigned int idx = 0;
-                    for(auto field : left_type->fields) {
-                        if(field == std::static_pointer_cast<AST::IdentifierLiteral>(right)->value) {
-                            break;
-                        }
-                        idx++;
-                    }
-                    auto type = left_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
-                    llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx);
-                    if(type->struct_type) {
-                        return {gep, gep, type, compiler::resolveType::StructInst};
-                    }
-                    llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(type->stand_alone_type->getScalarSizeInBits() / 8));
-                    return {loaded, gep, type, compiler::resolveType::StructInst};
-                } else {
-                    errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(right), left,
-                                          "no member `" + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value + "` not found in struct " + left_type->name,
-                                          "Check the Member Name in the struct is correct")
-                        .raise();
-                    exit(1);
-                }
-            }
-        } else if(right->type() == AST::NodeType::CallExpression) {
-            auto call_expression = std::static_pointer_cast<AST::CallExpression>(right);
-            auto name = std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name)->value;
-            auto param = call_expression->arguments;
-            std::vector<llvm::Value*> args;
-            std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types;
-            for(auto arg : param) {
-                auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
-                if(ptt == compiler::resolveType::Module) {
-                    errors::WrongType(this->source, arg, {}, "Cant pass Module to the Function").raise();
-                    exit(1);
-                } else if(ptt == compiler::resolveType::StructType || std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type)->is_Gstruct(name)) {
-                    errors::WrongType(this->source, arg, {}, "Cant pass type to the Function").raise();
-                    exit(1);
-                }
-                params_types.push_back(std::get<std::shared_ptr<enviornment::RecordStructType>>(param_type));
-                args.push_back(value);
-            }
-            if(ltt == compiler::resolveType::Module) {
-                auto left_type = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
-                if(left_type->is_Gfunc(name) ? left_type->is_function(name, params_types, true) :  left_type->is_function(name, params_types)) {
-                    auto func = left_type->get_function(name, params_types);
-                    auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args);
-                    return {returnValue, nullptr, func->return_inst, compiler::resolveType::StructInst};
-                } else if(left_type->is_Gfunc(name)) {
-                    auto gfuncs = left_type->get_Gfunc(name);
-                    return this->_CallGfunc(gfuncs, call_expression, name, args, params_types);
-                } else if(left_type->is_Gstruct(name)) {
-                    auto gstruct = left_type->get_Gstruct(name);
-                    return this->_CallGstruct(gstruct, call_expression, name, args, params_types);
-                } else if(left_type->is_struct(name)) {
-                    auto struct_record = left_type->get_struct(name);
-                    auto struct_type = struct_record->struct_type;
-                    auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
-                    params_types.insert(params_types.begin(), struct_record);
-                    args.insert(args.begin(), alloca);
-                    if(struct_record->is_method("__init__", params_types)) {
-                        auto method = struct_record->get_method("__init__", params_types);
-                        this->llvm_ir_builder.CreateCall(method->function, args);
-                    } else {
-                        errors::NoOverload(this->source, {}, call_expression, "Initialization method does not exist for struct " + name + ".",
-                                           "Check the initialization method name or define the method.")
-                            .raise();
-                        exit(1);
-                    }
-                    return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
-                } else {
-                    errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(call_expression->name), left, "Struct Or Function " + name + " overload Dose Not Exit.",
-                                          "Check the Name is Correct or the params are correct")
-                        .raise();
-                    exit(1);
-                }
-            } else if(ltt == compiler::resolveType::StructInst) {
-                auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
-                if(left_type->is_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types)) {
-                    auto method = left_type->get_method(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value, params_types);
-                    auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args);
-                    return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
-                } else {
-                    errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + name + ".", "Check the initialization method name or define the method.").raise();
-                    exit(1);
-                }
-            }
-        } else {
-            errors::CompletionError("Wrong Member Access", this->source, right->meta_data.st_line_no, right->meta_data.end_line_no, "Member access should be identifier of method not " + *AST::nodeTypeToString(right->type())).raise();
-            exit(1);
-        }
+    if (op == token::TokenType::Dot) {
+        return this->_memberAccess(infixed_expression);
     }
     auto [right_value, right_alloca, _right_type, rtt] = this->_resolveValue(right);
-    if(ltt != compiler::resolveType::StructInst || rtt != compiler::resolveType::StructInst) {
+    if (ltt != compiler::resolveType::StructInst || rtt != compiler::resolveType::StructInst) {
         errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules").raise();
         exit(1);
     }
@@ -726,9 +755,9 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
     auto right_val = right_value;
     auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
     auto right_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_right_type);
-    if(!enviornment::_checkType(left_type, right_type) && (this->canConvertType(left_type, right_type) || this->canConvertType(right_type, left_type)) && left_type->stand_alone_type &&
-       right_type->stand_alone_type) {
-        if(this->conversionPrecidence(left_type, right_type)) {
+    if (!enviornment::_checkType(left_type, right_type) && (this->canConvertType(left_type, right_type) || this->canConvertType(right_type, left_type)) && left_type->stand_alone_type &&
+        right_type->stand_alone_type) {
+        if (this->conversionPrecidence(left_type, right_type)) {
             auto x = this->convertType({left_val, left_alloca, left_type}, right_type);
             right_val = std::get<0>(x);
             right_alloca = std::get<1>(x);
@@ -742,195 +771,59 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
     }
     std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type1{left_type, right_type};
     std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type2{right_type, left_type};
-    if(left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
-        switch(op) {
-        case token::TokenType::Plus: {
-            if(left_type->is_method("__add__", params_type1)) {
-                auto func_record = left_type->get_method("__add__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__add__", params_type2)) {
-                auto func_record = right_type->get_method("__add__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant add 2 structs", "Add the __add__ method in structs in either one of the struct").raise();
+    if (left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
+        switch (op) {
+            case token::TokenType::Plus: {
+                return this->_StructInfixCall("__add__", "add", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::Dash: {
+                return this->_StructInfixCall("__sub__", "substract", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::Asterisk: {
+                return this->_StructInfixCall("__mul__", "multiply", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::ForwardSlash: {
+                return this->_StructInfixCall("__div__", "divide", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::Percent: {
+                return this->_StructInfixCall("__mod__", "%", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::EqualEqual: {
+                return this->_StructInfixCall("__eq__", "compare equals", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::NotEquals: {
+                return this->_StructInfixCall("__neq__", "compare not equals", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::LessThan: {
+                return this->_StructInfixCall("__lt__", "compare less than", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::GreaterThan: {
+                return this->_StructInfixCall("__gt__", "compare greater than", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::LessThanOrEqual: {
+                return this->_StructInfixCall("__lte__", "compare less than equals", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::GreaterThanOrEqual: {
+                return this->_StructInfixCall("__gte__", "compare greater than equals", left_type, right_type, left, right, left_value, right_value);
+            }
+            case token::TokenType::AsteriskAsterisk: {
+                return this->_StructInfixCall("__pow__", "**", left_type, right_type, left, right, left_value, right_value);
+            }
+            default: {
+                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant operator: `" + token::tokenTypeString(op) + "` 2 structs", "").raise();
                 exit(1);
             }
-        }
-        case token::TokenType::Dash: {
-            if(left_type->is_method("__sub__", params_type1)) {
-                auto func_record = left_type->get_method("__sub__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__sub__", params_type2)) {
-                auto func_record = right_type->get_method("__sub__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant substract 2 structs", "Add the __sub__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::Asterisk: {
-            if(left_type->is_method("__mul__", params_type1)) {
-                auto func_record = left_type->get_method("__mul__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__mul__", params_type2)) {
-                auto func_record = right_type->get_method("__mul__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant multiply 2 structs", "Add the __mul__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::ForwardSlash: {
-            if(left_type->is_method("__div__", params_type1)) {
-                auto func_record = left_type->get_method("__div__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__div__", params_type2)) {
-                auto func_record = right_type->get_method("__div__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant divide 2 structs", "Add the __div__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::Percent: {
-            if(left_type->is_method("__mod__", params_type1)) {
-                auto func_record = left_type->get_method("__mod__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__mod__", params_type2)) {
-                auto func_record = right_type->get_method("__mod__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant % 2 structs", "Add the __mod__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::EqualEqual: {
-            if(left_type->is_method("__eq__", params_type1)) {
-                auto func_record = left_type->get_method("__eq__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__eq__", params_type2)) {
-                auto func_record = right_type->get_method("__eq__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant compare equals 2 structs", "Add the __eq__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::NotEquals: {
-            if(left_type->is_method("__neq__", params_type1)) {
-                auto func_record = left_type->get_method("__neq__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__neq__", params_type2)) {
-                auto func_record = right_type->get_method("__neq__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant compare not equals 2 structs", "Add the __neq__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::LessThan: {
-            if(left_type->is_method("__lt__", params_type1)) {
-                auto func_record = left_type->get_method("__lt__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__lt__", params_type2)) {
-                auto func_record = right_type->get_method("__lt__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant compare less than 2 structs", "Add the __lt__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::GreaterThan: {
-            if(left_type->is_method("__gt__", params_type1)) {
-                auto func_record = left_type->get_method("__gt__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__gt__", params_type2)) {
-                auto func_record = right_type->get_method("__gt__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant compare greater than 2 structs", "Add the __gt__ method in structs in either one of the struct")
-                    .raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::LessThanOrEqual: {
-            if(left_type->is_method("__lte__", params_type1)) {
-                auto func_record = left_type->get_method("__lte__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__lte__", params_type2)) {
-                auto func_record = right_type->get_method("__lte__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant compare less than or equals 2 structs", "Add the __lte__ method in structs in either one of the struct")
-                    .raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::GreaterThanOrEqual: {
-            if(left_type->is_method("__gte__", params_type1)) {
-                auto func_record = left_type->get_method("__gte__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__gte__", params_type2)) {
-                auto func_record = right_type->get_method("__gte__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant compare grater than or equals 2 structs",
-                                   "Add the __gte__ method in structs in either one of the struct")
-                    .raise();
-                exit(1);
-            }
-        }
-        case token::TokenType::AsteriskAsterisk: {
-            if(left_type->is_method("__pow__", params_type1)) {
-                auto func_record = left_type->get_method("__pow__", params_type1);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else if(right_type->is_method("__pow__", params_type2)) {
-                auto func_record = right_type->get_method("__pow__", params_type2);
-                auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-                return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
-            } else {
-                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant ** 2 structs", "Add the __pow__ method in structs in either one of the struct").raise();
-                exit(1);
-            }
-        }
-        default: {
-            errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant operator: `" + token::tokenTypeString(op) + "` 2 structs", "").raise();
-            exit(1);
-        }
         }
     }
     llvm::Value* left_val_converted = left_val;
     llvm::Value* right_val_converted = right_val;
     auto common_type = left_type;
-    if(left_type != right_type ) {
-        if(this->conversionPrecidence(left_type, right_type)) {
+    if (left_type != right_type) {
+        if (this->conversionPrecidence(left_type, right_type)) {
             auto lct = this->convertType({left_val, left_alloca, left_type}, right_type);
             left_val_converted = std::get<0>(lct);
             common_type = right_type;
-        } else if(this->conversionPrecidence(right_type, left_type)) {
+        } else if (this->conversionPrecidence(right_type, left_type)) {
             auto rct = this->convertType({right_val, right_alloca, right_type}, left_type);
             right_val_converted = std::get<0>(rct);
         } else {
@@ -939,135 +832,135 @@ compiler::Compiler::_visitInfixExpression(std::shared_ptr<AST::InfixExpression> 
         }
     }
 
-    if(common_type->stand_alone_type->isIntegerTy()) {
-        switch(op) {
-        case(token::TokenType::Plus): {
-            auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+    if (common_type->stand_alone_type->isIntegerTy()) {
+        switch (op) {
+            case (token::TokenType::Plus): {
+                auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::Dash): {
+                auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::Asterisk): {
+                auto inst = this->llvm_ir_builder.CreateMul(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::ForwardSlash): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32")
+                    inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
+                else
+                    inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::Percent): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32")
+                    inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
+                else
+                    inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::EqualEqual): {
+                auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::NotEquals): {
+                auto inst = this->llvm_ir_builder.CreateICmpNE(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::LessThan): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32")
+                    inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
+                else
+                    inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::GreaterThan): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32")
+                    inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
+                else
+                    inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::LessThanOrEqual): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32")
+                    inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
+                else
+                    inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::GreaterThanOrEqual): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32")
+                    inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
+                else
+                    inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::AsteriskAsterisk): {
+                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for int").raise();
+                exit(1);
+            }
+            default: {
+                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op)).raise();
+                exit(1);
+            }
         }
-        case(token::TokenType::Dash): {
-            auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::Asterisk): {
-            auto inst = this->llvm_ir_builder.CreateMul(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::ForwardSlash): {
-            llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32")
-                inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
-            else
-                inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::Percent): {
-            llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32")
-                inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
-            else
-                inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::EqualEqual): {
-            auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::NotEquals): {
-            auto inst = this->llvm_ir_builder.CreateICmpNE(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::LessThan): {
-            llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32")
-                inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
-            else
-                inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::GreaterThan): {
-            llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32")
-                inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
-            else
-                inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::LessThanOrEqual): {
-            llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32")
-                inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
-            else
-                inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::GreaterThanOrEqual): {
-            llvm::Value* inst;
-            if(left_type->name == "int" || left_type->name == "int32")
-                inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
-            else
-                inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::AsteriskAsterisk): {
-            errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for int").raise();
-            exit(1);
-        }
-        default: {
-            errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op)).raise();
-            exit(1);
-        }
-        }
-    } else if(common_type->stand_alone_type->isDoubleTy()) {
-        switch(op) {
-        case(token::TokenType::Plus): {
-            auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::Dash): {
-            auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::Asterisk): {
-            auto inst = this->llvm_ir_builder.CreateFMul(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::ForwardSlash): {
-            auto inst = this->llvm_ir_builder.CreateFDiv(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::EqualEqual): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::NotEquals): {
-            auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::LessThan): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::GreaterThan): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::LessThanOrEqual): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::GreaterThanOrEqual): {
-            auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
-            return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
-        }
-        case(token::TokenType::AsteriskAsterisk): {
-            errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for float").raise();
-            exit(1);
-        }
-        default: {
-            errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op)).raise();
-            exit(1);
-        }
+    } else if (common_type->stand_alone_type->isDoubleTy()) {
+        switch (op) {
+            case (token::TokenType::Plus): {
+                auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::Dash): {
+                auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::Asterisk): {
+                auto inst = this->llvm_ir_builder.CreateFMul(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::ForwardSlash): {
+                auto inst = this->llvm_ir_builder.CreateFDiv(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::EqualEqual): {
+                auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::NotEquals): {
+                auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::LessThan): {
+                auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::GreaterThan): {
+                auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::LessThanOrEqual): {
+                auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::GreaterThanOrEqual): {
+                auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
+                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            }
+            case (token::TokenType::AsteriskAsterisk): {
+                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for float").raise();
+                exit(1);
+            }
+            default: {
+                errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op)).raise();
+                exit(1);
+            }
         }
     } else {
         errors::WrongType(this->source, infixed_expression, {this->enviornment->get_struct("int"), this->enviornment->get_struct("float")}, "Unknown Type", "Check the types of the operands.").raise();
@@ -1106,8 +999,8 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
         auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left, index, "element");
 
         llvm::Value* load = element_type->stand_alone_type
-            ? this->llvm_ir_builder.CreateAlignedLoad(element_type->stand_alone_type, element, llvm::MaybeAlign(element_type->stand_alone_type->getScalarSizeInBits() / 8))
-            : element;
+                                ? this->llvm_ir_builder.CreateAlignedLoad(element_type->stand_alone_type, element, llvm::MaybeAlign(element_type->stand_alone_type->getScalarSizeInBits() / 8))
+                                : element;
 
         return {load, element, element_type, compiler::resolveType::StructInst};
     }
@@ -1123,9 +1016,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
     auto var_type = this->_parseType(variable_declaration_statement->value_type);
 
     if (var_value == nullptr) {
-        auto alloca = (var_type->struct_type == nullptr)
-            ? this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type)
-            : this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
+        auto alloca = (var_type->struct_type == nullptr) ? this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type) : this->llvm_ir_builder.CreateAlloca(var_type->struct_type, nullptr);
         auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, alloca, var_type);
         this->enviornment->add(var);
     } else {
@@ -1149,7 +1040,8 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
         if (vartt == compiler::resolveType::StructInst) {
             if (var_type->struct_type == nullptr) {
                 auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
-                this->llvm_ir_builder.CreateAlignedStore(var_value_resolved, alloca, llvm::MaybeAlign(var_type->stand_alone_type->getScalarSizeInBits() / 8), variable_declaration_statement->is_volatile);
+                this->llvm_ir_builder.CreateAlignedStore(var_value_resolved, alloca, llvm::MaybeAlign(var_type->stand_alone_type->getScalarSizeInBits() / 8),
+                                                         variable_declaration_statement->is_volatile);
                 auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
                 this->enviornment->add(var);
             } else {
@@ -1260,7 +1152,7 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
             exit(1);
         }
         case AST::NodeType::InfixedExpression: {
-            return this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
+            return this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
         }
         case AST::NodeType::IndexExpression: {
             return this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
@@ -1380,7 +1272,7 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
         this->llvm_ir_builder.CreateRet(return_value);
     }
 
-    throw compiler::DoneRet();
+    throw compiler::DoneRet(); // Throws `DoneRet` Error to Indicate that Dont parse the following statements in the current block statement
 };
 
 std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(std::shared_ptr<AST::Type> type) {
@@ -1462,12 +1354,9 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
             }
 
             errors::NoOverload(this->source, {}, type->name, "No GStruct Viable").raise();
-            exit(1);
         }
 
         errors::WrongType(this->source, type->name, {}, "module is not a Type").raise();
-        std::cerr << "Type is Wrong" << std::endl;
-        exit(1);
     }
 
     auto struct_ = std::get<std::shared_ptr<enviornment::RecordStructType>>(_struct);
@@ -1589,27 +1478,8 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
     }
 
     if (this->enviornment->is_Gfunc(name) ? this->enviornment->is_function(name, params_types, false, true) : this->enviornment->is_function(name, params_types)) {
-        auto func_record = this->enviornment->get_function(name, params_types);
-        int idx = 0;
-        bool conversion_needed = false;
-        std::vector<int> mismatch_indices;
-
-        for (auto [pt, pst] : llvm::zip(func_record->arguments, params_types)) {
-            if (!enviornment::_checkType(std::get<1>(pt), pst)) {
-                if (this->canConvertType(pst, std::get<1>(pt))) {
-                    args[idx] = std::get<0>(this->convertType({args[idx], allocas[idx], pst}, std::get<1>(pt)));
-                    conversion_needed = true;
-                } else {
-                    mismatch_indices.push_back(idx);
-                }
-            }
-            idx++;
-        }
-
-        if (conversion_needed) {
-            errors::NoOverload(this->source, {mismatch_indices}, call_expression, "Cannot call the function with wrong type").raise();
-        }
-
+        auto func_record = this->enviornment->get_function(name, params_types, false, true);
+        this->_checkCallType(func_record, call_expression, args, params_types);
         auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, args);
         return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
     } else if (this->enviornment->is_Gfunc(name)) {
@@ -1625,31 +1495,14 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
         params_types.insert(params_types.begin(), struct_record);
         args.insert(args.begin(), alloca);
         auto func = struct_record->get_method("__init__", params_types);
-        int idx = 0;
-        bool conversion_needed = false;
-        std::vector<int> mismatch_indices;
-
-        for (auto [pt, pst] : llvm::zip(func->arguments, params_types)) {
-            if (!enviornment::_checkType(std::get<1>(pt), pst)) {
-                if (this->canConvertType(pst, std::get<1>(pt))) {
-                    args[idx] = std::get<0>(this->convertType({args[idx], allocas[idx], pst}, std::get<1>(pt)));
-                    conversion_needed = true;
-                } else {
-                    mismatch_indices.push_back(idx);
-                }
-            }
-            idx++;
-        }
-
-        if (conversion_needed) {
-            errors::NoOverload(this->source, {mismatch_indices}, call_expression, "Cannot call the function with wrong type").raise();
-        }
+        this->_checkCallType(func, call_expression, args, params_types);
 
         if (func) {
             this->llvm_ir_builder.CreateCall(func->function, args);
         } else {
             errors::NoOverload(this->source, {}, call_expression, "Initialization method does not exist for struct " + struct_record->name + ".",
-                               "Check the initialization method name or define the method.").raise();
+                               "Check the initialization method name or define the method.")
+                .raise();
             exit(1);
         }
         return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
@@ -1801,8 +1654,9 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
         } else if (field->type() == AST::NodeType::FunctionStatement) {
             auto func_dec = std::static_pointer_cast<AST::FunctionStatement>(field);
             if (!func_dec->generic.empty()) {
-                errors::CompletionError("Doesn't Support", this->source, func_dec->meta_data.st_line_no, func_dec->meta_data.end_line_no,
-                                        "Struct Methods do not support Generic Functions", "Set the Generic on the struct").raise();
+                errors::CompletionError("Doesn't Support", this->source, func_dec->meta_data.st_line_no, func_dec->meta_data.end_line_no, "Struct Methods do not support Generic Functions",
+                                        "Set the Generic on the struct")
+                    .raise();
                 exit(1);
             }
             this->_visitFunctionDeclarationStatement(func_dec, struct_record);
@@ -1870,15 +1724,6 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
     parser::Parser parser(std::make_shared<Lexer>(lexer));
     auto program = parser.parseProgram();
 
-    for (auto& err : parser.errors) {
-        err->raise(false);
-    }
-
-    if (!parser.errors.empty()) {
-        std::cerr << "Parser errors found, returning" << std::endl;
-        return;
-    }
-
     auto prev_env = this->enviornment;
     this->enviornment = std::make_shared<enviornment::Enviornment>(this->enviornment->parent, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>(), module_name);
 
@@ -1904,10 +1749,8 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
     this->source = prev_source;
 }
 
-void compiler::Compiler::_importFunctionDeclarationStatement(
-    std::shared_ptr<AST::FunctionStatement> function_declaration_statement,
-    std::shared_ptr<enviornment::RecordModule> module,
-    nlohmann::json& ir_gc_map_json) {
+void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module,
+                                                             nlohmann::json& ir_gc_map_json) {
 
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(function_declaration_statement->name)->value;
 
@@ -2002,7 +1845,7 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
             auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
             auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, ir_gc_map_json["structs"][struct_name]["methods"][method_name].get<std::string>(), this->llvm_module.get());
 
-            unsigned idx = 0;
+            unsigned short idx = 0;
             for (auto& arg : func->args()) {
                 arg.setName(param_names[idx++]);
             }
