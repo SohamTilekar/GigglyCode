@@ -91,7 +91,7 @@ class WrongType : public Error {
   public:
     std::shared_ptr<AST::Expression> exp;
     std::vector<std::shared_ptr<enviornment::RecordStructType>> expected;
-    WrongType(const std::string& source, std::shared_ptr<AST::Expression> exp, std::vector<std::shared_ptr<enviornment::RecordStructType>> expected, const std::string& message = "",
+    WrongType(const std::string& source, std::shared_ptr<AST::Expression> exp, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& expected, const std::string& message = "",
               const std::string& suggestedFix = "")
         : Error("Wrong Type", source, exp->meta_data.st_line_no, exp->meta_data.end_line_no, message, suggestedFix), exp(exp), expected(expected) {};
     void raise() override;

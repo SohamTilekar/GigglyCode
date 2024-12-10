@@ -130,12 +130,6 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         } else {
             std::cout << debug_program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
         }
-        for (auto& err : debug_parser.errors) {
-            err->raise(false);
-        }
-        if (debug_parser.errors.size() > 0) {
-            return;
-        }
         if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
             std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
         }
@@ -145,12 +139,6 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         // Parser
         parser::Parser parsr(std::make_shared<Lexer>(lexer));
         auto program = parsr.parseProgram();
-        for (auto& err : parsr.errors) {
-            err->raise(false);
-        }
-        if (parsr.errors.size() > 0) {
-            return;
-        }
         // Compiler
         auto comp = compiler::Compiler(fileContent, std::filesystem::absolute(filePath), std::filesystem::path(ir_gc_map), buildDir, relativePath);
         comp.compile(program);

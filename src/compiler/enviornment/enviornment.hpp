@@ -31,7 +31,7 @@ class Record {
         this->meta_data.end_col_no = end_col_no;
     };
     std::unordered_map<std::string, std::any> extra_info = {};
-    Record(RecordType type, std::string name, std::unordered_map<std::string, std::any> extra_info = {}) : type(type), name(name), extra_info(extra_info) {};
+    Record(RecordType type, std::string name, const std::unordered_map<std::string, std::any>& extra_info = {}) : type(type), name(name), extra_info(extra_info) {};
 }; // class Record
 
 class RecordVariable;
@@ -47,7 +47,7 @@ class RecordFunction : public Record {
     bool varArg = false;
     RecordFunction(const std::string& name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
-                   std::shared_ptr<RecordStructType> return_inst, std::unordered_map<std::string, std::any> extra_info = {})
+                   std::shared_ptr<RecordStructType> return_inst, const std::unordered_map<std::string, std::any>& extra_info = {})
         : Record(RecordType::RecordFunction, name, extra_info), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
     RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
                    std::shared_ptr<RecordStructType> return_inst, bool isVarArg)
@@ -81,9 +81,9 @@ class RecordStructType : public Record {
     RecordStructType(const std::string& name) : Record(RecordType::RecordStructInst, name) {};
     RecordStructType(const std::string& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
     bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {},
-                   std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
+                   std::shared_ptr<enviornment::RecordStructType> return_type = nullptr, bool exact = false);
     std::shared_ptr<RecordFunction> get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types,
-                                               const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr);
+                                               const std::unordered_map<std::string, std::any>& ex_info = {}, std::shared_ptr<enviornment::RecordStructType> return_type = nullptr, bool exact = false);
 };
 
 class RecordVariable : public Record {
@@ -102,7 +102,7 @@ bool _checkType(std::shared_ptr<enviornment::RecordGStructType> type1, std::shar
 class RecordModule : public Record {
   public:
     std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map;
-    RecordModule(const std::string& name, std::vector<std::tuple<std::string, std::shared_ptr<Record>>> record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {};
+    RecordModule(const std::string& name, const std::vector<std::tuple<std::string, std::shared_ptr<Record>>>& record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {};
     RecordModule(const std::string& name) : Record(RecordType::RecordModule, name) {};
     bool is_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, bool exact = false);
     std::shared_ptr<RecordFunction> get_function(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, bool exact = false);
@@ -128,7 +128,7 @@ class Enviornment {
     std::vector<llvm::BasicBlock*> loop_end_block = {};
     std::vector<llvm::BasicBlock*> loop_condition_block = {};
 
-    Enviornment(std::shared_ptr<Enviornment> parent = nullptr, std::vector<std::tuple<std::string, std::shared_ptr<Record>>> records = {}, std::string name = "unnamed")
+    Enviornment(std::shared_ptr<Enviornment> parent = nullptr, const std::vector<std::tuple<std::string, std::shared_ptr<Record>>>& records = {}, std::string name = "unnamed")
         : parent(parent), name(name), record_map(records) {};
     void add(std::shared_ptr<Record> record);
     bool is_variable(const std::string& name, bool limit2current_scope = false);

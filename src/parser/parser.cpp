@@ -60,6 +60,8 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseIfElseStatement();
     } else if (this->_currentTokenIs(token::TokenType::While)) {
         return this->_parseWhileStatement();
+    } else if (this->_currentTokenIs(token::TokenType::For)) {
+        return this->_parseForStatement();
     } else if (this->_currentTokenIs(token::TokenType::Break)) {
         return this->_parseBreakStatement();
     } else if (this->_currentTokenIs(token::TokenType::Continue)) {
@@ -268,6 +270,33 @@ std::shared_ptr<AST::WhileStatement> parser::Parser::_parseWhileStatement() {
     auto while_statement = std::make_shared<AST::WhileStatement>(condition, body);
     while_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return while_statement;
+}
+
+std::shared_ptr<AST::ForStatement> parser::Parser::_parseForStatement() {
+    int st_line_no = current_token->line_no;
+    int st_col_no = current_token->col_no;
+    if (!this->_expectPeek({token::TokenType::LeftParen})) {
+        return nullptr;
+    }
+    if (!this->_expectPeek({token::TokenType::Identifier})) {
+        return nullptr;
+    }
+    auto get = std::make_shared<AST::IdentifierLiteral>(this->current_token);
+    if (!this->_expectPeek({token::TokenType::In})) {
+        return nullptr;
+    }
+    this->_nextToken();
+    auto from = this->_parseExpression(PrecedenceType::LOWEST);
+    if (!this->_expectPeek({token::TokenType::RightParen})) {
+        return nullptr;
+    }
+    this->_nextToken();
+    auto body = this->_parseStatement();
+    int end_line_no = current_token->line_no;
+    int end_col_no = current_token->col_no;
+    auto for_statement = std::make_shared<AST::ForStatement>(get, from, body);
+    for_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    return for_statement;
 }
 
 std::shared_ptr<AST::BreakStatement> parser::Parser::_parseBreakStatement() {

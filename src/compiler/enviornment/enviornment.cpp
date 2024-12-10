@@ -30,7 +30,7 @@ bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> fu
 }
 
 bool enviornment::RecordStructType::is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types,
-                                              const std::unordered_map<std::string, std::any>& ex_info, std::shared_ptr<enviornment::RecordStructType> return_type) {
+                                              const std::unordered_map<std::string, std::any>& ex_info, std::shared_ptr<enviornment::RecordStructType> return_type, bool exact) {
     for (const auto& [method_name, method] : this->methods) {
         // Check if all keys in ex_info are present in this->extra_info and their values match
         bool match = true;
@@ -49,8 +49,7 @@ bool enviornment::RecordStructType::is_method(const std::string& name, const std
 
         bool return_correct = !return_type || enviornment::_checkType(return_type, method->return_inst);
         bool name_matches = name.empty() || method->name == name;
-        bool params_match = _checkFunctionParameterType(method, params_types);
-
+        bool params_match = _checkFunctionParameterType(method, params_types, exact);
         if (return_correct && match && name_matches && params_match) {
             return true;
         }
@@ -61,7 +60,7 @@ bool enviornment::RecordStructType::is_method(const std::string& name, const std
 
 std::shared_ptr<enviornment::RecordFunction> enviornment::RecordStructType::get_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types,
                                                                                        const std::unordered_map<std::string, std::any>& ex_info,
-                                                                                       std::shared_ptr<enviornment::RecordStructType> return_type) {
+                                                                                       std::shared_ptr<enviornment::RecordStructType> return_type, bool exact) {
     for (const auto& [method_name, method] : this->methods) {
         // Check if all keys in ex_info are present in this->extra_info and their values match
         bool match = true;

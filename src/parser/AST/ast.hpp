@@ -27,6 +27,7 @@ enum class NodeType {
     ReturnStatement,
     IfElseStatement,
     WhileStatement,
+    ForStatement,
     BreakStatement,
     ContinueStatement,
     StructStatement,
@@ -83,11 +84,13 @@ class Statement : public Node {};
 
 class Expression : public Node {};
 
+class IdentifierLiteral;
+
 class Type : public Node {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Type>> generics;
-    inline Type(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Type>> generics) : name(name), generics(generics) {}
+    inline Type(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Type>>& generics) : name(name), generics(generics) {}
     inline NodeType type() override { return NodeType::Type; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -96,7 +99,7 @@ class GenericType : public Node {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Type>> generic_union;
-    inline GenericType(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Type>> generic_union) : name(name), generic_union(generic_union) {}
+    inline GenericType(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Type>>& generic_union) : name(name), generic_union(generic_union) {}
     inline NodeType type() override { return NodeType::GenericType; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -120,7 +123,7 @@ class BlockStatement : public Statement {
   public:
     std::vector<std::shared_ptr<Statement>> statements;
     inline NodeType type() override { return NodeType::BlockStatement; };
-    inline BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {}) : statements(statements) {}
+    inline BlockStatement(const std::vector<std::shared_ptr<Statement>>& statements = {}) : statements(statements) {}
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
@@ -150,7 +153,7 @@ class FunctionStatement : public Statement {
     std::shared_ptr<BlockStatement> body;
     std::vector<std::shared_ptr<GenericType>> generic;
     inline FunctionStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<FunctionParameter>> parameters, std::vector<std::shared_ptr<FunctionParameter>> closure_parameters,
-                             std::shared_ptr<Type> return_type, std::shared_ptr<BlockStatement> body, std::vector<std::shared_ptr<GenericType>> generic)
+                             std::shared_ptr<Type> return_type, std::shared_ptr<BlockStatement> body, const std::vector<std::shared_ptr<GenericType>>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
         this->extra_info["autocast"] = false;
     }
@@ -163,7 +166,7 @@ class CallExpression : public Expression {
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Expression>> arguments;
     std::vector<std::shared_ptr<Expression>> generics;
-    inline CallExpression(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Expression>> arguments = {}) : name(name), arguments(arguments) {}
+    inline CallExpression(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Expression>>& arguments = {}) : name(name), arguments(arguments) {}
     inline NodeType type() override { return NodeType::CallExpression; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -185,6 +188,16 @@ class WhileStatement : public Statement {
     std::shared_ptr<Statement> body;
     inline WhileStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> body) : condition(condition), body(body) {}
     inline NodeType type() override { return NodeType::WhileStatement; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
+class ForStatement : public Statement {
+  public:
+    std::shared_ptr<Expression> from;
+    std::shared_ptr<IdentifierLiteral> get;
+    std::shared_ptr<Statement> body;
+    inline ForStatement(std::shared_ptr<IdentifierLiteral> get, std::shared_ptr<Expression> from, std::shared_ptr<Statement> body) : get(get), from(from), body(body) {}
+    inline NodeType type() override { return NodeType::ForStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
@@ -274,7 +287,7 @@ class FloatLiteral : public Expression {
 class StringLiteral : public Expression {
   public:
     std::string value;
-    inline StringLiteral(std::string value) : value(value) { this->meta_data.more_data["length"] = int(value.length()); }
+    inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data["length"] = int(value.length()); }
     inline NodeType type() override { return NodeType::StringLiteral; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -306,7 +319,7 @@ class StructStatement : public Statement {
     std::shared_ptr<Expression> name = nullptr;
     std::vector<std::shared_ptr<Statement>> fields = {};
     std::vector<std::shared_ptr<GenericType>> generics = {};
-    inline StructStatement(std::shared_ptr<Expression> name, std::vector<std::shared_ptr<Statement>> fields) : name(name), fields(fields) {}
+    inline StructStatement(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Statement>>& fields) : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -314,7 +327,7 @@ class StructStatement : public Statement {
 class ArrayLiteral : public Expression {
   public:
     std::vector<std::shared_ptr<Expression>> elements;
-    inline ArrayLiteral(std::vector<std::shared_ptr<Expression>> elements) : elements(elements) {}
+    inline ArrayLiteral(const std::vector<std::shared_ptr<Expression>>& elements) : elements(elements) {}
     inline NodeType type() override { return NodeType::ArrayLiteral; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

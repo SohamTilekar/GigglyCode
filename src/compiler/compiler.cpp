@@ -1,4 +1,5 @@
 // TODO: Add Meta Data to all of the Record.
+// TODO: Add the pass by Value to the Struct & pass by refrence to the standalone
 #include "compiler.hpp"
 #include <algorithm>
 #include <filesystem>
@@ -58,16 +59,10 @@ compiler::Compiler::Compiler(const std::string& source, std::filesystem::path fi
 
     this->_initializeBuiltins();
 
-    // std::ifstream ir_gc_map_file(ir_gc_map.string());
-    // if (!ir_gc_map_file.is_open()) {
-    //     throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map.string());
-    // }
-    // ir_gc_map_file >> this->ir_gc_map_json;
     this->ir_gc_map_json["functions"] = nlohmann::json::object();
     this->ir_gc_map_json["structs"] = nlohmann::json::object();
     this->ir_gc_map_json["GSinstance"] = nlohmann::json::array();
     this->ir_gc_map_json["GFinstance"] = nlohmann::json::array();
-    // ir_gc_map_file.close();
 }
 
 void addBuiltinType(compiler::Compiler* compiler, const std::string& name, llvm::Type* type) {
@@ -123,7 +118,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             this->_visitExpressionStatement(std::static_pointer_cast<AST::ExpressionStatement>(node));
             break;
         case AST::NodeType::InfixedExpression:
-            this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
+            this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
             break;
         case AST::NodeType::IndexExpression:
             this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
@@ -147,10 +142,13 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             this->_visitReturnStatement(std::static_pointer_cast<AST::ReturnStatement>(node));
             break;
         case AST::NodeType::BlockStatement:
-            this->_visitBlockStatement(std::static_pointer_cast<AST::BlockStatement>(node));
+            return this->_visitBlockStatement(std::static_pointer_cast<AST::BlockStatement>(node));
             break;
         case AST::NodeType::WhileStatement:
-            this->_visitWhileStatement(std::static_pointer_cast<AST::WhileStatement>(node));
+            return this->_visitWhileStatement(std::static_pointer_cast<AST::WhileStatement>(node));
+            break;
+        case AST::NodeType::ForStatement:
+            return this->_visitForStatement(std::static_pointer_cast<AST::ForStatement>(node));
             break;
         case AST::NodeType::BreakStatement:
             if (this->enviornment->loop_end_block.empty()) {
@@ -201,7 +199,7 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
     }
 }
 
-void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
+void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
     unsigned short idx = 0;
     bool type_mismatch = false;
     std::vector<unsigned short> mismatches;
@@ -334,23 +332,7 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
             gfunc->env->add(func_record);
         }
 
-        idx = 0;
-        type_mismatch = false;
-        std::vector<unsigned short> mismatches;
-
-        for (auto [pt, pst] : llvm::zip(func_record->arguments, params_types)) {
-            if (!enviornment::_checkType(std::get<1>(pt), pst)) {
-                if (this->canConvertType(pst, std::get<1>(pt))) {
-                    args[idx] = std::get<0>(this->convertType({args[idx], nullptr, pst}, std::get<1>(pt)));
-                    type_mismatch = true;
-                }
-            }
-            idx++;
-        }
-
-        if (type_mismatch) {
-            errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type");
-        }
+        this->_checkCallType(func_record, func_call, args, params_types);
 
         for (auto [gparam, pparam] : llvm::zip(gfunc->func->parameters, params_types)) {
             if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
@@ -424,7 +406,6 @@ compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::Record
                     if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
                         auto field_value = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->value_type->name)->value;
                         bool is_generic = false;
-
                         for (const auto& generic : gstruct->structt->generics) {
                             if (field_value == std::static_pointer_cast<AST::IdentifierLiteral>(generic->name)->value) {
                                 is_generic = true;
@@ -459,27 +440,8 @@ compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::Record
         remaining_args.insert(remaining_args.begin(), alloca);
         auto func = struct_record->get_method("__init__", remaining_params_types);
 
-        int idx = 0;
-        bool type_mismatch = false;
-        std::vector<unsigned short> mismatches;
-
-        for (auto [pt, pst] : llvm::zip(func->arguments, remaining_params_types)) {
-            if (!enviornment::_checkType(std::get<1>(pt), pst)) {
-                if (this->canConvertType(pst, std::get<1>(pt))) {
-                    remaining_args[idx] = std::get<0>(this->convertType({remaining_args[idx], nullptr, pst}, std::get<1>(pt)));
-                } else {
-                    type_mismatch = true;
-                    mismatches.push_back(idx);
-                }
-            }
-            idx++;
-        }
-
-        if (type_mismatch) {
-            errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type");
-        }
-
         if (func) {
+            this->_checkCallType(func, func_call, args, params_types);
             this->llvm_ir_builder.CreateCall(func->function, remaining_args);
         } else {
             errors::NoOverload(this->source, {}, func_call, "Initialization method does not exist for struct " + struct_name + ".", "Check the initialization method name or define the method.")
@@ -571,11 +533,9 @@ bool compiler::Compiler::canConvertType(std::shared_ptr<enviornment::RecordStruc
             return true;
         }
     }
-
-    if (from->struct_type && from->is_method("", {from}, {{"autocast", true}}, to)) {
+    if (from->struct_type && from->is_method("", {from}, {{"autocast", true}}, to, true)) {
         return true;
     }
-
     return false;
 };
 
@@ -972,7 +932,7 @@ std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
            compiler::resolveType>
 compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression) {
-    auto [left, _, _left_generic, ltt] = this->_resolveValue(index_expression->left);
+    auto [left, left_alloca, _left_generic, ltt] = this->_resolveValue(index_expression->left);
 
     if (ltt != compiler::resolveType::StructInst) {
         errors::Cantindex(this->source, index_expression, false, "Cannot index Module or type", "Ensure the left-hand side is an array or a valid indexable type.").raise();
@@ -994,7 +954,7 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
             errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
         }
 
-        auto element_type = left_generic->sub_types["valueType"];
+        auto element_type = left_generic->generic_sub_types[0];
         auto element_ptr_type = element_type->stand_alone_type ? element_type->stand_alone_type : element_type->struct_type;
         auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left, index, "element");
 
@@ -1003,9 +963,18 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
                                 : element;
 
         return {load, element, element_type, compiler::resolveType::StructInst};
+    } else {
+        if(left_generic->is_method("__index__", {left_generic, index_generic})) {
+            auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
+            auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
+            return {returnValue, nullptr, idx_method->return_inst, compiler::resolveType::StructInst};
+        } else {
+            std::cout << "index_expression: " << left_generic->name << std::endl;
+            errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "define the __index__ method.")
+                .raise();
+            exit(1);
+        }
     }
-
-    std::cerr << "TODO: Call the __index__ function for non array type" << std::endl;
     exit(1);
 };
 
@@ -1152,7 +1121,7 @@ compiler::Compiler::_resolveValue(std::shared_ptr<AST::Node> node) {
             exit(1);
         }
         case AST::NodeType::InfixedExpression: {
-            return this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
+            return this->_visitInfixExpression(std::static_pointer_cast<AST::InfixExpression>(node));
         }
         case AST::NodeType::IndexExpression: {
             return this->_visitIndexExpression(std::static_pointer_cast<AST::IndexExpression>(node));
@@ -1220,7 +1189,7 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
     }
 
     auto array_struct = std::make_shared<enviornment::RecordStructType>(*this->enviornment->get_struct("array"));
-    array_struct->sub_types["valueType"] = first_generic;
+    array_struct->generic_sub_types.push_back(first_generic);
 
     return {array, array, array_struct, compiler::resolveType::StructInst};
 };
@@ -1360,6 +1329,10 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
     }
 
     auto struct_ = std::get<std::shared_ptr<enviornment::RecordStructType>>(_struct);
+    if(struct_->name == "array") {
+        struct_ = std::make_shared<enviornment::RecordStructType>(*struct_);
+        struct_->generic_sub_types.push_back(generics[0]);
+    }
     return struct_;
 };
 
@@ -1427,6 +1400,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
 
         try {
             this->compile(body);
+            this->llvm_ir_builder.CreateUnreachable();
         } catch (compiler::DoneRet) {
             // Ignoring
         }
@@ -1495,9 +1469,9 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
         params_types.insert(params_types.begin(), struct_record);
         args.insert(args.begin(), alloca);
         auto func = struct_record->get_method("__init__", params_types);
-        this->_checkCallType(func, call_expression, args, params_types);
 
         if (func) {
+            this->_checkCallType(func, call_expression, args, params_types);
             this->llvm_ir_builder.CreateCall(func->function, args);
         } else {
             errors::NoOverload(this->source, {}, call_expression, "Initialization method does not exist for struct " + struct_record->name + ".",
@@ -1568,7 +1542,7 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             // Ignore to compile the following commands if DoneRet exception occurs
         }
 
-        this->llvm_ir_builder.SetInsertPoint(ContBB);
+       this->llvm_ir_builder.SetInsertPoint(ContBB);
     }
 }
 
@@ -1620,6 +1594,85 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     this->enviornment->loop_body_block.pop_back();
     this->enviornment->loop_end_block.pop_back();
     this->enviornment->loop_condition_block.pop_back();
+}
+
+void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> for_statement) {
+    auto [loop_from_value, loop_from_alloca, _loop_from_type, w] = this->_resolveValue(for_statement->from);
+    if (w != compiler::resolveType::StructInst) {
+        errors::WrongType(this->source, for_statement->from, {}, "cant loop over module or type").raise();
+        exit(1);
+    }
+
+    auto loop_from_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_loop_from_type);
+    if(loop_from_type->is_method("__iter__", {loop_from_type})) {
+        auto iter_geter = loop_from_type->get_method("__iter__", {loop_from_type});
+        auto iter_type = iter_geter->return_inst;
+        if (!(loop_from_type->is_method("__next__", {loop_from_type, iter_type}) && loop_from_type->is_method("__done__", {loop_from_type, iter_type}, {}, this->enviornment->get_struct("bool")))) {
+            std::cerr << "__next__ or __done__ method not define" << std::endl;
+            exit(1);
+        }
+        auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
+        llvm::BasicBlock* CondBB = llvm::BasicBlock::Create(llvm_context, "cond", func);
+        llvm::BasicBlock* BodyBB = llvm::BasicBlock::Create(llvm_context, "body", func);
+        llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
+        this->enviornment->loop_body_block.push_back(BodyBB);
+        this->enviornment->loop_end_block.push_back(ContBB);
+        this->enviornment->loop_condition_block.push_back(CondBB);
+
+        auto next_method = loop_from_type->get_method("__next__", {loop_from_type, iter_type});
+        auto done_method = loop_from_type->get_method("__done__", {loop_from_type, iter_type});
+        auto iterator_alloca = this->llvm_ir_builder.CreateCall(iter_geter->function, {loop_from_alloca});
+
+        this->llvm_ir_builder.CreateBr(CondBB);
+        this->llvm_ir_builder.SetInsertPoint(CondBB);
+        this->llvm_ir_builder.CreateCondBr(this->llvm_ir_builder.CreateCall(done_method->function, {loop_from_alloca, iterator_alloca}), ContBB, BodyBB);
+
+        this->llvm_ir_builder.SetInsertPoint(BodyBB);
+        // Var
+        auto prev_env = this->enviornment;
+        this->enviornment = std::make_shared<enviornment::Enviornment>(this->enviornment);
+        auto alloca = next_method->return_inst->stand_alone_type ? this->llvm_ir_builder.CreateAlloca(next_method->return_inst->stand_alone_type) : this->llvm_ir_builder.CreateAlloca(next_method->return_inst->struct_type);
+        if (next_method->return_inst->struct_type) {
+        this->llvm_ir_builder.CreateAlignedStore(
+            this->llvm_ir_builder.CreateAlignedLoad(
+                next_method->return_inst->struct_type,
+                this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}),
+                llvm::MaybeAlign(next_method->return_inst->struct_type->getScalarSizeInBits() / 8)
+            ),
+            alloca,
+            llvm::MaybeAlign(next_method->return_inst->struct_type->getScalarSizeInBits() / 8)
+        );
+        } else {
+            this->llvm_ir_builder.CreateAlignedStore(
+                this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}),
+                alloca,
+                llvm::MaybeAlign(next_method->return_inst->stand_alone_type->getScalarSizeInBits() / 8)
+            );
+        };
+
+        std::shared_ptr<enviornment::RecordVariable> var;
+        if (next_method->return_inst->struct_type)
+            var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, alloca, alloca, next_method->return_inst);
+        else
+            var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, this->llvm_ir_builder.CreateAlignedLoad(next_method->return_inst->stand_alone_type, alloca, llvm::MaybeAlign(next_method->return_inst->stand_alone_type->getScalarSizeInBits() / 8)), alloca, next_method->return_inst);
+        this->enviornment->add(var);
+
+        try {
+            this->compile(for_statement->body);
+            this->llvm_ir_builder.CreateBr(CondBB);
+        } catch (compiler::DoneRet) {
+            // Ignore to compile the following commands if DoneRet exception occurs
+        }
+        this->enviornment = prev_env;
+        this->llvm_ir_builder.SetInsertPoint(ContBB);
+
+        this->enviornment->loop_body_block.pop_back();
+        this->enviornment->loop_end_block.pop_back();
+        this->enviornment->loop_condition_block.pop_back();
+    } else {
+        std::cerr << "__iter__ method not define" << std::endl;
+        exit(1);
+    }
 }
 
 void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement) {

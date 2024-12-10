@@ -44,6 +44,8 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
             return std::make_shared<std::string>("IfElseStatement");
         case NodeType::WhileStatement:
             return std::make_shared<std::string>("WhileStatement");
+        case NodeType::ForStatement:
+            return std::make_shared<std::string>("ForStatement");
         case NodeType::BreakStatement:
             return std::make_shared<std::string>("BreakStatement");
         case NodeType::ContinueStatement:
@@ -167,6 +169,15 @@ std::shared_ptr<nlohmann::json> AST::WhileStatement::toJSON() {
     jsonAst["type"] = *nodeTypeToString(this->type());
     jsonAst["condition"] = *this->condition->toJSON();
     jsonAst["body"] = *this->body->toJSON();
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
+std::shared_ptr<nlohmann::json> AST::ForStatement::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["body"] = *this->body->toJSON();
+    jsonAst["get"] = *this->get->toJSON();
+    jsonAst["from"] = *this->from->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 

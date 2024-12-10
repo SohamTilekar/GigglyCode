@@ -22,7 +22,6 @@
 #include <variant>
 #include <vector>
 
-#include "../errors/errors.hpp"
 #include "../parser/AST/ast.hpp"
 #include "./enviornment/enviornment.hpp"
 
@@ -34,7 +33,7 @@ namespace compiler {
 class NotCompiledError : public std::exception {
   public:
     std::string path;
-    NotCompiledError(std::string path) : path(path) {}
+    NotCompiledError(const std::string& path) : path(path) {}
     const char* what() const throw() { return ("File " + path + " is not compiled").c_str(); }
 };
 
@@ -117,6 +116,7 @@ class Compiler {
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
     void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
     void _visitWhileStatement(std::shared_ptr<AST::WhileStatement> while_statement);
+    void _visitForStatement(std::shared_ptr<AST::ForStatement> for_statement);
     void _visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement);
 
     void _visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement, std::shared_ptr<enviornment::RecordModule> module = nullptr);
@@ -142,8 +142,8 @@ class Compiler {
     std::tuple<llvm::Value*, llvm::Value*,
                std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
                compiler::resolveType>
-    _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
-    void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
+    _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
 };
 } // namespace compiler
 #endif
