@@ -16,7 +16,7 @@ bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructType> type
 
 bool _checkFunctionParameterType(std::shared_ptr<enviornment::RecordFunction> func_record, std::vector<std::shared_ptr<enviornment::RecordStructType>> params, bool exact = false) {
     for (const auto& [arg, pass_instance] : llvm::zip(func_record->arguments, params)) {
-        const auto& [arg_name, accept_instance] = arg;
+        const auto& [arg_name, accept_instance, _] = arg;
         bool types_match = _checkType(accept_instance, pass_instance);
         bool can_convert = !exact && compiler::Compiler::canConvertType(accept_instance, pass_instance);
 

@@ -42,14 +42,14 @@ class RecordFunction : public Record {
   public:
     llvm::Function* function = nullptr;
     llvm::FunctionType* function_type = nullptr;
-    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments;
+    std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>, bool>> arguments;
     std::shared_ptr<RecordStructType> return_inst;
     bool varArg = false;
     RecordFunction(const std::string& name) : Record(RecordType::RecordFunction, name) {};
-    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
+    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>, bool>> arguments,
                    std::shared_ptr<RecordStructType> return_inst, const std::unordered_map<std::string, std::any>& extra_info = {})
         : Record(RecordType::RecordFunction, name, extra_info), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst) {};
-    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>>> arguments,
+    RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>, bool>> arguments,
                    std::shared_ptr<RecordStructType> return_inst, bool isVarArg)
         : Record(RecordType::RecordFunction, name), function(function), function_type(function_type), arguments(arguments), return_inst(return_inst), varArg(isVarArg) {};
 };

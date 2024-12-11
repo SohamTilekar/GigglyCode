@@ -90,7 +90,8 @@ class Type : public Node {
   public:
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Type>> generics;
-    inline Type(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Type>>& generics) : name(name), generics(generics) {}
+    bool refrence;
+    inline Type(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Type>>& generics, bool refrence) : name(name), generics(generics), refrence(refrence) {}
     inline NodeType type() override { return NodeType::Type; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

@@ -34,7 +34,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
     if (this->_currentTokenIs(token::TokenType::Identifier)) {
         int st_line_no = current_token->line_no;
         int st_col_no = current_token->col_no;
-        auto identifier = this->_parseInfixIdenifier();
+        auto identifier = this->_parseIdentifier();
         if (this->_peekTokenIs(token::TokenType::Colon)) {
             return this->_parseVariableDeclaration(identifier, st_line_no, st_col_no);
         } else if (this->_peekTokenIs(token::TokenType::Equals)) {
@@ -499,6 +499,7 @@ std::shared_ptr<AST::Type> parser::Parser::_parseType() {
     std::shared_ptr<AST::Expression> name;
     name = this->_parseInfixIdenifier();
     std::vector<std::shared_ptr<AST::Type>> generics;
+    bool ref = false;
     if (this->_peekTokenIs(token::TokenType::LeftBracket)) {
         this->_nextToken();
         this->_nextToken();
@@ -511,9 +512,13 @@ std::shared_ptr<AST::Type> parser::Parser::_parseType() {
             }
         }
     }
+    if(this->_peekTokenIs(token::TokenType::Refrence)) {
+        this->_nextToken();
+        ref = true;
+    }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto generic_type_node = std::make_shared<AST::Type>(name, generics);
+    auto generic_type_node = std::make_shared<AST::Type>(name, generics, ref);
     generic_type_node->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return generic_type_node;
 }

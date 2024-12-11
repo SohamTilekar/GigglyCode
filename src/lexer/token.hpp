@@ -61,6 +61,7 @@ enum class TokenType {
     AsteriskAsterisk, // Exponentiation **
     ForwardSlash,     // Division /
     BackwardSlash,    //
+    Refrence,
 
     // Symbols
     LeftParen,    // Left Parenthesis (

@@ -191,7 +191,7 @@ std::shared_ptr<token::Token> Lexer::nextToken() {
             token = this->_newToken(token::TokenType::BitwiseAnd, this->current_char + *this->_peekChar());
             this->_readChar();
         } else {
-            token = this->_newToken(token::TokenType::Illegal, this->current_char);
+            token = this->_newToken(token::TokenType::Refrence, this->current_char);
         }
     } else if (this->current_char == "|") {
         if (*this->_peekChar() == "|") {
