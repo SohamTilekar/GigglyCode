@@ -77,6 +77,7 @@ class Parser {
         {token::TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},        {token::TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
         {token::TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},        {token::TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
         {token::TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)}, {token::TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
+        {token::TokenType::New, std::bind(&Parser::_parseNew, this)},
     };
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>(std::shared_ptr<AST::Expression>)>> infix_parse_Fns = {
         {token::TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
@@ -139,6 +140,7 @@ class Parser {
     std::shared_ptr<AST::Expression> _parseIdentifier();
     std::shared_ptr<AST::Expression> _parseInfixIdenifier();
     std::shared_ptr<AST::Expression> _parseArrayLiteral();
+    std::shared_ptr<AST::Expression> _parseNew();
 
     std::vector<std::shared_ptr<AST::Expression>> _parse_expression_list(token::TokenType end);
 

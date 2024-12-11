@@ -8,6 +8,8 @@
 
 #include "AST/ast.hpp"
 
+bool is_new_call = false;
+
 parser::Parser::Parser(std::shared_ptr<Lexer> lexer) : lexer(lexer) {
     this->_nextToken();
     this->_nextToken();
@@ -359,10 +361,13 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseFunctionCall(std::shared_
     }
     identifier->set_meta_data(st_line_no, st_col_no, current_token->line_no, current_token->end_col_no);
     this->_nextToken();
+    bool is_new_call_local = is_new_call;
+    is_new_call= false;
     auto args = this->_parse_expression_list(token::TokenType::RightParen);
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
     auto call_expression = std::make_shared<AST::CallExpression>(identifier, args);
+    call_expression->_new = is_new_call_local;
     call_expression->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return call_expression;
 }
@@ -709,6 +714,12 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseBooleanLiteral() {
     expr->set_meta_data(current_token->line_no, current_token->col_no, current_token->line_no, current_token->end_col_no);
     return expr;
 }
+
+std::shared_ptr<AST::Expression> parser::Parser::_parseNew() {
+    if (!this->_expectPeek({token::TokenType::Identifier})) return nullptr;
+    is_new_call = true;
+    return this->_parseExpression(PrecedenceType::LOWEST);
+};
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseStringLiteral() {
     auto expr = std::make_shared<AST::StringLiteral>(current_token->literal);

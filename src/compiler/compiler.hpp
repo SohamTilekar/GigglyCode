@@ -1,6 +1,7 @@
 #ifndef COMPILER_HPP
 #define COMPILER_HPP
 
+#include <llvm/IR/DataLayout.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>

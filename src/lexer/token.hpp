@@ -98,8 +98,9 @@ enum class TokenType {
     Import, // import
     True,   // Boolean true true
     False,  // Boolean false false
-            // Maybe,    // Maybe type maybe
+    // Maybe,    // Maybe type maybe
     None,   // None type none
+    New,    // new
 };
 
 std::string tokenTypeString(TokenType type);

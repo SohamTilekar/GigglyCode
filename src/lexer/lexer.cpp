@@ -61,6 +61,8 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
         //     return token::TokenType::Maybe;
     } else if (*ident == "None") {
         return token::TokenType::None;
+    } else if (*ident == "new") {
+        return token::TokenType::New;
     }
     return token::TokenType::Identifier;
 };

@@ -167,6 +167,7 @@ class CallExpression : public Expression {
     std::shared_ptr<Expression> name;
     std::vector<std::shared_ptr<Expression>> arguments;
     std::vector<std::shared_ptr<Expression>> generics;
+    bool _new;
     inline CallExpression(std::shared_ptr<Expression> name, const std::vector<std::shared_ptr<Expression>>& arguments = {}) : name(name), arguments(arguments) {}
     inline NodeType type() override { return NodeType::CallExpression; };
     std::shared_ptr<nlohmann::json> toJSON() override;

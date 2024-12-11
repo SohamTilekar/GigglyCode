@@ -19,6 +19,7 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/IR/DataLayout.h>
 #include <memory>
 #include <regex.h>
 #include <string>
@@ -107,6 +108,8 @@ void compiler::Compiler::_initializeBuiltins() {
                        {{"format", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("int"));
     addBuiltinFunction(this, "scanf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true),
                        {{"format", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("int"));
+    addBuiltinFunction(this, "malloc", llvm::FunctionType::get(llvm::PointerType::get(llvm::Type::getVoidTy(llvm_context), 0), {this->enviornment->parent->get_struct("int")->stand_alone_type}, true),
+                       {{"bits", this->enviornment->parent->get_struct("int"), false}}, this->enviornment->parent->get_struct("void"));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
@@ -1540,7 +1543,14 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
     } else if (this->enviornment->is_struct(name)) {
         auto struct_record = this->enviornment->get_struct(name);
         auto struct_type = struct_record->struct_type;
-        auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+        llvm::Value* alloca;
+        if (call_expression->_new) {
+            llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+            llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
+            alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+        } else {
+            alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+        }
         params_types.insert(params_types.begin(), struct_record);
         args.insert(args.begin(), alloca);
         auto func = struct_record->get_method("__init__", params_types);

@@ -197,6 +197,8 @@ std::string token::tokenTypeString(TokenType type) {
             return "None";
         case TokenType::String:
             return "String";
+        case TokenType::New:
+            return "New";
         default:
             return "unknown token type(" + std::to_string(static_cast<int>(type)) + ")";
     }
