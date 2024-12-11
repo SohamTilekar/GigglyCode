@@ -470,7 +470,6 @@ compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::Record
 };
 
 
-// TODO: Add suport to Convert the bool to int, uint, float, ..., & Convert the things like int, float, string, etc to bool if its value is null
 std::tuple<llvm::Value*, llvm::Value*,
            std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
            compiler::resolveType>
@@ -523,6 +522,21 @@ compiler::Compiler::convertType(std::tuple<llvm::Value*, llvm::Value*, std::shar
     } else if (oftype->name == "float32" && to->name == "uint32") {
         auto uint32_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->get_struct("uint32")->stand_alone_type);
         return {uint32_type, ofalloca, to, compiler::resolveType::StructInst};
+    } else if (oftype->name == "bool" && to->name == "int") {
+        auto int_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->get_struct("int")->stand_alone_type);
+        return {int_type, ofalloca, to, compiler::resolveType::StructInst};
+    } else if (oftype->name == "bool" && to->name == "uint") {
+        auto uint_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->get_struct("uint")->stand_alone_type);
+        return {uint_type, ofalloca, to, compiler::resolveType::StructInst};
+    } else if (oftype->name == "bool" && to->name == "float") {
+        auto float_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type);
+        return {float_type, ofalloca, to, compiler::resolveType::StructInst};
+    } else if (oftype->name == "bool" && to->name == "float32") {
+        auto float32_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type);
+        return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
+    } else if ((oftype->name == "int" || oftype->name == "float" || oftype->name == "str") && to->name == "bool") {
+        auto bool_type = this->llvm_ir_builder.CreateICmpNE(ofloadedval, llvm::Constant::getNullValue(ofloadedval->getType()));
+        return {bool_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->struct_type) {
         if (oftype->is_method("", {oftype}, {{"autocast", true}}, to)) {
             auto method = oftype->get_method("", {oftype}, {{"autocast", true}}, to);
@@ -538,7 +552,9 @@ compiler::Compiler::convertType(std::tuple<llvm::Value*, llvm::Value*, std::shar
 bool compiler::Compiler::canConvertType(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to) {
     const std::vector<std::pair<std::string, std::string>> convertibleTypes = {{"int32", "int"},     {"int", "int32"},     {"uint32", "uint"},   {"uint", "uint32"},   {"float32", "float"},
                                                                                {"float", "float32"}, {"int", "float"},     {"int32", "float32"}, {"uint", "float"},    {"uint32", "float32"},
-                                                                               {"float", "int"},     {"float32", "int32"}, {"float", "uint"},    {"float32", "uint32"}};
+                                                                               {"float", "int"},     {"float32", "int32"}, {"float", "uint"},    {"float32", "uint32"},
+                                                                               {"bool", "int"},      {"bool", "uint"},     {"bool", "float"},    {"bool", "float32"},
+                                                                               {"int", "bool"},      {"float", "bool"},    {"str", "bool"}};
 
     for (const auto& [fromType, toType] : convertibleTypes) {
         if (from->name == fromType && to->name == toType) {
