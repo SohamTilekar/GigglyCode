@@ -329,7 +329,8 @@ class StructStatement : public Statement {
 class ArrayLiteral : public Expression {
   public:
     std::vector<std::shared_ptr<Expression>> elements;
-    inline ArrayLiteral(const std::vector<std::shared_ptr<Expression>>& elements) : elements(elements) {}
+    bool _new;
+    inline ArrayLiteral(const std::vector<std::shared_ptr<Expression>>& elements, bool _new = false) : elements(elements), _new(_new) {}
     inline NodeType type() override { return NodeType::ArrayLiteral; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

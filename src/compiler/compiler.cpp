@@ -659,7 +659,6 @@ compiler::Compiler::_memberAccess(std::shared_ptr<AST::InfixExpression> infixed_
                 auto func = left_type->get_function(name, params_types);
                 unsigned short idx = 0;
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
-                    std::cout << std::get<2>(argument) << std::endl;
                     if(param_type->stand_alone_type && std::get<2>(argument)) {
                         args[idx] = arg_alloca;
                     }
@@ -1021,7 +1020,6 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
             auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
             return {returnValue, nullptr, idx_method->return_inst, compiler::resolveType::StructInst};
         } else {
-            std::cout << "index_expression: " << left_generic->name << std::endl;
             errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "define the __index__ method.")
                 .raise();
             exit(1);
@@ -1239,7 +1237,16 @@ compiler::Compiler::_visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_
     }
 
     auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
-    auto array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
+    llvm::Value* array;
+
+    if (array_literal->_new) {
+        llvm::Value* gep = this->llvm_ir_builder.CreateGEP(array_type, llvm::ConstantPointerNull::get(array_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+        llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
+        array = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+        array = this->llvm_ir_builder.CreateBitCast(array, array_type->getPointerTo());
+    } else {
+        array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
+    }
 
     for (size_t i = 0; i < values.size(); ++i) {
         auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
