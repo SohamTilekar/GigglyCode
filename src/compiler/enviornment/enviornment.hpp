@@ -129,7 +129,14 @@ class Enviornment {
     std::vector<llvm::BasicBlock*> loop_condition_block = {};
 
     Enviornment(std::shared_ptr<Enviornment> parent = nullptr, const std::vector<std::tuple<std::string, std::shared_ptr<Record>>>& records = {}, std::string name = "unnamed")
-        : parent(parent), name(name), record_map(records) {};
+        : parent(parent), name(name), record_map(records) {
+            if(parent) {
+                this->loop_end_block = parent->loop_end_block;
+                this->loop_body_block = parent->loop_body_block;
+                this->loop_condition_block = parent->loop_condition_block;
+                this->current_function = parent->current_function;
+            }
+        };
     void add(std::shared_ptr<Record> record);
     bool is_variable(const std::string& name, bool limit2current_scope = false);
     std::shared_ptr<RecordVariable> get_variable(const std::string& name, bool limit2current_scope = false);
