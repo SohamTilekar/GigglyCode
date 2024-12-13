@@ -1,179 +1,274 @@
-# GigglyCode
+# 🎉 GigglyCode 🎉
 
-GigglyCode is an innovative programming language developed by SohamTilekar. Designed primarily as an educational tool for learning C++, GigglyCode aims to bridge the gap between different programming languages by supporting inline Python and C code in the future. This unique feature will make it an excellent choice for developers looking to leverage the strengths of multiple languages within a single project.
+[📖 Getting Started] | [📚 Learn] | [📝 Documentation] | [🤝 Contributing]
 
-## Objective
-The primary objective of GigglyCode is to facilitate interoperability between different programming languages. By allowing inline Python and C code in future versions, GigglyCode will enable developers to harness the power of these languages seamlessly within their projects. Future versions may include support for additional languages, further expanding its versatility.
+This is the main source code repository for **GigglyCode**. It contains the 🛠️ compiler, 📦 standard library, and 📄 documentation.
 
-## Features
-### 1. Python-Inspired Syntax
-GigglyCode's syntax is heavily influenced by Python, making it intuitive and easy to learn for Python developers. The key difference is the use of curly braces `{}` for block structuring instead of indentation.
+## ❓ Why GigglyCode?
 
-### 2. Strong Typing and Type Inference
-GigglyCode supports strong typing and type inference, ensuring type safety while reducing the verbosity of type declarations.
+- **🌉 Interoperability:** Bridges the gap between different 🖥️ programming languages by planning support for inline 🐍 Python and ⚙️ C code.
+- **📚 Educational Tool:** Perfect for learning C++ concepts while enabling a 🧵 multi-language approach in a single project.
+- **🚀 Performance:** Optimized for 🏃‍♂️ speed and 💾 memory efficiency, suitable for embedded systems, critical services, and integration with other languages.
+- **🛡️ Reliability:** A robust type system and 🔗 ownership model ensure 🐞 bug-free memory and thread safety.
+- **💡 Productivity:** Extensive 📖 documentation, excellent compiler 🛎️ diagnostics, and modern 🔧 tooling like 📦 package management, auto-formatters, linters, and IDE support.
 
-### 3. Advanced Control Structures
-GigglyCode includes advanced control structures such as `if-else`, `while`, `for`, and `switch` statements, providing developers with powerful tools for controlling program flow.
+## ✨ Features
 
-### 4. Function and Struct Definitions
-GigglyCode allows for the definition of functions and structs, enabling developers to organize their code effectively and create reusable components.
+- **📦 Variables:** Easy declaration and use.
+- **🔁 Functions:** Reusable and maintainable code.
+- **🏗️ Structs:** Custom data types for better 🗂️ organization.
+- **🔀 Generic Structs & Functions:** Write reusable code across data types.
+- **⚡ Function Overloading:** Define multiple ⚙️ functions with the same name but different parameters.
+- **🆕 `new` Keyword:** Dynamic memory allocation made simple.
+- **🤖 Type Inference:** Automatic 🕵️‍♂️ type detection for variables and expressions.
+- **⚠️ Error Handling:** Graceful error management with 🧪 try-catch blocks.
+- **📚 Modules:** Organize code into maintainable 🧩 modules.
+- **🌉 Interoperability:** Planned support for inline 🐍 Python and ⚙️ C code.
+- **🤝 Struct Methods:** Define 🛠️ methods that operate on struct instances.
+- **🔁 Control Flow:** Flexible loops (`for`, `while`) with advanced controls (`break`, `continue`) targeting specific loop levels.
+- **📥 Imports:** Effortless inclusion of 🏛️ standard libraries and user-defined 🧩 modules.
 
-### 5. Comprehensive Standard Library
-GigglyCode comes with a comprehensive standard library that includes a wide range of functions and utilities for common programming tasks.
+## 🛠️ Syntax Examples
 
-### 6. Boolean Literals
-GigglyCode supports boolean literals `True` and `False`.
-
-### 7. Array Literals
-GigglyCode supports array literals, allowing the creation of arrays with elements of the same type.
-
-### 8. Index Expressions
-GigglyCode supports index expressions, enabling array indexing and element access.
-
-### 9. Infix Expressions
-GigglyCode supports a variety of infix expressions for arithmetic, comparison, and logical operations.
-
-### 10. Variable Declaration and Assignment
-GigglyCode allows variable declaration with type annotations and supports variable assignment.
-
-### 11. Import Statements
-GigglyCode supports import statements to include other GigglyCode files.
-
-### 12. While Loops
-GigglyCode supports `while` loops for repeated execution of a block of code as long as a condition is true.
-
-### 13. Break and Continue Statements
-GigglyCode supports `break` and `continue` statements for controlling loop execution.
-
-### 14. Function Parameters with Types
-GigglyCode allows function parameters to have type annotations.
-
-### 15. Closure Parameters
-GigglyCode supports closure parameters in functions, allowing functions to capture variables from their surrounding scope.
-
-### 16. Struct Methods
-GigglyCode supports methods within structs, allowing functions to be associated with struct types.
-
-### 17. Volatile Variables
-GigglyCode supports the declaration of volatile variables, which can be modified by concurrent threads.
-
-### 18. Metadata for Debugging
-GigglyCode includes metadata for debugging, such as line numbers and column numbers for tokens and nodes.
-
-### 19. Comprehensive Error Handling
-GigglyCode has comprehensive error handling for syntax errors, type mismatches, and other compilation errors.
-
-### 20. LLVM IR Generation
-GigglyCode uses LLVM for intermediate representation (IR) generation, enabling optimizations and code generation for multiple target architectures.
-
-### 21. Built-in Functions
-GigglyCode includes built-in functions like `print` and `puts` for standard output.
-
-### 22. Type Checking
-GigglyCode performs type checking to ensure type safety and prevent type mismatches.
-
-### 23. Function Return Types
-GigglyCode supports function return types, allowing functions to specify the type of value they return.
-
-### 24. Basic Block Management
-GigglyCode manages basic blocks for functions, enabling structured control flow within functions.
-
-### 25. Environment Management
-GigglyCode manages environments for variable and function scopes, supporting nested scopes and closures.
-
-### 26. Future Support for Inline Python and C Code
-One of the standout features planned for GigglyCode is its support for inline Python and C code. This will allow developers to write Python and C code directly within their GigglyCode programs, leveraging the strengths of these languages where needed. However, please note that this feature is not currently supported and is planned for future versions.
-
-## Syntax
-Here's a quick example to illustrate what GigglyCode looks like:
-
+### 🏗️ Structs and Methods
 ```python
-def fizzbuzz(start: int, stop: int, step: int) -> void {
-  for i in range(start, stop, step) {
-    if i % 15 == 0 {
-      print('fizzbuzz');
-    } elif i % 5 == 0 {
-      print('buzz');
-    } elif i % 3 == 0 {
-      print('fizz');
+# Define a struct to represent a rectangle
+struct Rectangle {
+  width: int;  # Width of the rectangle
+  height: int;  # Height of the rectangle
+
+  # Method to calculate the area of the rectangle
+  def area(self: Rectangle) -> int {
+    return self.width * self.height;
+  }
+
+  # Method to calculate the perimeter of the rectangle
+  def perimeter(self: Rectangle) -> int {
+    return 2 * (self.width + self.height);
+  }
+}
+```
+
+### 📦 Generics
+```python
+# Define a generic struct for a linked list node
+@generic(T: Any)
+struct ListNode {
+  value: T;  # Generic value
+  next: ListNode[T];  # Pointer to the next node
+
+  # Constructor to initialize the node
+  def __init__(self: ListNode[T], value: T, next: ListNode[T]) -> void {
+    self.value = value;
+    self.next = next;
+  };
+}
+
+# Define a generic linked list
+@generic(T: Any)
+struct LinkedList {
+  head: ListNode[T];  # Head node of the list
+
+  # Constructor to initialize the linked list
+  def __init__(self: LinkedList[T]) -> void {};
+
+  # Method to add a new node to the list
+  def add(self: LinkedList[T], value: T) -> void {
+    newNode: ListNode[T] = new ListNode(value, nullptr);
+    if (self.head == nullptr) {
+      self.head = newNode;
     } else {
-      print(i);
+      current: ListNode[T] = self.head;
+      while (current.next != nullptr) {
+        current = current.next;
+      }
+      current.next = newNode;
     }
   }
 }
 ```
 
-### Function Definition
+### ⚡ Function Overloading
 ```python
-def add(a: int, b: int) -> int {
-  return a + b;
+# Define multiple overloaded functions for subtraction
+def subtract(a: int, b: int) -> int {
+  return a - b;
+}
+
+def subtract(a: float, b: float) -> float {
+  return a - b;
 }
 ```
 
-### Struct Definition
+### 🔁 Control Flow
 ```python
-struct Point {
-  x: int;
-  y: int;
+# Switch-case example
+val: int = 2;
+switch (val) {  # Switch-case is not yet implemented
+  case 1:
+    printf("Value is 1.");
+    break;
+  case 2:
+    printf("Value is 2.");
+    break;
+  case 3:
+    printf("Value is 3.");
+    break;
+  default:
+    printf("Value is unknown.");
 }
 
+# While loop example
+counter: int = 0;
+while (counter < 5) {
+    printf("Counter: %i", counter);
+  counter = counter + 1;
+}
+```
+
+### 🆕 Dynamic Memory Allocation
+```python
+# Dynamic memory allocation for an array
+arr: int[] = new int[5]; # Allocate an array like this is not yet implemented
+for (i in range(0, 5)) {
+  arr[i] = i * 10;
+}
+for (i in range(0, 5)) {
+    printf("Array element %i : %i", i, arr[i]);
+}
+```
+
+### 📥 Imports
+```python
+# Import example with usage
+import "modules/math";
+
+struct Calculator {
+  def add(self: Calculator, a: int, b: int) -> int {
+    return math.add(a, b);  # Use the imported math module
+  }
+
+  def subtract(self: Calculator, a: int, b: int) -> int {
+    return math.subtract(a, b);  # Use the imported math module
+  }
+}
+
+calc: Calculator = Calculator();
+printf("Addition result: %i", calc.add(10, 5));
+printf("Subtraction result: %i", calc.subtract(10, 5));
+```
+
+### 🏗️ Complete Program Example
+```python
+# Main function to demonstrate all features
 def main() {
-  p: Point = Point(10, 20);
-  print(p.x, p.y);
+  # Struct and method usage
+  rect: Rectangle = Rectangle(10, 20);  # Initialize rectangle with width 10 and height 20
+  printf("Rectangle area: %i", rect.area());  # Calculate and print area
+  printf("Rectangle perimeter: %i", rect.perimeter());  # Calculate and print perimeter
+
+  # Generic struct usage
+  intList: LinkedList[int] = LinkedList(int);  # Linked list with integers
+  intList.add(10);
+  intList.add(20);
+  intList.add(30);
+  current: ListNode[int] = intList.head;
+  while (current != nullptr) {
+      printf("List node value: %i", current.value);
+    current = current.next;
+  }
+
+  # Function overloading usage
+  printf("Subtract integers: %i", subtract(10, 5));  # Calls the int version
+  printf("Subtract floats: %f", subtract(10.5, 5.5));  # Calls the float version
+
+  arr: array[int] = [0, 10, 20, 30, 40]; # Allocate an array with elements [[0, 10, 20, 30, 40]]
+
+  # Dynamic memory allocation example
+  arr: int = new int[5]; # Allocate an array like this is not yet implemented
+  for (i in range(0, 5)) {
+    arr[i] = i * 10;
+  }
+  for (i in range(0, 5)) {
+      printf("Array element %i : %i", i, arr[i]);
+  }
+
+  # Control flow demonstration
+  val: int = 2;
+  switch (val) { # Switch-case is not yet implemented
+    case 1:
+      print("Value is 1.");
+      break;
+    case 2:
+      print("Value is 2.");
+      break;
+    case 3:
+      print("Value is 3.");
+      break;
+    default:
+      print("Value is unknown.");
+  }
+
+  # Import and usage of a module
+  import "modules/math";
+  calc: Calculator = Calculator();
+  printf("Addition result: %i", calc.add(10, 5));
+  printf("Subtraction result: %i", calc.subtract(10, 5));
 }
 ```
 
-## Getting Started
-To get started with GigglyCode, follow these steps:
+## 🛫 Getting Started
 
-1. **Clone the Repository**: Clone the GigglyCode repository from GitHub.
+1. **🧑‍💻 Clone the Repository**
    ```sh
    git clone https://github.com/yourusername/GigglyCode.git
    ```
 
-2. **Build the Compiler**: Navigate to the project directory and build the compiler using CMake.
+2. **🛠️ Build the Compiler**
+
    ```sh
    cd GigglyCode
    mkdir build
    cd build
-   cmake ..
+   cmake ../src
    make
    ```
 
-3. **Write Your First Program**: Create a new file with the `.gc` extension and write your first GigglyCode program.
+3. **📜 Write Your First Program** Create a `.gc` file and write your 🛠️ GigglyCode program.
 
-4. **Compile and Run**: Use the GigglyCode compiler to compile and run your program.
+4. **🚀 Compile and Run** Compile an entire project:
+
    ```sh
-   ./gigglycode your_program.gc -o output
-   ./output
+   ./build/giggly ./project_dir/ -O2 -o executable_path
    ```
 
-## Contributing
-We welcome contributions from the community! If you'd like to contribute to GigglyCode, please follow these steps:
+   - 🗂️ `project_dir`: The root 📁 containing the `src` folder where `main.gc` resides.
+   - ⚙️ `-O2`: Optimization level (e.g., `O1`, `O2`, `O3`, `Ofast`).
+   - 🛤️ `executable_path`: Specifies the path for the compiled executable.
 
-1. **Fork the Repository**: Fork the GigglyCode repository on GitHub.
+### 📁 Example Project Structure
 
-2. **Create a Branch**: Create a new branch for your feature or bug fix.
-   ```sh
-   git checkout -b feature-name
-   ```
+```html
+📁 project/
+  📂 src/
+    📄 main.gc
+    📂 modules/
+      📄 io.gc
+```
 
-3. **Make Changes**: Make your changes and commit them with a descriptive commit message.
-   ```sh
-   git commit -m "Add feature-name"
-   ```
+## 🙌 Contributing
 
-4. **Push to Your Fork**: Push your changes to your forked repository.
-   ```sh
-   git push origin feature-name
-   ```
+We 💖 contributions! Here’s how you can get involved:
 
-5. **Create a Pull Request**: Create a pull request on the main GigglyCode repository.
+- You know How to do this If you dont that means you are a beginner so do not try to contribute in OpenSource Project untill you have 1 year+ experience.
 
-## License
-GigglyCode is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+## 📜 License
 
-## Contact
-For any questions or inquiries, please contact SohamTilekar at [sohamtilekar233@gmail.com](mailto:sohamtilekar233@gmail.com).
+GigglyCode is distributed under the 📝 MIT license. See the [LICENSE](LICENSE) file for details.
 
-Stay tuned for more updates as GigglyCode continues to evolve and improve! Thank you for your interest and support.
+## 📧 Contact
+
+<!--For 💬 questions or feedback, reach out to **Soham Tilekar** at [sohamtilekar233@gmail.com](mailto:sohamtilekar233@gmail.com).-->
+
+Thank you for your 🎉 interest in GigglyCode! Stay tuned for updates as we continue to 🚀 improve.
+
