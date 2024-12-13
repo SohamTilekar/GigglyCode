@@ -32,6 +32,8 @@ enum class NodeType {
     ContinueStatement,
     StructStatement,
     ImportStatement,
+    TryCatchStatement,
+    RaiseStatement,
 
     // Types
     Type,
@@ -133,6 +135,14 @@ class ReturnStatement : public Statement {
     std::shared_ptr<Expression> value;
     inline ReturnStatement(std::shared_ptr<Expression> exp = nullptr) : value(exp) {}
     inline NodeType type() override { return NodeType::ReturnStatement; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
+class RaiseStatement : public Statement {
+  public:
+    std::shared_ptr<Expression> value;
+    inline RaiseStatement(std::shared_ptr<Expression> exp = nullptr) : value(exp) {}
+    inline NodeType type() override { return NodeType::RaiseStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 
@@ -245,6 +255,15 @@ class VariableAssignmentStatement : public Statement {
     std::shared_ptr<Expression> value;
     inline VariableAssignmentStatement(std::shared_ptr<Expression> name, std::shared_ptr<Expression> value) : name(name), value(value) {}
     inline NodeType type() override { return NodeType::VariableAssignmentStatement; };
+    std::shared_ptr<nlohmann::json> toJSON() override;
+};
+
+class TryCatchStatement : public Statement {
+  public:
+    std::shared_ptr<Statement> try_block;
+    std::vector<std::tuple<std::shared_ptr<Expression>, std::shared_ptr<Statement>>> catch_blocks;
+    inline TryCatchStatement(std::shared_ptr<Statement> try_block, std::vector<std::tuple<std::shared_ptr<Expression>, std::shared_ptr<Statement>>> catch_blocks) : try_block(try_block), catch_blocks(catch_blocks) {}
+    inline NodeType type() override { return NodeType::TryCatchStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
 

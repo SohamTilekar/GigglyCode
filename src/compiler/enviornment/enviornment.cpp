@@ -1,6 +1,7 @@
 #include "enviornment.hpp"
 #include "../compiler.hpp"
 #include <memory>
+#include <iostream>
 
 bool enviornment::_checkType(std::shared_ptr<enviornment::RecordStructType> type1, std::shared_ptr<enviornment::RecordStructType> type2) {
     for (const auto& [field_name1, field_name2] : llvm::zip(type1->fields, type2->fields)) {

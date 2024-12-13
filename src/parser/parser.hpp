@@ -73,10 +73,14 @@ class Parser {
     std::shared_ptr<token::Token> peek_token = nullptr;
     std::vector<std::shared_ptr<errors::Error>> errors;
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>()>> prefix_parse_fns = {
-        {token::TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},      {token::TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
-        {token::TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},        {token::TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
-        {token::TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},        {token::TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
-        {token::TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)}, {token::TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
+        {token::TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},
+        {token::TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
+        {token::TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},
+        {token::TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
+        {token::TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},
+        {token::TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
+        {token::TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)},
+        {token::TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
         {token::TokenType::New, std::bind(&Parser::_parseNew, this)},
     };
     std::unordered_map<token::TokenType, std::function<std::shared_ptr<AST::Expression>(std::shared_ptr<AST::Expression>)>> infix_parse_Fns = {
@@ -116,6 +120,7 @@ class Parser {
     std::shared_ptr<AST::Statement> _parseVariableDeclaration(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false);
     std::shared_ptr<AST::Statement> _parseVariableAssignment(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
     std::shared_ptr<AST::ReturnStatement> _parseReturnStatement();
+    std::shared_ptr<AST::RaiseStatement> _parseRaiseStatement();
     std::shared_ptr<AST::FunctionStatement> _parseFunctionStatement();
     std::shared_ptr<AST::Statement> _parseDeco();
     std::shared_ptr<AST::Expression> _parseFunctionCall(std::shared_ptr<AST::Expression> identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
@@ -127,6 +132,7 @@ class Parser {
     std::shared_ptr<AST::ContinueStatement> _parseContinueStatement();
     std::shared_ptr<AST::ImportStatement> _parseImportStatement();
     std::shared_ptr<AST::StructStatement> _parseStructStatement();
+    std::shared_ptr<AST::TryCatchStatement> _parseTryCatchStatement();
 
     std::shared_ptr<AST::Type> _parseType();
 

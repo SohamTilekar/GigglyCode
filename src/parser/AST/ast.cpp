@@ -58,6 +58,10 @@ std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
             return std::make_shared<std::string>("IndexExpression");
         case NodeType::ArrayLiteral:
             return std::make_shared<std::string>("ArrayLiteral");
+        case NodeType::TryCatchStatement:
+            return std::make_shared<std::string>("TryCatchStatement");
+        case NodeType::RaiseStatement:
+            return std::make_shared<std::string>("RaiseStatement");
         default:
             return std::make_shared<std::string>("UNKNOWN");
     }
@@ -118,6 +122,14 @@ std::shared_ptr<nlohmann::json> AST::ReturnStatement::toJSON() {
     jsonAst["value"] = this->value == nullptr ? nullptr : *(this->value->toJSON());
     return std::make_shared<nlohmann::json>(jsonAst);
 }
+
+std::shared_ptr<nlohmann::json> AST::RaiseStatement::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["value"] = this->value == nullptr ? nullptr : *(this->value->toJSON());
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
 
 std::shared_ptr<nlohmann::json> AST::FunctionStatement::toJSON() {
     auto jsonAst = nlohmann::json();
@@ -217,6 +229,17 @@ std::shared_ptr<nlohmann::json> AST::VariableAssignmentStatement::toJSON() {
     jsonAst["type"] = *nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["value"] = *value->toJSON();
+    return std::make_shared<nlohmann::json>(jsonAst);
+}
+
+std::shared_ptr<nlohmann::json> AST::TryCatchStatement::toJSON() {
+    auto jsonAst = nlohmann::json();
+    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["try"] = *try_block->toJSON();
+    jsonAst["catch"] = nlohmann::json::array();
+    for (auto& [_if, _do] : this->catch_blocks) {
+        jsonAst["catch"].push_back({*_if->toJSON(), *_do->toJSON()});
+    }
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 

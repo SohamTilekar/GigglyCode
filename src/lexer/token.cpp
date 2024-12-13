@@ -1,6 +1,7 @@
 #include "./token.hpp"
 
 #include <string>
+#include <iostream>
 #include <unordered_map>
 
 std::string token::Token::toString(bool color) {
@@ -199,6 +200,12 @@ std::string token::tokenTypeString(TokenType type) {
             return "String";
         case TokenType::New:
             return "New";
+        case TokenType::Try:
+            return "Try";
+        case TokenType::Catch:
+            return "Catch";
+        case TokenType::Raise:
+            return "Raise";
         default:
             return "unknown token type(" + std::to_string(static_cast<int>(type)) + ")";
     }

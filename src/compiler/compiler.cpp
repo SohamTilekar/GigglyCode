@@ -7,6 +7,7 @@
 #include <iostream>
 #include <llvm/ADT/APInt.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/DataLayout.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
@@ -19,7 +20,6 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/IR/DataLayout.h>
 #include <memory>
 #include <regex.h>
 #include <string>
@@ -94,7 +94,7 @@ void compiler::Compiler::_initializeBuiltins() {
     addBuiltinType(this, "str", llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
     addBuiltinType(this, "void", llvm::Type::getVoidTy(llvm_context));
     addBuiltinType(this, "bool", llvm::Type::getInt1Ty(llvm_context));
-    addBuiltinType(this, "array", llvm::PointerType::get(llvm::Type::getVoidTy(llvm_context), 0));
+    addBuiltinType(this, "array", llvm::PointerType::get(llvm_context, 0));
 
     auto _any = std::make_shared<enviornment::RecordModule>("Any");
     this->enviornment->parent->add(_any);
@@ -108,8 +108,9 @@ void compiler::Compiler::_initializeBuiltins() {
                        {{"format", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("int"));
     addBuiltinFunction(this, "scanf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true),
                        {{"format", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("int"));
-    addBuiltinFunction(this, "malloc", llvm::FunctionType::get(llvm::PointerType::get(llvm::Type::getVoidTy(llvm_context), 0), {this->enviornment->parent->get_struct("int")->stand_alone_type}, true),
+    addBuiltinFunction(this, "malloc", llvm::FunctionType::get(llvm::PointerType::get(llvm_context, 0), {this->enviornment->parent->get_struct("int")->stand_alone_type}, true),
                        {{"bits", this->enviornment->parent->get_struct("int"), false}}, this->enviornment->parent->get_struct("void"));
+    addBuiltinFunction(this, "free", llvm::FunctionType::get(this->enviornment->parent->get_struct("void")->stand_alone_type, {llvm::PointerType::get(llvm_context, 0)}, true), {}, this->enviornment->parent->get_struct("void"));
 }
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
@@ -143,6 +144,12 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             break;
         case AST::NodeType::ReturnStatement:
             this->_visitReturnStatement(std::static_pointer_cast<AST::ReturnStatement>(node));
+            break;
+        case AST::NodeType::RaiseStatement:
+            this->_visitRaiseStatement(std::static_pointer_cast<AST::RaiseStatement>(node));
+            break;
+        case AST::NodeType::TryCatchStatement:
+        this->_visitTryCatchStatement(std::static_pointer_cast<AST::TryCatchStatement>(node));
             break;
         case AST::NodeType::BlockStatement:
             return this->_visitBlockStatement(std::static_pointer_cast<AST::BlockStatement>(node));
@@ -202,7 +209,8 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
     }
 }
 
-void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
+void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
+                                        const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
     unsigned short idx = 0;
     bool type_mismatch = false;
     std::vector<unsigned short> mismatches;
@@ -311,14 +319,9 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
                 }
                 auto arg_type = param_type_record->stand_alone_type ? param_type_record->stand_alone_type : param_type_record->struct_type;
                 llvm::Value* arg_value;
-                if(refrence)
+                if (refrence)
                     arg_value = this->llvm_ir_builder.CreateAlignedLoad(arg_type, &arg, llvm::MaybeAlign(arg.getType()->getScalarSizeInBits() / 8));
-                auto record = std::make_shared<enviornment::RecordVariable>(
-                    std::string(arg.getName()),
-                    arg_value,
-                    alloca,
-                    param_type_record
-                );
+                auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), arg_value, alloca, param_type_record);
                 func_record->arguments.push_back({arg.getName().str(), param_type_record, refrence});
                 this->enviornment->add(record);
             }
@@ -330,6 +333,8 @@ compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGe
                 this->compile(body);
             } catch (compiler::DoneRet) {
                 // Ignoring
+            } catch (compiler::DoneRaise) {
+                // Ignore to compile the following commands if DoneRaise exception occurs
             }
 
             gfunc->env->add(func_record);
@@ -448,7 +453,14 @@ compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::Record
         }
 
         auto struct_type = struct_record->struct_type;
-        auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+        llvm::Value* alloca;
+        if (func_call->_new) {
+            llvm::Value* gep =
+                this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+            llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
+            alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+        } else
+            alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
         remaining_params_types.insert(remaining_params_types.begin(), struct_record);
         remaining_args.insert(remaining_args.begin(), alloca);
         auto func = struct_record->get_method("__init__", remaining_params_types);
@@ -553,11 +565,10 @@ compiler::Compiler::convertType(std::tuple<llvm::Value*, llvm::Value*, std::shar
 };
 
 bool compiler::Compiler::canConvertType(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to) {
-    const std::vector<std::pair<std::string, std::string>> convertibleTypes = {{"int32", "int"},     {"int", "int32"},     {"uint32", "uint"},   {"uint", "uint32"},   {"float32", "float"},
-                                                                               {"float", "float32"}, {"int", "float"},     {"int32", "float32"}, {"uint", "float"},    {"uint32", "float32"},
-                                                                               {"float", "int"},     {"float32", "int32"}, {"float", "uint"},    {"float32", "uint32"},
-                                                                               {"bool", "int"},      {"bool", "uint"},     {"bool", "float"},    {"bool", "float32"},
-                                                                               {"int", "bool"},      {"float", "bool"},    {"str", "bool"}};
+    const std::vector<std::pair<std::string, std::string>> convertibleTypes = {
+        {"int32", "int"},     {"int", "int32"},  {"uint32", "uint"},    {"uint", "uint32"},  {"float32", "float"}, {"float", "float32"}, {"int", "float"},
+        {"int32", "float32"}, {"uint", "float"}, {"uint32", "float32"}, {"float", "int"},    {"float32", "int32"}, {"float", "uint"},    {"float32", "uint32"},
+        {"bool", "int"},      {"bool", "uint"},  {"bool", "float"},     {"bool", "float32"}, {"int", "bool"},      {"float", "bool"},    {"str", "bool"}};
 
     for (const auto& [fromType, toType] : convertibleTypes) {
         if (from->name == fromType && to->name == toType) {
@@ -659,7 +670,7 @@ compiler::Compiler::_memberAccess(std::shared_ptr<AST::InfixExpression> infixed_
                 auto func = left_type->get_function(name, params_types);
                 unsigned short idx = 0;
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
-                    if(param_type->stand_alone_type && std::get<2>(argument)) {
+                    if (param_type->stand_alone_type && std::get<2>(argument)) {
                         args[idx] = arg_alloca;
                     }
                     idx++;
@@ -675,7 +686,15 @@ compiler::Compiler::_memberAccess(std::shared_ptr<AST::InfixExpression> infixed_
             } else if (left_type->is_struct(name)) {
                 auto struct_record = left_type->get_struct(name);
                 auto struct_type = struct_record->struct_type;
-                auto alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+                llvm::Value* alloca;
+                if (call_expression->_new) {
+                    llvm::Value* gep =
+                        this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+                    llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
+                    alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+                }
+                else
+                    alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
                 params_types.insert(params_types.begin(), struct_record);
                 args.insert(args.begin(), alloca);
                 if (struct_record->is_method("__init__", params_types)) {
@@ -703,7 +722,7 @@ compiler::Compiler::_memberAccess(std::shared_ptr<AST::InfixExpression> infixed_
                 auto method = left_type->get_method(name, params_types);
                 unsigned short idx = 0;
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, method->arguments)) {
-                    if(param_type->stand_alone_type && std::get<2>(argument)) {
+                    if (param_type->stand_alone_type && std::get<2>(argument)) {
                         args[idx] = arg_alloca;
                     }
                     idx++;
@@ -711,7 +730,8 @@ compiler::Compiler::_memberAccess(std::shared_ptr<AST::InfixExpression> infixed_
                 auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args);
                 return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
             } else {
-                errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + left_type->name + ".", "Check the initialization method name or define the method.").raise();
+                errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + left_type->name + ".", "Check the initialization method name or define the method.")
+                    .raise();
                 exit(1);
             }
         }
@@ -1015,13 +1035,12 @@ compiler::Compiler::_visitIndexExpression(std::shared_ptr<AST::IndexExpression> 
 
         return {load, element, element_type, compiler::resolveType::StructInst};
     } else {
-        if(left_generic->is_method("__index__", {left_generic, index_generic})) {
+        if (left_generic->is_method("__index__", {left_generic, index_generic})) {
             auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
             auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
             return {returnValue, nullptr, idx_method->return_inst, compiler::resolveType::StructInst};
         } else {
-            errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "define the __index__ method.")
-                .raise();
+            errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "define the __index__ method.").raise();
             exit(1);
         }
     }
@@ -1394,7 +1413,7 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
     }
 
     auto struct_ = std::get<std::shared_ptr<enviornment::RecordStructType>>(_struct);
-    if(struct_->name == "array") {
+    if (struct_->name == "array") {
         struct_ = std::make_shared<enviornment::RecordStructType>(*struct_);
         struct_->generic_sub_types.push_back(generics[0]);
     }
@@ -1423,7 +1442,8 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         auto param_type = this->_parseType(param->value_type);
         param_inst_records.push_back(param_type);
         refrences.push_back(param->value_type->refrence);
-        param_types.push_back(param_type->stand_alone_type ? (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type) : llvm::PointerType::get(param_type->struct_type, 0));
+        param_types.push_back(param_type->stand_alone_type ? (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type)
+                                                           : llvm::PointerType::get(param_type->struct_type, 0));
     }
 
     auto return_type = this->_parseType(function_declaration_statement->return_type);
@@ -1456,17 +1476,12 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             }
             auto arg_type = param_type_record->stand_alone_type ? param_type_record->stand_alone_type : param_type_record->struct_type;
             llvm::Value* arg_value;
-            if(refrence)
+            if (refrence)
                 arg_value = this->llvm_ir_builder.CreateAlignedLoad(arg_type, &arg, llvm::MaybeAlign(arg.getType()->getScalarSizeInBits() / 8));
             else
                 arg_value = &arg;
 
-            auto record = std::make_shared<enviornment::RecordVariable>(
-                std::string(arg.getName()),
-                arg_value,
-                alloca,
-                param_type_record
-            );
+            auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), arg_value, alloca, param_type_record);
 
             func_record->arguments.push_back({arg.getName().str(), param_type_record, refrence});
             this->enviornment->add(record);
@@ -1481,6 +1496,8 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             this->llvm_ir_builder.CreateUnreachable();
         } catch (compiler::DoneRet) {
             // Ignoring
+        } catch (compiler::DoneRaise) {
+            // Ignore to compile the following commands if DoneRaise exception occurs
         }
 
         this->enviornment = prev_env;
@@ -1533,7 +1550,7 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
         auto func = this->enviornment->get_function(name, params_types, false, true);
         unsigned short idx = 0;
         for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
-            if(param_type->stand_alone_type && std::get<2>(argument)) {
+            if (param_type->stand_alone_type && std::get<2>(argument)) {
                 args[idx] = arg_alloca;
             }
             idx++;
@@ -1552,7 +1569,8 @@ compiler::Compiler::_visitCallExpression(std::shared_ptr<AST::CallExpression> ca
         auto struct_type = struct_record->struct_type;
         llvm::Value* alloca;
         if (call_expression->_new) {
-            llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+            llvm::Value* gep =
+                this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
             llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
             alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
         } else {
@@ -1612,6 +1630,8 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             this->llvm_ir_builder.CreateBr(ContBB);
         } catch (compiler::DoneRet) {
             // Ignore to compile the following commands if DoneRet exception occurs
+        } catch (compiler::DoneRaise) {
+            // Ignore to compile the following commands if DoneRaise exception occurs
         }
         this->llvm_ir_builder.SetInsertPoint(ContBB);
     } else {
@@ -1624,6 +1644,8 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             this->llvm_ir_builder.CreateBr(ContBB);
         } catch (compiler::DoneRet) {
             // Ignore to compile the following commands if DoneRet exception occurs
+        } catch (compiler::DoneRaise) {
+            // Ignore to compile the following commands if DoneRaise exception occurs
         }
 
         this->llvm_ir_builder.SetInsertPoint(ElseBB);
@@ -1632,9 +1654,11 @@ void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatem
             this->llvm_ir_builder.CreateBr(ContBB);
         } catch (compiler::DoneRet) {
             // Ignore to compile the following commands if DoneRet exception occurs
+        } catch (compiler::DoneRaise) {
+            // Ignore to compile the following commands if DoneRaise exception occurs
         }
 
-       this->llvm_ir_builder.SetInsertPoint(ContBB);
+        this->llvm_ir_builder.SetInsertPoint(ContBB);
     }
 }
 
@@ -1679,6 +1703,8 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
         this->llvm_ir_builder.CreateBr(CondBB);
     } catch (compiler::DoneRet) {
         // Ignore to compile the following commands if DoneRet exception occurs
+    } catch (compiler::DoneRaise) {
+        // Ignore to compile the following commands if DoneRaise exception occurs
     }
 
     this->llvm_ir_builder.SetInsertPoint(ContBB);
@@ -1696,7 +1722,7 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
     }
 
     auto loop_from_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_loop_from_type);
-    if(loop_from_type->is_method("__iter__", {loop_from_type})) {
+    if (loop_from_type->is_method("__iter__", {loop_from_type})) {
         auto iter_geter = loop_from_type->get_method("__iter__", {loop_from_type});
         auto iter_type = iter_geter->return_inst;
         if (!(loop_from_type->is_method("__next__", {loop_from_type, iter_type}) && loop_from_type->is_method("__done__", {loop_from_type, iter_type}, {}, this->enviornment->get_struct("bool")))) {
@@ -1714,8 +1740,9 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
         auto next_method = loop_from_type->get_method("__next__", {loop_from_type, iter_type});
         auto done_method = loop_from_type->get_method("__done__", {loop_from_type, iter_type});
         llvm::Value* iterator_alloca = this->llvm_ir_builder.CreateAlloca(iter_type->stand_alone_type);
-        if(iter_type->stand_alone_type)
-            this->llvm_ir_builder.CreateAlignedStore(this->llvm_ir_builder.CreateCall(iter_geter->function, {loop_from_alloca}), iterator_alloca, llvm::MaybeAlign(iter_type->stand_alone_type->getScalarSizeInBits() / 8));
+        if (iter_type->stand_alone_type)
+            this->llvm_ir_builder.CreateAlignedStore(this->llvm_ir_builder.CreateCall(iter_geter->function, {loop_from_alloca}), iterator_alloca,
+                                                     llvm::MaybeAlign(iter_type->stand_alone_type->getScalarSizeInBits() / 8));
         else
             iterator_alloca = this->llvm_ir_builder.CreateCall(iter_geter->function, {loop_from_alloca});
         this->llvm_ir_builder.CreateBr(CondBB);
@@ -1726,30 +1753,26 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
         // Var
         auto prev_env = this->enviornment;
         this->enviornment = std::make_shared<enviornment::Enviornment>(this->enviornment);
-        auto alloca = next_method->return_inst->stand_alone_type ? this->llvm_ir_builder.CreateAlloca(next_method->return_inst->stand_alone_type) : this->llvm_ir_builder.CreateAlloca(next_method->return_inst->struct_type);
+        auto alloca = next_method->return_inst->stand_alone_type ? this->llvm_ir_builder.CreateAlloca(next_method->return_inst->stand_alone_type)
+                                                                 : this->llvm_ir_builder.CreateAlloca(next_method->return_inst->struct_type);
         if (next_method->return_inst->struct_type) {
-        this->llvm_ir_builder.CreateAlignedStore(
-            this->llvm_ir_builder.CreateAlignedLoad(
-                next_method->return_inst->struct_type,
-                this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}),
-                llvm::MaybeAlign(next_method->return_inst->struct_type->getScalarSizeInBits() / 8)
-            ),
-            alloca,
-            llvm::MaybeAlign(next_method->return_inst->struct_type->getScalarSizeInBits() / 8)
-        );
+            this->llvm_ir_builder.CreateAlignedStore(this->llvm_ir_builder.CreateAlignedLoad(next_method->return_inst->struct_type,
+                                                                                             this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}),
+                                                                                             llvm::MaybeAlign(next_method->return_inst->struct_type->getScalarSizeInBits() / 8)),
+                                                     alloca, llvm::MaybeAlign(next_method->return_inst->struct_type->getScalarSizeInBits() / 8));
         } else {
-            this->llvm_ir_builder.CreateAlignedStore(
-                this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}),
-                alloca,
-                llvm::MaybeAlign(next_method->return_inst->stand_alone_type->getScalarSizeInBits() / 8)
-            );
+            this->llvm_ir_builder.CreateAlignedStore(this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}), alloca,
+                                                     llvm::MaybeAlign(next_method->return_inst->stand_alone_type->getScalarSizeInBits() / 8));
         };
 
         std::shared_ptr<enviornment::RecordVariable> var;
         if (next_method->return_inst->struct_type)
             var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, alloca, alloca, next_method->return_inst);
         else
-            var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, this->llvm_ir_builder.CreateAlignedLoad(next_method->return_inst->stand_alone_type, alloca, llvm::MaybeAlign(next_method->return_inst->stand_alone_type->getScalarSizeInBits() / 8)), alloca, next_method->return_inst);
+            var = std::make_shared<enviornment::RecordVariable>(
+                for_statement->get->value,
+                this->llvm_ir_builder.CreateAlignedLoad(next_method->return_inst->stand_alone_type, alloca, llvm::MaybeAlign(next_method->return_inst->stand_alone_type->getScalarSizeInBits() / 8)),
+                alloca, next_method->return_inst);
         this->enviornment->add(var);
 
         try {
@@ -1757,6 +1780,8 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
             this->llvm_ir_builder.CreateBr(CondBB);
         } catch (compiler::DoneRet) {
             // Ignore to compile the following commands if DoneRet exception occurs
+        } catch (compiler::DoneRaise) {
+            // Ignore to compile the following commands if DoneRaise exception occurs
         }
         this->enviornment = prev_env;
         this->llvm_ir_builder.SetInsertPoint(ContBB);
@@ -1812,6 +1837,16 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
     }
 
     this->ir_gc_map_json["structs"][struct_name]["name"] = struct_record->struct_type->getName().str();
+}
+
+void compiler::Compiler::_visitTryCatchStatement(std::shared_ptr<AST::TryCatchStatement> tc_statement) {
+    std::cerr << "TODO: Add Suport to Handel Exception" << std::endl;
+    exit(1);
+}
+
+void compiler::Compiler::_visitRaiseStatement(std::shared_ptr<AST::RaiseStatement> raise_statement) {
+    std::cerr << "TODO: Add Suport to raise Exception" << std::endl;
+    exit(1);
 }
 
 const std::string readFileToString(const std::string& filePath); // Defined in main.cpp

@@ -1,9 +1,6 @@
 #ifndef TOKENS_HPP
 #define TOKENS_HPP
-#include <iostream>
-#include <memory>
 #include <string>
-#include <unordered_map>
 
 namespace token {
 enum class TokenType {
@@ -94,13 +91,16 @@ enum class TokenType {
     Struct,   // Struct
     Enum,     // Enum
     Volatile, // volatile
-    Use,
-    Import, // import
-    True,   // Boolean true true
-    False,  // Boolean false false
-    // Maybe,    // Maybe type maybe
-    None,   // None type none
-    New,    // new
+    Use,      // use
+    Import,   // import
+    True,     // Boolean true true
+    False,    // Boolean false false
+    // Maybe, // Maybe type maybe
+    None,     // None type none
+    New,      // new
+    Try,      // try
+    Catch,    // catch
+    Raise,    // raise
 };
 
 std::string tokenTypeString(TokenType type);

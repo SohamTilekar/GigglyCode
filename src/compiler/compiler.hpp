@@ -44,6 +44,12 @@ class DoneRet : public std::exception {
     const char* what() const throw() { return "Rety Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
 };
 
+class DoneRaise : public std::exception {
+  public:
+    DoneRaise() {}
+    const char* what() const throw() { return "Raise Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
+};
+
 enum class resolveType {
     Module,
     StructInst,
@@ -115,10 +121,12 @@ class Compiler {
                std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
     _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
+    void _visitRaiseStatement(std::shared_ptr<AST::RaiseStatement> return_statement);
     void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
     void _visitWhileStatement(std::shared_ptr<AST::WhileStatement> while_statement);
     void _visitForStatement(std::shared_ptr<AST::ForStatement> for_statement);
     void _visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement);
+    void _visitTryCatchStatement(std::shared_ptr<AST::TryCatchStatement> tc_statement);
 
     void _visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement, std::shared_ptr<enviornment::RecordModule> module = nullptr);
 
@@ -143,8 +151,10 @@ class Compiler {
     std::tuple<llvm::Value*, llvm::Value*,
                std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
                compiler::resolveType>
-    _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
-    void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args,
+                    const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
+                        const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
 };
 } // namespace compiler
 #endif

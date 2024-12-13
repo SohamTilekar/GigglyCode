@@ -5,6 +5,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <vector>
 
 #include "AST/ast.hpp"
 
@@ -55,6 +56,8 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseBlockStatement();
     } else if (this->_currentTokenIs(token::TokenType::Return)) {
         return this->_parseReturnStatement();
+    } else if (this->_currentTokenIs(token::TokenType::Raise)) {
+    return this->_parseRaiseStatement();
     } else if (this->_currentTokenIs(token::TokenType::Def)) {
         return this->_parseFunctionStatement();
     } else if (this->_currentTokenIs(token::TokenType::AtTheRate)) {
@@ -71,6 +74,8 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
         return this->_parseContinueStatement();
     } else if (this->_currentTokenIs(token::TokenType::Import)) {
         return this->_parseImportStatement();
+    } else if (this->_currentTokenIs(token::TokenType::Try)) {
+        return this->_parseTryCatchStatement();
     } else if (this->_currentTokenIs(token::TokenType::Volatile)) {
         this->_nextToken();
         return this->_parseVariableDeclaration(nullptr, -1, -1, true);
@@ -363,7 +368,7 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseFunctionCall(std::shared_
     identifier->set_meta_data(st_line_no, st_col_no, current_token->line_no, current_token->end_col_no);
     this->_nextToken();
     bool is_new_call_local = is_new_call;
-    is_new_call= false;
+    is_new_call = false;
     auto args = this->_parse_expression_list(token::TokenType::RightParen);
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
@@ -403,6 +408,21 @@ std::shared_ptr<AST::ReturnStatement> parser::Parser::_parseReturnStatement() {
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
     auto return_statement = std::make_shared<AST::ReturnStatement>(expr);
+    return_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    return return_statement;
+}
+
+std::shared_ptr<AST::RaiseStatement> parser::Parser::_parseRaiseStatement() {
+    int st_line_no = current_token->line_no;
+    int st_col_no = current_token->col_no;
+    this->_nextToken();
+    auto expr = this->_parseExpression(PrecedenceType::LOWEST);
+    if (this->_peekTokenIs(token::TokenType::Semicolon)) {
+        this->_nextToken();
+    }
+    int end_line_no = current_token->line_no;
+    int end_col_no = current_token->col_no;
+    auto return_statement = std::make_shared<AST::RaiseStatement>(expr);
     return_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return return_statement;
 }
@@ -485,6 +505,32 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::s
     return nullptr;
 }
 
+std::shared_ptr<AST::TryCatchStatement> parser::Parser::_parseTryCatchStatement() {
+    this->_nextToken();
+    auto _try = this->_parseStatement();
+    std::vector<std::tuple<std::shared_ptr<AST::Expression>, std::shared_ptr<AST::Statement>>> catches;
+    while (this->_peekTokenIs(token::TokenType::Catch)) {
+        this->_nextToken();
+        if (!this->_expectPeek({token::TokenType::LeftParen})) {
+            return nullptr;
+        };
+        if (!this->_expectPeek({token::TokenType::Identifier})) {
+            return nullptr;
+        };
+        auto _if = this->_parseInfixIdenifier();
+        if (!this->_expectPeek({token::TokenType::RightParen})) {
+            return nullptr;
+        };
+        this->_nextToken();
+        catches.push_back({_if, this->_parseStatement()});
+    }
+    if(catches.empty()) {
+        this->_peekTokenError(this->current_token->type, {token::TokenType::Catch});
+        return nullptr;
+    }
+    return std::make_shared<AST::TryCatchStatement>(_try, catches);
+};
+
 std::shared_ptr<AST::Expression> parser::Parser::_parseInfixIdenifier() {
     if (this->current_token->type != token::TokenType::Identifier) {
         std::cerr << "Cant parser infixIdentifier Expression cz: " << token::tokenTypeString(this->current_token->type) << std::endl;
@@ -518,7 +564,7 @@ std::shared_ptr<AST::Type> parser::Parser::_parseType() {
             }
         }
     }
-    if(this->_peekTokenIs(token::TokenType::Refrence)) {
+    if (this->_peekTokenIs(token::TokenType::Refrence)) {
         this->_nextToken();
         ref = true;
     }
@@ -717,11 +763,13 @@ std::shared_ptr<AST::Expression> parser::Parser::_parseBooleanLiteral() {
 }
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseNew() {
-    if(!this->_expectPeek({token::TokenType::Identifier, token::TokenType::LeftBracket})) {
+    if (!this->_expectPeek({token::TokenType::Identifier, token::TokenType::LeftBracket})) {
         return nullptr;
     };
-    if (this->_currentTokenIs(token::TokenType::Identifier)) is_new_call = true;
-    else if(this->_currentTokenIs(token::TokenType::LeftBracket)) is_new_arr = true;
+    if (this->_currentTokenIs(token::TokenType::Identifier))
+        is_new_call = true;
+    else if (this->_currentTokenIs(token::TokenType::LeftBracket))
+        is_new_arr = true;
     return this->_parseExpression(PrecedenceType::LOWEST);
 };
 
