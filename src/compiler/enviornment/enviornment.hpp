@@ -127,6 +127,8 @@ class Enviornment {
     std::vector<llvm::BasicBlock*> loop_body_block = {};
     std::vector<llvm::BasicBlock*> loop_end_block = {};
     std::vector<llvm::BasicBlock*> loop_condition_block = {};
+    std::vector<llvm::BasicBlock*> loop_ifbreak_block = {};
+    std::vector<llvm::BasicBlock*> loop_notbreak_block = {};
 
     Enviornment(std::shared_ptr<Enviornment> parent = nullptr, const std::vector<std::tuple<std::string, std::shared_ptr<Record>>>& records = {}, std::string name = "unnamed")
         : parent(parent), name(name), record_map(records) {
@@ -134,6 +136,8 @@ class Enviornment {
             this->loop_end_block = parent->loop_end_block;
             this->loop_body_block = parent->loop_body_block;
             this->loop_condition_block = parent->loop_condition_block;
+            this->loop_ifbreak_block = parent->loop_ifbreak_block;
+            this->loop_notbreak_block = parent->loop_notbreak_block;
             this->current_function = parent->current_function;
         }
     };

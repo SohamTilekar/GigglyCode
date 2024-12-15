@@ -273,9 +273,22 @@ std::shared_ptr<AST::WhileStatement> parser::Parser::_parseWhileStatement() {
     }
     this->_nextToken();
     auto body = this->_parseStatement();
+    std::shared_ptr<AST::Statement> notbreak = nullptr;
+    std::shared_ptr<AST::Statement> ifbreak = nullptr;
+    while (this->_peekTokenIs(token::TokenType::NotBreak) || this->_peekTokenIs(token::TokenType::IfBreak)) {
+        if (this->_peekTokenIs(token::TokenType::NotBreak)) {
+            this->_nextToken();
+            this->_nextToken();
+            notbreak = this->_parseStatement();
+        } else if (this->_peekTokenIs(token::TokenType::IfBreak)) {
+            this->_nextToken();
+            this->_nextToken();
+            ifbreak = this->_parseStatement();
+        }
+    }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto while_statement = std::make_shared<AST::WhileStatement>(condition, body);
+    auto while_statement = std::make_shared<AST::WhileStatement>(condition, body, ifbreak, notbreak);
     while_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return while_statement;
 }
@@ -300,9 +313,22 @@ std::shared_ptr<AST::ForStatement> parser::Parser::_parseForStatement() {
     }
     this->_nextToken();
     auto body = this->_parseStatement();
+    std::shared_ptr<AST::Statement> notbreak = nullptr;
+    std::shared_ptr<AST::Statement> ifbreak = nullptr;
+    while (this->_peekTokenIs(token::TokenType::NotBreak) || this->_peekTokenIs(token::TokenType::IfBreak)) {
+        if (this->_peekTokenIs(token::TokenType::NotBreak)) {
+            this->_nextToken();
+            this->_nextToken();
+            notbreak = this->_parseStatement();
+        } else if (this->_peekTokenIs(token::TokenType::IfBreak)) {
+            this->_nextToken();
+            this->_nextToken();
+            ifbreak = this->_parseStatement();
+        }
+    }
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
-    auto for_statement = std::make_shared<AST::ForStatement>(get, from, body);
+    auto for_statement = std::make_shared<AST::ForStatement>(get, from, body, ifbreak, notbreak);
     for_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return for_statement;
 }
@@ -316,8 +342,6 @@ std::shared_ptr<AST::BreakStatement> parser::Parser::_parseBreakStatement() {
         loopNum = std::stoi(current_token->literal);
         this->_nextToken();
     }
-    if (this->_currentTokenIs(token::TokenType::Semicolon))
-        this->_nextToken();
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
     auto break_statement = std::make_shared<AST::BreakStatement>(loopNum);
@@ -334,8 +358,6 @@ std::shared_ptr<AST::ContinueStatement> parser::Parser::_parseContinueStatement(
         loopNum = std::stoi(current_token->literal);
         this->_nextToken();
     }
-    if (this->_currentTokenIs(token::TokenType::Semicolon))
-        this->_nextToken();
     int end_line_no = current_token->line_no;
     int end_col_no = current_token->col_no;
     auto continue_statement = std::make_shared<AST::ContinueStatement>(loopNum);

@@ -52,7 +52,7 @@ enum class NodeType {
     ArrayLiteral
 };
 
-std::shared_ptr<std::string> nodeTypeToString(NodeType type);
+std::string nodeTypeToString(NodeType type);
 
 struct MetaData {
     int st_line_no = -1;
@@ -77,7 +77,7 @@ class Node {
     virtual inline NodeType type() { return NodeType::Unknown; };
     virtual inline std::shared_ptr<nlohmann::json> toJSON() {
         auto json = nlohmann::json();
-        json["type"] = *nodeTypeToString(this->type());
+        json["type"] = nodeTypeToString(this->type());
         return std::make_shared<nlohmann::json>(json);
     };
 };
@@ -198,7 +198,9 @@ class WhileStatement : public Statement {
   public:
     std::shared_ptr<Expression> condition;
     std::shared_ptr<Statement> body;
-    inline WhileStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> body) : condition(condition), body(body) {}
+    std::shared_ptr<Statement> ifbreak;
+    std::shared_ptr<Statement> notbreak;
+    inline WhileStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> body, std::shared_ptr<Statement> ifbreak = nullptr, std::shared_ptr<Statement> notbreak = nullptr) : condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::WhileStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -208,7 +210,9 @@ class ForStatement : public Statement {
     std::shared_ptr<Expression> from;
     std::shared_ptr<IdentifierLiteral> get;
     std::shared_ptr<Statement> body;
-    inline ForStatement(std::shared_ptr<IdentifierLiteral> get, std::shared_ptr<Expression> from, std::shared_ptr<Statement> body) : get(get), from(from), body(body) {}
+    std::shared_ptr<Statement> ifbreak;
+    std::shared_ptr<Statement> notbreak;
+    inline ForStatement(std::shared_ptr<IdentifierLiteral> get, std::shared_ptr<Expression> from, std::shared_ptr<Statement> body, std::shared_ptr<Statement> ifbreak = nullptr, std::shared_ptr<Statement> notbreak = nullptr) : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::ForStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

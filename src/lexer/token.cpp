@@ -206,6 +206,10 @@ std::string token::tokenTypeString(TokenType type) {
             return "Catch";
         case TokenType::Raise:
             return "Raise";
+        case TokenType::NotBreak:
+            return "NotBreak";
+        case TokenType::IfBreak:
+            return "IfBreak";
         default:
             return "unknown token type(" + std::to_string(static_cast<int>(type)) + ")";
     }

@@ -44,10 +44,10 @@ class DoneRet : public std::exception {
     const char* what() const throw() { return "Rety Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
 };
 
-class DoneRaise : public std::exception {
+class DoneBr : public std::exception {
   public:
-    DoneRaise() {}
-    const char* what() const throw() { return "Raise Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
+    DoneBr() {}
+    const char* what() const throw() { return "Br Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
 };
 
 enum class resolveType {
@@ -80,9 +80,16 @@ class Compiler {
 
     void compile(std::shared_ptr<AST::Node> node);
 
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    convertType(std::tuple<llvm::Value*, llvm::Value*, std::shared_ptr<enviornment::RecordStructType>> of, std::shared_ptr<enviornment::RecordStructType> to);
+    struct ResolvedValue {
+        llvm::Value* value;
+        llvm::Value* alloca;
+        std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>,
+                     std::shared_ptr<enviornment::RecordModule>,
+                     std::shared_ptr<enviornment::RecordStructType>> variant;
+        resolveType type;
+    };
+
+    ResolvedValue convertType(std::tuple<llvm::Value*, llvm::Value*, std::shared_ptr<enviornment::RecordStructType>> of, std::shared_ptr<enviornment::RecordStructType> to);
     static bool canConvertType(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to);
     bool conversionPrecidence(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to);
 
@@ -93,12 +100,8 @@ class Compiler {
 
     void _visitExpressionStatement(std::shared_ptr<AST::ExpressionStatement> expression_statement);
 
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _visitInfixExpression(std::shared_ptr<AST::InfixExpression> infixed_expression);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression);
+    ResolvedValue _visitInfixExpression(std::shared_ptr<AST::InfixExpression> infixed_expression);
+    ResolvedValue _visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression);
 
     void _visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement);
     void _visitVariableAssignmentStatement(std::shared_ptr<AST::VariableAssignmentStatement> variable_assignment_statement);
@@ -106,20 +109,12 @@ class Compiler {
     void _visitIfElseStatement(std::shared_ptr<AST::IfElseStatement> if_statement);
 
     void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordStructType> struct_ = nullptr);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-        _visitCallExpression(std::shared_ptr<AST::CallExpression>);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
+    ResolvedValue _visitCallExpression(std::shared_ptr<AST::CallExpression>);
+    ResolvedValue _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
                std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
+    ResolvedValue _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
                  std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
+    ResolvedValue _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
     void _visitRaiseStatement(std::shared_ptr<AST::RaiseStatement> return_statement);
     void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
@@ -130,31 +125,21 @@ class Compiler {
 
     void _visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement, std::shared_ptr<enviornment::RecordModule> module = nullptr);
 
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>, resolveType>
-    _resolveValue(std::shared_ptr<AST::Node> node);
+    ResolvedValue _resolveValue(std::shared_ptr<AST::Node> node);
 
     void _importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
     void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
 
     std::shared_ptr<enviornment::RecordStructType> _parseType(std::shared_ptr<AST::Type> type);
 
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
-               compiler::resolveType>
-    _memberAccess(std::shared_ptr<AST::InfixExpression> infixed_expression);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
-               compiler::resolveType>
-    _StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type, std::shared_ptr<enviornment::RecordStructType> right_type,
+    ResolvedValue _memberAccess(std::shared_ptr<AST::InfixExpression> infixed_expression);
+    ResolvedValue _StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type, std::shared_ptr<enviornment::RecordStructType> right_type,
                      std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value, llvm::Value* right_value);
-    std::tuple<llvm::Value*, llvm::Value*,
-               std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>>,
-               compiler::resolveType>
-    _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args,
+    ResolvedValue _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args,
                     const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
     void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
                         const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+    void addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl, std::vector<llvm::Type*>& field_types, std::string struct_name);
 };
 } // namespace compiler
 #endif

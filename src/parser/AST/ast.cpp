@@ -4,72 +4,72 @@
 #include <memory>
 
 
-std::shared_ptr<std::string> AST::nodeTypeToString(NodeType type) {
+std::string AST::nodeTypeToString(NodeType type) {
     switch (type) {
         case NodeType::Program:
-            return std::make_shared<std::string>("Program");
+            return "Program";
         case NodeType::ExpressionStatement:
-            return std::make_shared<std::string>("ExpressionStatement");
+            return "ExpressionStatement";
         case NodeType::VariableDeclarationStatement:
-            return std::make_shared<std::string>("VariableDeclarationStatement");
+            return "VariableDeclarationStatement";
         case NodeType::VariableAssignmentStatement:
-            return std::make_shared<std::string>("VariableAssignmentStatement");
+            return "VariableAssignmentStatement";
         case NodeType::FunctionStatement:
-            return std::make_shared<std::string>("FunctionStatement");
+            return "FunctionStatement";
         case NodeType::FunctionParameter:
-            return std::make_shared<std::string>("FunctionParameter");
+            return "FunctionParameter";
         case NodeType::CallExpression:
-            return std::make_shared<std::string>("CallExpression");
+            return "CallExpression";
         case NodeType::BlockStatement:
-            return std::make_shared<std::string>("BlockStatement");
+            return "BlockStatement";
         case NodeType::ReturnStatement:
-            return std::make_shared<std::string>("ReturnStatement");
+            return "ReturnStatement";
         case NodeType::Type:
-            return std::make_shared<std::string>("Type");
+            return "Type";
         case NodeType::GenericType:
-            return std::make_shared<std::string>("GenericType");
+            return "GenericType";
         case NodeType::InfixedExpression:
-            return std::make_shared<std::string>("InfixedExpression");
+            return "InfixedExpression";
         case NodeType::IntegerLiteral:
-            return std::make_shared<std::string>("IntegerLiteral");
+            return "IntegerLiteral";
         case NodeType::FloatLiteral:
-            return std::make_shared<std::string>("FloatLiteral");
+            return "FloatLiteral";
         case NodeType::StringLiteral:
-            return std::make_shared<std::string>("StringLiteral");
+            return "StringLiteral";
         case NodeType::IdentifierLiteral:
-            return std::make_shared<std::string>("IdentifierLiteral");
+            return "IdentifierLiteral";
         case NodeType::BooleanLiteral:
-            return std::make_shared<std::string>("BooleanLiteral");
+            return "BooleanLiteral";
         case NodeType::IfElseStatement:
-            return std::make_shared<std::string>("IfElseStatement");
+            return "IfElseStatement";
         case NodeType::WhileStatement:
-            return std::make_shared<std::string>("WhileStatement");
+            return "WhileStatement";
         case NodeType::ForStatement:
-            return std::make_shared<std::string>("ForStatement");
+            return "ForStatement";
         case NodeType::BreakStatement:
-            return std::make_shared<std::string>("BreakStatement");
+            return "BreakStatement";
         case NodeType::ContinueStatement:
-            return std::make_shared<std::string>("ContinueStatement");
+            return "ContinueStatement";
         case NodeType::ImportStatement:
-            return std::make_shared<std::string>("ImportStatement");
+            return "ImportStatement";
         case NodeType::StructStatement:
-            return std::make_shared<std::string>("StructDecelerationStatement");
+            return "StructDecelerationStatement";
         case NodeType::IndexExpression:
-            return std::make_shared<std::string>("IndexExpression");
+            return "IndexExpression";
         case NodeType::ArrayLiteral:
-            return std::make_shared<std::string>("ArrayLiteral");
+            return "ArrayLiteral";
         case NodeType::TryCatchStatement:
-            return std::make_shared<std::string>("TryCatchStatement");
+            return "TryCatchStatement";
         case NodeType::RaiseStatement:
-            return std::make_shared<std::string>("RaiseStatement");
+            return "RaiseStatement";
         default:
-            return std::make_shared<std::string>("UNKNOWN");
+            return "UNKNOWN";
     }
 };
 
 std::shared_ptr<nlohmann::json> AST::Type::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["generics"] = nlohmann::json::array();
     for (auto& gen : this->generics) {
@@ -80,7 +80,7 @@ std::shared_ptr<nlohmann::json> AST::Type::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::GenericType::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["generic_union"] = nlohmann::json::array();
     for (auto& gen : this->generic_union) {
@@ -91,7 +91,7 @@ std::shared_ptr<nlohmann::json> AST::GenericType::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::Program::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["statements"] = nlohmann::json::array();
     for (auto& stmt : this->statements) {
         jsonAst["statements"].push_back(*stmt->toJSON());
@@ -101,14 +101,14 @@ std::shared_ptr<nlohmann::json> AST::Program::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::ExpressionStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["Expression"] = this->expr == nullptr ? nullptr : *expr->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::BlockStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["statements"] = nlohmann::json::array();
     for (auto& stmt : this->statements) {
         jsonAst["statements"].push_back(*stmt->toJSON());
@@ -118,14 +118,14 @@ std::shared_ptr<nlohmann::json> AST::BlockStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::ReturnStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value == nullptr ? nullptr : *(this->value->toJSON());
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::RaiseStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value == nullptr ? nullptr : *(this->value->toJSON());
     return std::make_shared<nlohmann::json>(jsonAst);
 }
@@ -133,7 +133,7 @@ std::shared_ptr<nlohmann::json> AST::RaiseStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::FunctionStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["parameters"] = nlohmann::json::array();
     for (auto& param : this->parameters) {
@@ -150,7 +150,7 @@ std::shared_ptr<nlohmann::json> AST::FunctionStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::FunctionParameter::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["param_name"] = *this->name->toJSON();
     jsonAst["param_type"] = *this->value_type->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
@@ -158,7 +158,7 @@ std::shared_ptr<nlohmann::json> AST::FunctionParameter::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::CallExpression::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["arguments"] = nlohmann::json::array();
     for (auto& arg : this->arguments) {
@@ -169,7 +169,7 @@ std::shared_ptr<nlohmann::json> AST::CallExpression::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::IfElseStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["condition"] = *this->condition->toJSON();
     jsonAst["consequence"] = *this->consequence->toJSON();
     jsonAst["alternative"] = this->alternative == nullptr ? nullptr : *this->alternative->toJSON();
@@ -178,15 +178,17 @@ std::shared_ptr<nlohmann::json> AST::IfElseStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::WhileStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["condition"] = *this->condition->toJSON();
     jsonAst["body"] = *this->body->toJSON();
+    jsonAst["ifbreak"] = this->ifbreak ? *this->ifbreak->toJSON() : nullptr;
+    jsonAst["notbreak"] = this->notbreak ? *this->notbreak->toJSON() : nullptr;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::ForStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["body"] = *this->body->toJSON();
     jsonAst["get"] = *this->get->toJSON();
     jsonAst["from"] = *this->from->toJSON();
@@ -195,28 +197,28 @@ std::shared_ptr<nlohmann::json> AST::ForStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::BreakStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["loopNum"] = this->loopIdx;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::ContinueStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["loopNum"] = this->loopIdx;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::ImportStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["path"] = this->relativePath;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::VariableDeclarationStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["value_type"] = *this->value_type->toJSON();
     jsonAst["value"] = this->value == nullptr ? nullptr : *value->toJSON();
@@ -226,7 +228,7 @@ std::shared_ptr<nlohmann::json> AST::VariableDeclarationStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::VariableAssignmentStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["value"] = *value->toJSON();
     return std::make_shared<nlohmann::json>(jsonAst);
@@ -234,7 +236,7 @@ std::shared_ptr<nlohmann::json> AST::VariableAssignmentStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::TryCatchStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["try"] = *try_block->toJSON();
     jsonAst["catch"] = nlohmann::json::array();
     for (auto& [_if, _do] : this->catch_blocks) {
@@ -245,7 +247,7 @@ std::shared_ptr<nlohmann::json> AST::TryCatchStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::InfixExpression::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["operator"] = token::tokenTypeString(this->op);
     jsonAst["left_node"] = *(left->toJSON());
     jsonAst["right_node"] = this->right == nullptr ? nullptr : *right->toJSON();
@@ -254,7 +256,7 @@ std::shared_ptr<nlohmann::json> AST::InfixExpression::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::IndexExpression::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["left_node"] = *(left->toJSON());
     jsonAst["index"] = *(index->toJSON());
     return std::make_shared<nlohmann::json>(jsonAst);
@@ -262,42 +264,42 @@ std::shared_ptr<nlohmann::json> AST::IndexExpression::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::IntegerLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::FloatLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::StringLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::IdentifierLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::BooleanLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["value"] = this->value;
     return std::make_shared<nlohmann::json>(jsonAst);
 }
 
 std::shared_ptr<nlohmann::json> AST::StructStatement::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["name"] = *this->name->toJSON();
     jsonAst["fields"] = nlohmann::json::array();
     for (auto& field : this->fields) {
@@ -313,7 +315,7 @@ std::shared_ptr<nlohmann::json> AST::StructStatement::toJSON() {
 
 std::shared_ptr<nlohmann::json> AST::ArrayLiteral::toJSON() {
     auto jsonAst = nlohmann::json();
-    jsonAst["type"] = *nodeTypeToString(this->type());
+    jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["elements"] = nlohmann::json::array();
     for (auto& element : this->elements) {
         jsonAst["elements"].push_back(*element->toJSON());

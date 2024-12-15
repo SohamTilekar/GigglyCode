@@ -101,6 +101,8 @@ enum class TokenType {
     Try,      // try
     Catch,    // catch
     Raise,    // raise
+    IfBreak,  // ifbreak
+    NotBreak, // notbreak
 };
 
 std::string tokenTypeString(TokenType type);
