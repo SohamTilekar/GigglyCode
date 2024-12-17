@@ -239,8 +239,8 @@ std::shared_ptr<nlohmann::json> AST::TryCatchStatement::toJSON() {
     jsonAst["type"] = nodeTypeToString(this->type());
     jsonAst["try"] = *try_block->toJSON();
     jsonAst["catch"] = nlohmann::json::array();
-    for (auto& [_if, _do] : this->catch_blocks) {
-        jsonAst["catch"].push_back({*_if->toJSON(), *_do->toJSON()});
+    for (auto& [type, var, block] : this->catch_blocks) {
+        jsonAst["catch"].push_back({*type->toJSON(), *var->toJSON(), *block->toJSON()});
     }
     return std::make_shared<nlohmann::json>(jsonAst);
 }

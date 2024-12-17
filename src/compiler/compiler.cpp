@@ -79,8 +79,11 @@ void addBuiltinFunction(compiler::Compiler* compiler, const std::string& name, l
 }
 
 void compiler::Compiler::_initializeBuiltins() {
+    this->GC_pointer = llvm::PointerType::get(llvm_context, 0);
     addBuiltinType(this, "int", llvm::Type::getInt64Ty(llvm_context));
+    this->GC_int = this->enviornment->parent->get_struct("int")->stand_alone_type;
     addBuiltinType(this, "int32", llvm::Type::getInt32Ty(llvm_context));
+    this->GC_int32 = this->enviornment->parent->get_struct("int32")->stand_alone_type;
     addBuiltinType(this, "uint", llvm::Type::getInt64Ty(llvm_context));
     addBuiltinType(this, "uint32", llvm::Type::getInt32Ty(llvm_context));
     addBuiltinType(this, "float", llvm::Type::getDoubleTy(llvm_context));
@@ -88,8 +91,10 @@ void compiler::Compiler::_initializeBuiltins() {
     addBuiltinType(this, "char", llvm::Type::getInt8Ty(llvm_context));
     addBuiltinType(this, "str", llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
     addBuiltinType(this, "void", llvm::Type::getVoidTy(llvm_context));
+    this->GC_void = this->enviornment->parent->get_struct("void")->stand_alone_type;
     addBuiltinType(this, "bool", llvm::Type::getInt1Ty(llvm_context));
     addBuiltinType(this, "array", llvm::PointerType::get(llvm_context, 0));
+    this->GC_shared_ptr = llvm::StructType::create(this->llvm_context, {/*Value: */ this->GC_pointer,/*RC: */ this->GC_pointer}, "shared_ptr");
 
     auto _any = std::make_shared<enviornment::RecordModule>("Any");
     this->enviornment->parent->add(_any);
@@ -292,11 +297,11 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
             param_names.push_back(param_name_str);
             param_inst_records.push_back(param_type);
             param_refrences.push_back(param->value_type->refrence);
-            param_types.push_back(param_type->stand_alone_type ? param_type->stand_alone_type : llvm::PointerType::get(param_type->struct_type, 0));
+            param_types.push_back(param_type->struct_type || name == "array" ? this->GC_shared_ptr : param_type->stand_alone_type);
         }
 
         auto return_type = this->_parseType(gfunc->func->return_type);
-        auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type->getPointerTo();
+        auto llvm_return_type = return_type->struct_type || return_type->name == "array" ? this->GC_shared_ptr : return_type->stand_alone_type;
         auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
         auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
         this->ir_gc_map_json["functions"][name] = func->getName().str();
@@ -419,7 +424,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<s
                     std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
                     struct_record->fields.push_back(field_name);
                     auto field_type = this->_parseType(field_decl->value_type);
-                    field_types.push_back(field_type->stand_alone_type ? field_type->stand_alone_type : field_type->struct_type);
+                    field_types.push_back(field_type->struct_type || field_type->name == "array" ? this->GC_shared_ptr : field_type->stand_alone_type);
 
                     if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
                         auto field_value = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->value_type->name)->value;
@@ -624,8 +629,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
                     idx++;
                 }
                 auto type = left_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
-                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx);
-                if (type->struct_type) {
+                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, left_alloca, 0)), idx);
+                if (type->struct_type || type->name == "array") {
                     return {gep, gep, type, compiler::resolveType::StructInst};
                 }
                 llvm::Value* loaded = this->llvm_ir_builder.CreateAlignedLoad(type->stand_alone_type, gep, llvm::MaybeAlign(type->stand_alone_type->getScalarSizeInBits() / 8));
@@ -1009,14 +1014,18 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitIndexExpression(std:
         if (!enviornment::_checkType(index_generic, this->enviornment->get_struct("int"))) {
             errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
         }
-
+        auto array = this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, left, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 0)));
         auto element_type = left_generic->generic_sub_types[0];
-        auto element_ptr_type = element_type->stand_alone_type ? element_type->stand_alone_type : element_type->struct_type;
-        auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left, index, "element");
+        auto element_ptr_type = element_type->struct_type || element_type->name == "array" ? this->GC_shared_ptr : element_type->stand_alone_type;
+        auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, array, index, "element");
 
-        llvm::Value* load = element_type->stand_alone_type
-                                ? this->llvm_ir_builder.CreateAlignedLoad(element_type->stand_alone_type, element, llvm::MaybeAlign(element_type->stand_alone_type->getScalarSizeInBits() / 8))
-                                : element;
+        llvm::Value* load = element_type->struct_type || element_type->name == "array"
+                                ? this->llvm_ir_builder.CreateLoad(this->GC_shared_ptr, element)
+                                : this->llvm_ir_builder.CreateAlignedLoad(
+                                    element_type->stand_alone_type,
+                                    element,
+                                    llvm::MaybeAlign(element_type->stand_alone_type->getScalarSizeInBits() / 8)
+                                );
 
         return {load, element, element_type, compiler::resolveType::StructInst};
     } else {
@@ -1234,16 +1243,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitArrayLiteral(std::sh
         values.push_back(value);
     }
 
-    auto array_type = llvm::ArrayType::get(struct_type->stand_alone_type ? struct_type->stand_alone_type : struct_type->struct_type, values.size());
+    auto array_type = llvm::ArrayType::get(struct_type->struct_type ? this->GC_shared_ptr : struct_type->stand_alone_type, values.size());
     llvm::Value* array;
 
     if (array_literal->_new) {
-        llvm::Value* gep = this->llvm_ir_builder.CreateGEP(array_type, llvm::ConstantPointerNull::get(array_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+        llvm::Value* gep = this->llvm_ir_builder.CreateGEP(array_type, llvm::ConstantPointerNull::get(this->GC_pointer), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
         llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
         array = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
-        array = this->llvm_ir_builder.CreateBitCast(array, array_type->getPointerTo());
     } else {
-        array = this->llvm_ir_builder.CreateAlloca(array_type, nullptr);
+        array = this->llvm_ir_builder.CreateAlloca(array_type);
     }
 
     for (size_t i = 0; i < values.size(); ++i) {
@@ -1253,8 +1261,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitArrayLiteral(std::sh
 
     auto array_struct = std::make_shared<enviornment::RecordStructType>(*this->enviornment->get_struct("array"));
     array_struct->generic_sub_types.push_back(first_generic);
-
-    return {array, array, array_struct, compiler::resolveType::StructInst};
+    auto shared_array = this->llvm_ir_builder.CreateAlloca(this->GC_shared_ptr);
+    auto arr_ptr = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, shared_array, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 0));
+    this->llvm_ir_builder.CreateStore(array, arr_ptr);
+    auto arr_RC = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, shared_array, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
+    if (array_literal->_new)
+        this->llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 1), arr_RC);
+    else
+        this->llvm_ir_builder.CreateStore(llvm::ConstantPointerNull::get(this->GC_pointer), arr_RC);
+    return {shared_array, shared_array, array_struct, compiler::resolveType::StructInst};
 };
 
 void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement) {
@@ -1421,12 +1436,11 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         auto param_type = this->_parseType(param->value_type);
         param_inst_records.push_back(param_type);
         refrences.push_back(param->value_type->refrence);
-        param_types.push_back(param_type->stand_alone_type ? (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type)
-                                                           : llvm::PointerType::get(param_type->struct_type, 0));
+        param_types.push_back(param_type->struct_type || param_type->name == "array" ? this->GC_shared_ptr : (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type));
     }
 
     auto return_type = this->_parseType(function_declaration_statement->return_type);
-    auto llvm_return_type = return_type->stand_alone_type ? return_type->stand_alone_type : return_type->struct_type->getPointerTo();
+    auto llvm_return_type = return_type->struct_type ? this->GC_shared_ptr : return_type->stand_alone_type ;
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
 
@@ -1545,15 +1559,25 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitCallExpression(std::
         auto struct_type = struct_record->struct_type;
         llvm::Value* alloca;
         if (call_expression->_new) {
+            alloca = this->llvm_ir_builder.CreateAlloca(this->GC_shared_ptr, nullptr, name);
+            auto value_gep = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, alloca, llvm::ConstantInt::get(this->GC_int32, 0));
             llvm::Value* gep =
                 this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context), 1));
             llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
-            alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+            auto struct_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+            this->llvm_ir_builder.CreateStore(struct_alloca, value_gep);
+            auto RC_gep = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, alloca, llvm::ConstantInt::get(this->GC_int32, 1));
+            this->llvm_ir_builder.CreateStore(llvm::ConstantInt::get(this->GC_int32, 1), RC_gep);
         } else {
-            alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+            alloca = this->llvm_ir_builder.CreateAlloca(this->GC_shared_ptr, nullptr, name);
+            auto struct_alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
+            auto value_gep = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, alloca, llvm::ConstantInt::get(this->GC_int32, 0));
+            this->llvm_ir_builder.CreateStore(struct_alloca, value_gep);
+            auto RC_gep = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, alloca, llvm::ConstantInt::get(this->GC_int32, 1));
+            this->llvm_ir_builder.CreateStore(llvm::ConstantPointerNull::get(this->GC_pointer), RC_gep);
         }
         params_types.insert(params_types.begin(), struct_record);
-        args.insert(args.begin(), alloca);
+        args.insert(args.begin(), this->llvm_ir_builder.CreateLoad(this->GC_shared_ptr, alloca));
         auto func = struct_record->get_method("__init__", params_types);
 
         if (func) {
@@ -1823,7 +1847,7 @@ void compiler::Compiler::addFieldToStruct(std::shared_ptr<enviornment::RecordStr
     struct_record->fields.push_back(field_name);
 
     auto field_type = this->_parseType(field_decl->value_type);
-    field_types.push_back(field_type->stand_alone_type ? field_type->stand_alone_type : field_type->struct_type);
+    field_types.push_back(field_type->struct_type || field_type->name == "array" ? this->GC_shared_ptr : field_type->stand_alone_type);
     struct_record->sub_types[field_name] = field_type;
 
     auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);

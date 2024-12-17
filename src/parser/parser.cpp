@@ -57,7 +57,7 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseStatement() {
     } else if (this->_currentTokenIs(token::TokenType::Return)) {
         return this->_parseReturnStatement();
     } else if (this->_currentTokenIs(token::TokenType::Raise)) {
-    return this->_parseRaiseStatement();
+        return this->_parseRaiseStatement();
     } else if (this->_currentTokenIs(token::TokenType::Def)) {
         return this->_parseFunctionStatement();
     } else if (this->_currentTokenIs(token::TokenType::AtTheRate)) {
@@ -529,29 +529,35 @@ std::shared_ptr<AST::Statement> parser::Parser::_parseVariableDeclaration(std::s
 
 std::shared_ptr<AST::TryCatchStatement> parser::Parser::_parseTryCatchStatement() {
     this->_nextToken();
-    auto _try = this->_parseStatement();
-    std::vector<std::tuple<std::shared_ptr<AST::Expression>, std::shared_ptr<AST::Statement>>> catches;
+    auto try_block = this->_parseStatement();
+    std::vector<std::tuple<std::shared_ptr<AST::Type>, std::shared_ptr<AST::IdentifierLiteral>, std::shared_ptr<AST::Statement>>> catch_blocks;
+
     while (this->_peekTokenIs(token::TokenType::Catch)) {
         this->_nextToken();
         if (!this->_expectPeek({token::TokenType::LeftParen})) {
             return nullptr;
-        };
+        }
+        this->_nextToken();
+        auto exception_type = this->_parseType();
         if (!this->_expectPeek({token::TokenType::Identifier})) {
             return nullptr;
-        };
-        auto _if = this->_parseInfixIdenifier();
+        }
+        auto exception_var = std::make_shared<AST::IdentifierLiteral>(this->current_token);
         if (!this->_expectPeek({token::TokenType::RightParen})) {
             return nullptr;
-        };
+        }
         this->_nextToken();
-        catches.push_back({_if, this->_parseStatement()});
+        auto catch_block = this->_parseStatement();
+        catch_blocks.push_back({exception_type, exception_var, catch_block});
     }
-    if(catches.empty()) {
+
+    if (catch_blocks.empty()) {
         this->_peekTokenError(this->current_token->type, {token::TokenType::Catch});
         return nullptr;
     }
-    return std::make_shared<AST::TryCatchStatement>(_try, catches);
-};
+
+    return std::make_shared<AST::TryCatchStatement>(try_block, catch_blocks);
+}
 
 std::shared_ptr<AST::Expression> parser::Parser::_parseInfixIdenifier() {
     if (this->current_token->type != token::TokenType::Identifier) {

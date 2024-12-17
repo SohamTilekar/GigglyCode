@@ -1,10 +1,10 @@
 #include "errors.hpp"
 #include "../lexer/lexer.hpp"
 
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
-#include <iostream>
 
 // Color and style codes
 const std::string RESET = "\033[0m";

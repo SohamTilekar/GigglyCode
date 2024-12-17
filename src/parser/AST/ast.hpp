@@ -200,7 +200,8 @@ class WhileStatement : public Statement {
     std::shared_ptr<Statement> body;
     std::shared_ptr<Statement> ifbreak;
     std::shared_ptr<Statement> notbreak;
-    inline WhileStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> body, std::shared_ptr<Statement> ifbreak = nullptr, std::shared_ptr<Statement> notbreak = nullptr) : condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
+    inline WhileStatement(std::shared_ptr<Expression> condition, std::shared_ptr<Statement> body, std::shared_ptr<Statement> ifbreak = nullptr, std::shared_ptr<Statement> notbreak = nullptr)
+        : condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::WhileStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -212,7 +213,9 @@ class ForStatement : public Statement {
     std::shared_ptr<Statement> body;
     std::shared_ptr<Statement> ifbreak;
     std::shared_ptr<Statement> notbreak;
-    inline ForStatement(std::shared_ptr<IdentifierLiteral> get, std::shared_ptr<Expression> from, std::shared_ptr<Statement> body, std::shared_ptr<Statement> ifbreak = nullptr, std::shared_ptr<Statement> notbreak = nullptr) : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
+    inline ForStatement(std::shared_ptr<IdentifierLiteral> get, std::shared_ptr<Expression> from, std::shared_ptr<Statement> body, std::shared_ptr<Statement> ifbreak = nullptr,
+                        std::shared_ptr<Statement> notbreak = nullptr)
+        : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::ForStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };
@@ -265,8 +268,9 @@ class VariableAssignmentStatement : public Statement {
 class TryCatchStatement : public Statement {
   public:
     std::shared_ptr<Statement> try_block;
-    std::vector<std::tuple<std::shared_ptr<Expression>, std::shared_ptr<Statement>>> catch_blocks;
-    inline TryCatchStatement(std::shared_ptr<Statement> try_block, std::vector<std::tuple<std::shared_ptr<Expression>, std::shared_ptr<Statement>>> catch_blocks) : try_block(try_block), catch_blocks(catch_blocks) {}
+    std::vector<std::tuple<std::shared_ptr<Type>, std::shared_ptr<IdentifierLiteral>, std::shared_ptr<Statement>>> catch_blocks;
+    inline TryCatchStatement(std::shared_ptr<Statement> try_block, std::vector<std::tuple<std::shared_ptr<Type>, std::shared_ptr<IdentifierLiteral>, std::shared_ptr<Statement>>> catch_blocks)
+        : try_block(try_block), catch_blocks(catch_blocks) {}
     inline NodeType type() override { return NodeType::TryCatchStatement; };
     std::shared_ptr<nlohmann::json> toJSON() override;
 };

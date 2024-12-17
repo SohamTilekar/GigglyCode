@@ -2,6 +2,7 @@
 #define COMPILER_HPP
 
 #include <llvm/IR/DataLayout.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
@@ -94,6 +95,11 @@ class Compiler {
     bool conversionPrecidence(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to);
 
   private:
+    llvm::PointerType* GC_pointer = nullptr;
+    llvm::StructType* GC_shared_ptr = nullptr;
+    llvm::Type* GC_int = nullptr;
+    llvm::Type* GC_int32 = nullptr;
+    llvm::Type* GC_void = nullptr;
     void _initializeBuiltins();
 
     void _visitProgram(std::shared_ptr<AST::Program> program);
