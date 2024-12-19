@@ -37,13 +37,18 @@ using json = nlohmann::json;
 compiler::Compiler::Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map, std::filesystem::path buildDir, std::filesystem::path relativePath)
     : llvm_context(llvm::LLVMContext()), llvm_ir_builder(llvm_context), source(source), file_path(file_path), ir_gc_map(ir_gc_map), buildDir(buildDir), relativePath(relativePath) {
 
+    // Convert file path to string
     std::string path_str = file_path.string();
-    size_t pos = path_str.rfind("src");
-    pos = (pos != std::string::npos) ? pos + 4 : 0; // Move past the "src" or default to the start if "src" is not found
 
+    // Find the position of "src" in the path
+    size_t pos = path_str.rfind("src");
+    // If "src" is found, move past it; otherwise, start from the beginning
+    pos = (pos != std::string::npos) ? pos + 4 : 0;
+
+    // Extract the substring from the position
     this->fc_st_name_prefix = path_str.substr(pos);
 
-    // Replace '/' and '\\' with ".."
+    // Replace '/' and '\\' with ".." in the prefix
     for (char delimiter : {'/', '\\'}) {
         pos = 0;
         while ((pos = this->fc_st_name_prefix.find(delimiter, pos)) != std::string::npos) {
@@ -52,41 +57,72 @@ compiler::Compiler::Compiler(const std::string& source, std::filesystem::path fi
         }
     }
 
+    // Create a new LLVM module with the modified prefix
     this->llvm_module = std::make_unique<llvm::Module>(this->fc_st_name_prefix, llvm_context);
     this->fc_st_name_prefix += "..";
     this->llvm_module->setSourceFileName(file_path.string());
 
-    this->enviornment = std::make_shared<enviornment::Enviornment>(nullptr, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>());
-    this->enviornment->parent = std::make_shared<enviornment::Enviornment>(nullptr, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>(), "buildtins");
+    // Initialize the environment with an empty parent
+    this->enviornment =
+        std::make_shared<enviornment::Enviornment>(std::make_shared<enviornment::Enviornment>(nullptr, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>(), "buildtins"),
+                                                   std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>());
 
+    // Initialize built-in functions and types
     this->_initializeBuiltins();
 
-    this->ir_gc_map_json["functions"] = nlohmann::json::object();
-    this->ir_gc_map_json["structs"] = nlohmann::json::object();
-    this->ir_gc_map_json["GSinstance"] = nlohmann::json::array();
-    this->ir_gc_map_json["GFinstance"] = nlohmann::json::array();
+    // Initialize JSON structure for IR-GC map
+    this->ir_gc_map_json["functions"] = json::object();
+    this->ir_gc_map_json["structs"] = json::object();
+    this->ir_gc_map_json["GSinstance"] = json::array();
+    this->ir_gc_map_json["GFinstance"] = json::array();
 }
 
 void addBuiltinType(compiler::Compiler* compiler, const std::string& name, llvm::Type* type) {
     auto record = std::make_shared<enviornment::RecordStructType>(name, type);
-    compiler->enviornment->parent->add(record);
+    compiler->enviornment->parent->addRecord(record);
 }
 
 void addBuiltinFunction(compiler::Compiler* compiler, const std::string& name, llvm::FunctionType* funcType,
                         const std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>, bool>>& params, std::shared_ptr<enviornment::RecordStructType> returnType) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, compiler->llvm_module.get());
-    compiler->enviornment->parent->add(std::make_shared<enviornment::RecordFunction>(name, func, funcType, params, returnType, true));
+    compiler->enviornment->parent->addRecord(std::make_shared<enviornment::RecordFunction>(name, func, funcType, params, returnType, true));
+}
+
+void compiler::Compiler::_initializeBuiltins() {
+    this->GC_pointer = llvm::PointerType::get(llvm_context, 0);
+    addBuiltinType(this, "int", llvm::Type::getInt64Ty(llvm_context));
+    this->GC_int = this->enviornment->parent->getStruct("int")->stand_alone_type;
+    addBuiltinType(this, "int32", llvm::Type::getInt32Ty(llvm_context));
+    this->GC_int32 = this->enviornment->parent->getStruct("int32")->stand_alone_type;
+    addBuiltinType(this, "uint", llvm::Type::getInt64Ty(llvm_context));
+    addBuiltinType(this, "uint32", llvm::Type::getInt32Ty(llvm_context));
+    addBuiltinType(this, "float", llvm::Type::getDoubleTy(llvm_context));
+    addBuiltinType(this, "float32", llvm::Type::getFloatTy(llvm_context));
+    addBuiltinType(this, "char", llvm::Type::getInt8Ty(llvm_context));
+    addBuiltinType(this, "str", llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
+    addBuiltinType(this, "void", llvm::Type::getVoidTy(llvm_context));
+    this->GC_void = this->enviornment->parent->getStruct("void")->stand_alone_type;
+    addBuiltinType(this, "bool", llvm::Type::getInt1Ty(llvm_context));
+    addBuiltinType(this, "array", llvm::PointerType::get(llvm_context, 0));
+    this->GC_shared_ptr = llvm::StructType::create(this->llvm_context, {/*Value: */ this->GC_pointer, /*RC: */ this->GC_pointer}, "shared_ptr");
+
+    auto _any = std::make_shared<enviornment::RecordModule>("Any");
+    this->enviornment->parent->addRecord(_any);
+
+    addBuiltinFunction(this, "puts", llvm::FunctionType::get(this->enviornment->parent->getStruct("void")->stand_alone_type, this->enviornment->parent->getStruct("str")->stand_alone_type, false),
+                       {{"string", this->enviornment->parent->getStruct("str"), false}}, this->enviornment->parent->getStruct("void"));
+    addBuiltinFunction(this, "printf", llvm::FunctionType::get(this->enviornment->parent->getStruct("int")->stand_alone_type, {this->enviornment->parent->getStruct("str")->stand_alone_type}, true),
+                       {{"format", this->enviornment->parent->getStruct("str"), false}}, this->enviornment->parent->getStruct("int"));
+    addBuiltinFunction(this, "scanf", llvm::FunctionType::get(this->enviornment->parent->getStruct("int")->stand_alone_type, {this->enviornment->parent->getStruct("str")->stand_alone_type}, true),
+                       {{"format", this->enviornment->parent->getStruct("str"), false}}, this->enviornment->parent->getStruct("int"));
+    addBuiltinFunction(this, "malloc", llvm::FunctionType::get(llvm::PointerType::get(llvm_context, 0), {this->enviornment->parent->getStruct("int")->stand_alone_type}, true),
+                       {{"bits", this->enviornment->parent->getStruct("int"), false}}, this->enviornment->parent->getStruct("void"));
+    addBuiltinFunction(this, "free", llvm::FunctionType::get(this->enviornment->parent->getStruct("void")->stand_alone_type, {llvm::PointerType::get(llvm_context, 0)}, true), {},
+                       this->enviornment->parent->getStruct("void"));
 }
 
 void compiler::Compiler::_incrementRC(llvm::Value* value) {
-    auto RC_ptr = this->llvm_ir_builder.CreateLoad(
-        this->GC_pointer,
-        this->llvm_ir_builder.CreateStructGEP(
-            this->GC_shared_ptr,
-            value,
-            1
-        )
-    );
+    auto RC_ptr = this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, value, 1));
     auto is_null = this->llvm_ir_builder.CreateIsNotNull(RC_ptr);
     auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
     llvm::BasicBlock* increment = llvm::BasicBlock::Create(this->llvm_context, "increment", func);
@@ -101,7 +137,7 @@ void compiler::Compiler::_incrementRC(llvm::Value* value) {
 };
 
 void compiler::Compiler::_decrementRC(llvm::Value* value) {
-    auto RC_ptr = this->llvm_ir_builder.CreateLoad( this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, value, 1));
+    auto RC_ptr = this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, value, 1));
     auto RC_value = this->llvm_ir_builder.CreateLoad(this->GC_int, RC_ptr);
     auto is_null = this->llvm_ir_builder.CreateIsNotNull(RC_ptr);
     auto func = this->llvm_ir_builder.GetInsertBlock()->getParent();
@@ -116,43 +152,12 @@ void compiler::Compiler::_decrementRC(llvm::Value* value) {
     auto is_zero = this->llvm_ir_builder.CreateICmpEQ(decremented, llvm::ConstantInt::get(this->GC_int, 0));
     this->llvm_ir_builder.CreateCondBr(is_zero, FreeBB, conti);
     this->llvm_ir_builder.SetInsertPoint(FreeBB);
-    this->llvm_ir_builder.CreateCall(this->enviornment->get_function("free", {this->enviornment->get_struct("int")})->function, {this->llvm_ir_builder.CreateLoad( this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, value, 0))});
-    this->llvm_ir_builder.CreateCall(this->enviornment->get_function("free", {this->enviornment->get_struct("int")})->function, {RC_ptr});
+    this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("free", {this->enviornment->getStruct("int")})->function,
+                                     {this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, value, 0))});
+    this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("free", {this->enviornment->getStruct("int")})->function, {RC_ptr});
     this->llvm_ir_builder.CreateBr(conti);
     this->llvm_ir_builder.SetInsertPoint(conti);
 };
-
-void compiler::Compiler::_initializeBuiltins() {
-    this->GC_pointer = llvm::PointerType::get(llvm_context, 0);
-    addBuiltinType(this, "int", llvm::Type::getInt64Ty(llvm_context));
-    this->GC_int = this->enviornment->parent->get_struct("int")->stand_alone_type;
-    addBuiltinType(this, "int32", llvm::Type::getInt32Ty(llvm_context));
-    this->GC_int32 = this->enviornment->parent->get_struct("int32")->stand_alone_type;
-    addBuiltinType(this, "uint", llvm::Type::getInt64Ty(llvm_context));
-    addBuiltinType(this, "uint32", llvm::Type::getInt32Ty(llvm_context));
-    addBuiltinType(this, "float", llvm::Type::getDoubleTy(llvm_context));
-    addBuiltinType(this, "float32", llvm::Type::getFloatTy(llvm_context));
-    addBuiltinType(this, "char", llvm::Type::getInt8Ty(llvm_context));
-    addBuiltinType(this, "str", llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
-    addBuiltinType(this, "void", llvm::Type::getVoidTy(llvm_context));
-    this->GC_void = this->enviornment->parent->get_struct("void")->stand_alone_type;
-    addBuiltinType(this, "bool", llvm::Type::getInt1Ty(llvm_context));
-    addBuiltinType(this, "array", llvm::PointerType::get(llvm_context, 0));
-    this->GC_shared_ptr = llvm::StructType::create(this->llvm_context, {/*Value: */ this->GC_pointer,/*RC: */ this->GC_pointer}, "shared_ptr");
-
-    auto _any = std::make_shared<enviornment::RecordModule>("Any");
-    this->enviornment->parent->add(_any);
-
-    addBuiltinFunction(this, "puts", llvm::FunctionType::get(this->enviornment->parent->get_struct("void")->stand_alone_type, this->enviornment->parent->get_struct("str")->stand_alone_type, false),
-                       {{"string", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("void"));
-    addBuiltinFunction(this, "printf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true),
-                       {{"format", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("int"));
-    addBuiltinFunction(this, "scanf", llvm::FunctionType::get(this->enviornment->parent->get_struct("int")->stand_alone_type, {this->enviornment->parent->get_struct("str")->stand_alone_type}, true),
-                       {{"format", this->enviornment->parent->get_struct("str"), false}}, this->enviornment->parent->get_struct("int"));
-    addBuiltinFunction(this, "malloc", llvm::FunctionType::get(llvm::PointerType::get(llvm_context, 0), {this->enviornment->parent->get_struct("int")->stand_alone_type}, true),
-                       {{"bits", this->enviornment->parent->get_struct("int"), false}}, this->enviornment->parent->get_struct("void"));
-    addBuiltinFunction(this, "free", llvm::FunctionType::get(this->enviornment->parent->get_struct("void")->stand_alone_type, {llvm::PointerType::get(llvm_context, 0)}, true), {}, this->enviornment->parent->get_struct("void"));
-}
 
 void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
     switch (node->type()) {
@@ -190,7 +195,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             this->_visitRaiseStatement(std::static_pointer_cast<AST::RaiseStatement>(node));
             break;
         case AST::NodeType::TryCatchStatement:
-        this->_visitTryCatchStatement(std::static_pointer_cast<AST::TryCatchStatement>(node));
+            this->_visitTryCatchStatement(std::static_pointer_cast<AST::TryCatchStatement>(node));
             break;
         case AST::NodeType::BlockStatement:
             return this->_visitBlockStatement(std::static_pointer_cast<AST::BlockStatement>(node));
@@ -202,7 +207,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             return this->_visitForStatement(std::static_pointer_cast<AST::ForStatement>(node));
             break;
         case AST::NodeType::BreakStatement:
-            if (this->enviornment->loop_end_block.empty()) {
+            if (this->enviornment->loop_conti_block.empty()) {
                 errors::NodeOutside("Break outside loop", this->source, *node, errors::outsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary")
                     .raise();
                 exit(1);
@@ -212,7 +217,7 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
                 if (this->enviornment->loop_ifbreak_block.at(this->enviornment->loop_ifbreak_block.size() - f_node->loopIdx - 1))
                     this->llvm_ir_builder.CreateBr(this->enviornment->loop_ifbreak_block.at(this->enviornment->loop_ifbreak_block.size() - f_node->loopIdx - 1));
                 else
-                    this->llvm_ir_builder.CreateBr(this->enviornment->loop_end_block.at(this->enviornment->loop_end_block.size() - f_node->loopIdx - 1));
+                    this->llvm_ir_builder.CreateBr(this->enviornment->loop_conti_block.at(this->enviornment->loop_conti_block.size() - f_node->loopIdx - 1));
             }
             throw compiler::DoneBr();
         case AST::NodeType::ContinueStatement:
@@ -253,11 +258,8 @@ void compiler::Compiler::_visitBlockStatement(std::shared_ptr<AST::BlockStatemen
     }
 }
 
-void compiler::Compiler::_checkCallType(
-    std::shared_ptr<enviornment::RecordFunction> func_record,
-    std::shared_ptr<AST::CallExpression> func_call,
-    std::vector<llvm::Value*>& args,
-    const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
+void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
+                                        const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
 
     unsigned short idx = 0;
     bool type_mismatch = false;
@@ -280,19 +282,15 @@ void compiler::Compiler::_checkCallType(
 }
 
 
-compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
-    std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs,
-    std::shared_ptr<AST::CallExpression> func_call,
-    std::string name,
-    std::vector<llvm::Value*> args,
-    const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
+compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::shared_ptr<AST::CallExpression> func_call,
+                                                                 std::string name, std::vector<llvm::Value*> args, const std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
 
     for (const auto& gfunc : gfuncs) {
-        if (gfunc->env->is_function(name, params_types, false, true)) {
-            auto func_record = gfunc->env->get_function(name, params_types, false, true);
+        if (gfunc->env->isFunction(name, params_types, false, true)) {
+            auto func_record = gfunc->env->getFunction(name, params_types, false, true);
             this->_checkCallType(func_record, func_call, args, params_types);
             auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, args, name + "_result");
-            return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
+            return {returnValue, nullptr, func_record->return_type, compiler::resolveType::StructInst};
         }
     }
 
@@ -312,7 +310,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
             if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
                 auto struc = std::make_shared<enviornment::RecordStructType>(*pparam);
                 struc->name = std::static_pointer_cast<AST::IdentifierLiteral>(gparam->value_type->name)->value;
-                this->enviornment->add(struc);
+                this->enviornment->addRecord(struc);
             } else if (gparam_type == compiler::resolveType::StructType && enviornment::_checkType(gparam_variant, pparam)) {
                 // Do nothing
             } else if (gparam_type == compiler::resolveType::StructType && this->canConvertType(gparam_variant, pparam)) {
@@ -363,25 +361,25 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
             auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
             this->function_entery_block.push_back(bb);
             this->llvm_ir_builder.SetInsertPoint(bb);
-            this->enviornment->current_function = func_record;
+            this->enviornment->current_function = func_record.get();
 
             for (const auto& [arg, param_type_record, refrence] : llvm::zip(func->args(), param_inst_records, param_refrences)) {
                 llvm::Value* alloca = &arg;
-                if (!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->get_struct("array"))) {
+                if (!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->getStruct("array"))) {
                     alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName() + "_og");
                     this->llvm_ir_builder.CreateStore(&arg, alloca);
                 }
-                auto arg_type = param_type_record->stand_alone_type ? param_type_record->stand_alone_type : param_type_record->struct_type;
+                auto arg_type = param_type_record->stand_alone_type ? param_type_record->stand_alone_type : param_type_record->stand_alone_type;
                 llvm::Value* arg_value;
                 if (refrence)
                     arg_value = this->llvm_ir_builder.CreateLoad(arg_type, &arg, "loded_" + arg.getName());
                 auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), arg_value, alloca, param_type_record);
                 func_record->arguments.push_back({arg.getName().str(), param_type_record, refrence});
-                this->enviornment->add(record);
+                this->enviornment->addRecord(record);
             }
 
             func_record->set_meta_data(gfunc->func->meta_data.st_line_no, gfunc->func->meta_data.st_col_no, gfunc->func->meta_data.end_line_no, gfunc->func->meta_data.end_col_no);
-            this->enviornment->add(func_record);
+            this->enviornment->addRecord(func_record);
 
             try {
                 this->compile(body);
@@ -391,7 +389,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
                 // Ignore to compile the following commands if DoneRaise exception occurs
             }
 
-            gfunc->env->add(func_record);
+            gfunc->env->addRecord(func_record);
             this->function_entery_block.pop_back();
 
             if (!this->function_entery_block.empty()) {
@@ -401,7 +399,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
             for (const auto& [arg, param_type_record, param_refrence] : llvm::zip(func->args(), param_inst_records, param_refrences)) {
                 func_record->arguments.push_back({arg.getName().str(), param_type_record, param_refrence});
             }
-            gfunc->env->add(func_record);
+            gfunc->env->addRecord(func_record);
         }
 
         this->_checkCallType(func_record, func_call, args, params_types);
@@ -409,15 +407,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
         for (const auto& [gparam, pparam] : llvm::zip(gfunc->func->parameters, params_types)) {
             if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
                 auto name = std::static_pointer_cast<AST::IdentifierLiteral>(gparam->value_type->name)->value;
-                if (this->enviornment->is_struct(name)) {
-                    auto _struct = this->enviornment->get_struct(name);
+                if (this->enviornment->isStruct(name)) {
+                    auto _struct = this->enviornment->getStruct(name);
                     _struct->name = pparam->name;
                 }
             }
         }
         auto returnValue = this->llvm_ir_builder.CreateCall(func, args, name + "_result");
         this->enviornment = prev_env;
-        return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
+        return {returnValue, nullptr, func_record->return_type, compiler::resolveType::StructInst};
     }
 
     if (mismatches.empty()) {
@@ -430,12 +428,12 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(
 };
 
 
-compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name,
-                                 std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
+compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGenericStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call,
+                                                                   std::string name, std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types) {
     auto prev_env = this->enviornment;
 
     for (auto gstruct : gstructs) {
-        if (params_types.size() < gstruct->structt->generics.size()) {
+        if (params_types.size() < gstruct->structAST->generics.size()) {
             continue;
         }
 
@@ -445,36 +443,37 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<s
         std::vector<llvm::Value*> remaining_args(args);
         std::vector<std::shared_ptr<enviornment::RecordStructType>> remaining_params_types(params_types);
 
-        for (auto [pt, generic] : llvm::zip(params_types, gstruct->structt->generics)) {
+        for (auto [pt, generic] : llvm::zip(params_types, gstruct->structAST->generics)) {
             pt = std::make_shared<enviornment::RecordStructType>(*pt);
             generic_names.push_back(pt->name);
             pt->name = std::static_pointer_cast<AST::IdentifierLiteral>(generic->name)->value;
-            this->enviornment->add(pt);
+            this->enviornment->addRecord(pt);
             generics.push_back(pt);
             remaining_args.erase(remaining_args.begin());
             remaining_params_types.erase(remaining_params_types.begin());
         }
 
-        std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(gstruct->structt->name)->value;
+        std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(gstruct->structAST->name)->value;
         auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
 
-        if (!gstruct->env->is_struct(struct_name, false, generics)) {
+        if (!gstruct->env->isStruct(struct_name, false, generics)) {
             std::vector<llvm::Type*> field_types;
-            auto fields = gstruct->structt->fields;
-            this->enviornment->add(struct_record);
+            auto fields = gstruct->structAST->fields;
+            this->enviornment->addRecord(struct_record);
 
             for (auto field : fields) {
                 if (field->type() == AST::NodeType::VariableDeclarationStatement) {
                     auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
                     std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-                    struct_record->fields.push_back(field_name);
+                    // struct_record->fields.push_back(field_name);
                     auto field_type = this->_parseType(field_decl->value_type);
-                    field_types.push_back(field_type->struct_type || field_type->name == "array" ? this->GC_shared_ptr : field_type->stand_alone_type);
+                    field_types.push_back(field_type->stand_alone_type || field_type->name == "array" ? this->GC_shared_ptr : field_type->stand_alone_type);
+                    struct_record->addSubType(field_name, field_type);
 
                     if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
                         auto field_value = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->value_type->name)->value;
                         bool is_generic = false;
-                        for (const auto& generic : gstruct->structt->generics) {
+                        for (const auto& generic : gstruct->structAST->generics) {
                             if (field_value == std::static_pointer_cast<AST::IdentifierLiteral>(generic->name)->value) {
                                 is_generic = true;
                                 break;
@@ -486,7 +485,6 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<s
                         }
                     }
 
-                    struct_record->sub_types[field_name] = field_type;
                     auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
                     struct_type->setBody(field_types);
                     struct_record->struct_type = struct_type;
@@ -499,16 +497,16 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<s
                 }
             }
         } else {
-            struct_record = gstruct->env->get_struct(struct_name, false, generics);
+            struct_record = gstruct->env->getStruct(struct_name, false, generics);
         }
 
         auto struct_type = struct_record->struct_type;
         llvm::Value* alloca;
         if (func_call->_new) {
-            llvm::Value* gep =
-                this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 1), struct_name + "_size_get");
+            llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()),
+                                                               llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 1), struct_name + "_size_get");
             llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->GC_int, struct_name + "_size");
-            alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+            alloca = this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("malloc", {this->enviornment->getStruct("int")})->function, {size});
         } else
             alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
         remaining_params_types.insert(remaining_params_types.begin(), struct_record);
@@ -524,7 +522,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<s
             exit(1);
         }
 
-        gstruct->env->add(struct_record);
+        gstruct->env->addRecord(struct_record);
         this->enviornment = prev_env;
         return {alloca, alloca, struct_record, compiler::resolveType::StructInst};
     }
@@ -535,7 +533,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGstruct(std::vector<s
 };
 
 
-compiler::Compiler::ResolvedValue compiler::Compiler::convertType(std::tuple<llvm::Value*, llvm::Value*, std::shared_ptr<enviornment::RecordStructType>> of, std::shared_ptr<enviornment::RecordStructType> to) {
+compiler::Compiler::ResolvedValue compiler::Compiler::convertType(std::tuple<llvm::Value*, llvm::Value*, std::shared_ptr<enviornment::RecordStructType>> of,
+                                                                  std::shared_ptr<enviornment::RecordStructType> to) {
     auto [ofloadedval, ofalloca, oftype] = of;
 
     if (enviornment::_checkType(oftype, to)) {
@@ -543,58 +542,58 @@ compiler::Compiler::ResolvedValue compiler::Compiler::convertType(std::tuple<llv
     }
 
     if (oftype->name == "int32" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateSExt(ofloadedval, this->enviornment->get_struct("int")->stand_alone_type, "int32_to_int");
+        auto int_type = this->llvm_ir_builder.CreateSExt(ofloadedval, this->enviornment->getStruct("int")->stand_alone_type, "int32_to_int");
         return {int_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "int" && to->name == "int32") {
-        auto int32_type = this->llvm_ir_builder.CreateTrunc(ofloadedval, this->enviornment->get_struct("int32")->stand_alone_type, "int_to_int32");
+        auto int32_type = this->llvm_ir_builder.CreateTrunc(ofloadedval, this->enviornment->getStruct("int32")->stand_alone_type, "int_to_int32");
         return {int32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "uint32" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->get_struct("uint")->stand_alone_type, "uint32_to_uint");
+        auto uint_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->getStruct("uint")->stand_alone_type, "uint32_to_uint");
         return {uint_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "uint" && to->name == "uint32") {
-        auto uint32_type = this->llvm_ir_builder.CreateTrunc(ofloadedval, this->enviornment->get_struct("uint32")->stand_alone_type, "uint_to_uint32");
+        auto uint32_type = this->llvm_ir_builder.CreateTrunc(ofloadedval, this->enviornment->getStruct("uint32")->stand_alone_type, "uint_to_uint32");
         return {uint32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "float32" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateFPExt(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type, "float32_to_float");
+        auto float_type = this->llvm_ir_builder.CreateFPExt(ofloadedval, this->enviornment->getStruct("float")->stand_alone_type, "float32_to_float");
         return {float_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "float" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateFPTrunc(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type, "float_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateFPTrunc(ofloadedval, this->enviornment->getStruct("float32")->stand_alone_type, "float_to_float32");
         return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "int" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateSIToFP(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type, "int_to_float");
+        auto float_type = this->llvm_ir_builder.CreateSIToFP(ofloadedval, this->enviornment->getStruct("float")->stand_alone_type, "int_to_float");
         return {float_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "int32" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateSIToFP(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type, "int32_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateSIToFP(ofloadedval, this->enviornment->getStruct("float32")->stand_alone_type, "int32_to_float32");
         return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "uint" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type, "uint_to_float");
+        auto float_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->getStruct("float")->stand_alone_type, "uint_to_float");
         return {float_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "uint32" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type, "uint32_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->getStruct("float32")->stand_alone_type, "uint32_to_float32");
         return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "float" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateFPToSI(ofloadedval, this->enviornment->get_struct("int")->stand_alone_type, "float_to_int");
+        auto int_type = this->llvm_ir_builder.CreateFPToSI(ofloadedval, this->enviornment->getStruct("int")->stand_alone_type, "float_to_int");
         return {int_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "float32" && to->name == "int32") {
-        auto int32_type = this->llvm_ir_builder.CreateFPToSI(ofloadedval, this->enviornment->get_struct("int32")->stand_alone_type, "float32_to_int32");
+        auto int32_type = this->llvm_ir_builder.CreateFPToSI(ofloadedval, this->enviornment->getStruct("int32")->stand_alone_type, "float32_to_int32");
         return {int32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "float" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->get_struct("uint")->stand_alone_type, "float_to_uint");
+        auto uint_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->getStruct("uint")->stand_alone_type, "float_to_uint");
         return {uint_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "float32" && to->name == "uint32") {
-        auto uint32_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->get_struct("uint32")->stand_alone_type, "float32_to_uint32");
+        auto uint32_type = this->llvm_ir_builder.CreateFPToUI(ofloadedval, this->enviornment->getStruct("uint32")->stand_alone_type, "float32_to_uint32");
         return {uint32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "bool" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->get_struct("int")->stand_alone_type, "bool_to_int");
+        auto int_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->getStruct("int")->stand_alone_type, "bool_to_int");
         return {int_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "bool" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->get_struct("uint")->stand_alone_type, "bool_to_uint");
+        auto uint_type = this->llvm_ir_builder.CreateZExt(ofloadedval, this->enviornment->getStruct("uint")->stand_alone_type, "bool_to_uint");
         return {uint_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "bool" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float")->stand_alone_type, "bool_to_float");
+        auto float_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->getStruct("float")->stand_alone_type, "bool_to_float");
         return {float_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if (oftype->name == "bool" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->get_struct("float32")->stand_alone_type, "bool_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateUIToFP(ofloadedval, this->enviornment->getStruct("float32")->stand_alone_type, "bool_to_float32");
         return {float32_type, ofalloca, to, compiler::resolveType::StructInst};
     } else if ((oftype->name == "int" || oftype->name == "float" || oftype->name == "str") && to->name == "bool") {
         auto bool_type = this->llvm_ir_builder.CreateICmpNE(ofloadedval, llvm::Constant::getNullValue(ofloadedval->getType()), "to_bool");
@@ -603,7 +602,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::convertType(std::tuple<llv
         if (oftype->is_method("", {oftype}, {{"autocast", true}}, to)) {
             auto method = oftype->get_method("", {oftype}, {{"autocast", true}}, to);
             auto returnValue = this->llvm_ir_builder.CreateCall(method->function, {ofalloca}, oftype->name + "_to_" + to->name);
-            return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
+            return {returnValue, nullptr, method->return_type, compiler::resolveType::StructInst};
         }
     }
 
@@ -655,8 +654,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
                 return compiler::Compiler::ResolvedValue(nullptr, nullptr, module->get_module(name), compiler::resolveType::Module);
             } else if (module->is_struct(name)) {
                 return compiler::Compiler::ResolvedValue(nullptr, nullptr, module->get_struct(name), compiler::resolveType::StructType);
-            } else if (module->is_Gstruct(name)) {
-                return compiler::Compiler::ResolvedValue(nullptr, nullptr, module->get_Gstruct(name), compiler::resolveType::GStructType);
+            } else if (module->isGenericStruct(name)) {
+                return compiler::Compiler::ResolvedValue(nullptr, nullptr, module->getGenericStruct(name), compiler::resolveType::GStructType);
             } else {
                 errors::DosentContain(this->source, std::static_pointer_cast<AST::IdentifierLiteral>(right), left, "no member `" + name + "` not found in module " + module->name,
                                       "Check the Member Name in the module is correct")
@@ -667,26 +666,16 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
             auto left_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_left_type);
             if (left_type->sub_types.contains(std::static_pointer_cast<AST::IdentifierLiteral>(right)->value)) {
                 unsigned short idx = 0;
-                for (auto field : left_type->fields) {
+                for (auto field : left_type->getFields()) {
                     if (field == std::static_pointer_cast<AST::IdentifierLiteral>(right)->value) {
                         break;
                     }
                     idx++;
                 }
                 auto type = left_type->sub_types[std::static_pointer_cast<AST::IdentifierLiteral>(right)->value];
-                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(
-                    left_type->struct_type,
-                    this->llvm_ir_builder.CreateLoad(
-                        this->GC_pointer,
-                        this->llvm_ir_builder.CreateStructGEP(
-                            this->GC_shared_ptr,
-                            left_alloca,
-                            0
-                        )
-                    ),
-                    idx,
-                    "accesed" + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value + "_from_" + left_type->name
-                );
+                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type,
+                                                                         this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, left_alloca, 0)),
+                                                                         idx, "accesed" + std::static_pointer_cast<AST::IdentifierLiteral>(right)->value + "_from_" + left_type->name);
                 if (type->struct_type || type->name == "array") {
                     return {gep, gep, type, compiler::resolveType::StructInst};
                 }
@@ -722,8 +711,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
         }
         if (ltt == compiler::resolveType::Module) {
             auto left_type = std::get<std::shared_ptr<enviornment::RecordModule>>(_left_type);
-            if (left_type->is_Gfunc(name) ? left_type->is_function(name, params_types, true) : left_type->is_function(name, params_types)) {
-                auto func = left_type->get_function(name, params_types);
+            if (left_type->isGenericFunc(name) ? left_type->isFunction(name, params_types, true) : left_type->isFunction(name, params_types)) {
+                auto func = left_type->getFunction(name, params_types);
                 unsigned short idx = 0;
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
                     if (param_type->stand_alone_type && std::get<2>(argument)) {
@@ -732,24 +721,23 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
                     idx++;
                 }
                 auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args, name + "_result");
-                return {returnValue, nullptr, func->return_inst, compiler::resolveType::StructInst};
-            } else if (left_type->is_Gfunc(name)) {
-                auto gfuncs = left_type->get_Gfunc(name);
+                return {returnValue, nullptr, func->return_type, compiler::resolveType::StructInst};
+            } else if (left_type->isGenericFunc(name)) {
+                auto gfuncs = left_type->get_GenericFunc(name);
                 return this->_CallGfunc(gfuncs, call_expression, name, args, params_types);
-            } else if (left_type->is_Gstruct(name)) {
-                auto gstruct = left_type->get_Gstruct(name);
+            } else if (left_type->isGenericStruct(name)) {
+                auto gstruct = left_type->getGenericStruct(name);
                 return this->_CallGstruct(gstruct, call_expression, name, args, params_types);
             } else if (left_type->is_struct(name)) {
                 auto struct_record = left_type->get_struct(name);
                 auto struct_type = struct_record->struct_type;
                 llvm::Value* alloca;
                 if (call_expression->_new) {
-                    llvm::Value* gep =
-                        this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 1), "gep" + name);
+                    llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()),
+                                                                       llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 1), "gep" + name);
                     llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->GC_int, name + "_size");
-                    alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size}, name + "_heap_pointer");
-                }
-                else
+                    alloca = this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("malloc", {this->enviornment->getStruct("int")})->function, {size}, name + "_heap_pointer");
+                } else
                     alloca = this->llvm_ir_builder.CreateAlloca(struct_type, nullptr, name);
                 params_types.insert(params_types.begin(), struct_record);
                 args.insert(args.begin(), alloca);
@@ -784,7 +772,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
                     idx++;
                 }
                 auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args, name + "_reuturn_value");
-                return {returnValue, nullptr, method->return_inst, compiler::resolveType::StructInst};
+                return {returnValue, nullptr, method->return_type, compiler::resolveType::StructInst};
             } else {
                 errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + left_type->name + ".", "Check the initialization method name or define the method.")
                     .raise();
@@ -799,18 +787,18 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_memberAccess(std::shared_
 };
 
 compiler::Compiler::ResolvedValue compiler::Compiler::_StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type,
-                                     std::shared_ptr<enviornment::RecordStructType> right_type, std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value,
-                                     llvm::Value* right_value) {
+                                                                       std::shared_ptr<enviornment::RecordStructType> right_type, std::shared_ptr<AST::Expression> left,
+                                                                       std::shared_ptr<AST::Expression> right, llvm::Value* left_value, llvm::Value* right_value) {
     std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type1{left_type, right_type};
     std::vector<std::shared_ptr<enviornment::RecordStructType>> params_type2{right_type, left_type};
     if (left_type->is_method(op_method, params_type1)) {
         auto func_record = left_type->get_method(op_method, params_type1);
         auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
-        return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
+        return {returnValue, nullptr, func_record->return_type, compiler::resolveType::StructInst};
     } else if (right_type->is_method(op_method, params_type2)) {
         auto func_record = right_type->get_method(op_method, params_type2);
         auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
-        return {returnValue, nullptr, func_record->return_inst, compiler::resolveType::StructInst};
+        return {returnValue, nullptr, func_record->return_type, compiler::resolveType::StructInst};
     } else {
         errors::WrongInfix(this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct").raise();
         exit(1);
@@ -917,15 +905,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
         switch (op) {
             case (token::TokenType::Plus): {
                 auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("int"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::Dash): {
                 auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("int"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::Asterisk): {
                 auto inst = this->llvm_ir_builder.CreateMul(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("int"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::ForwardSlash): {
                 llvm::Value* inst;
@@ -933,7 +921,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
                     inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
                 else
                     inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("int"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::Percent): {
                 llvm::Value* inst;
@@ -941,15 +929,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
                     inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
                 else
                     inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("int"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::EqualEqual): {
                 auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::NotEquals): {
                 auto inst = this->llvm_ir_builder.CreateICmpNE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::LessThan): {
                 llvm::Value* inst;
@@ -957,7 +945,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
                     inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
                 else
                     inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::GreaterThan): {
                 llvm::Value* inst;
@@ -965,7 +953,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
                     inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
                 else
                     inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::LessThanOrEqual): {
                 llvm::Value* inst;
@@ -973,7 +961,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
                     inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
                 else
                     inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::GreaterThanOrEqual): {
                 llvm::Value* inst;
@@ -981,7 +969,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
                     inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
                 else
                     inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for int").raise();
@@ -996,43 +984,43 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
         switch (op) {
             case (token::TokenType::Plus): {
                 auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("float"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::Dash): {
                 auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("float"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::Asterisk): {
                 auto inst = this->llvm_ir_builder.CreateFMul(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("float"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::ForwardSlash): {
                 auto inst = this->llvm_ir_builder.CreateFDiv(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("float"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::EqualEqual): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::NotEquals): {
                 auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::LessThan): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::GreaterThan): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::LessThanOrEqual): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::GreaterThanOrEqual): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+                return {inst, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for float").raise();
@@ -1044,7 +1032,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitInfixExpression(std:
             }
         }
     } else {
-        errors::WrongType(this->source, infixed_expression, {this->enviornment->get_struct("int"), this->enviornment->get_struct("float")}, "Unknown Type", "Check the types of the operands.").raise();
+        errors::WrongType(this->source, infixed_expression, {this->enviornment->getStruct("int"), this->enviornment->getStruct("float")}, "Unknown Type", "Check the types of the operands.").raise();
         exit(1);
     }
 };
@@ -1067,8 +1055,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitIndexExpression(std:
 
     auto index_generic = std::get<std::shared_ptr<enviornment::RecordStructType>>(_index_generic);
 
-    if (enviornment::_checkType(left_generic, this->enviornment->get_struct("array"))) {
-        if (!enviornment::_checkType(index_generic, this->enviornment->get_struct("int"))) {
+    if (enviornment::_checkType(left_generic, this->enviornment->getStruct("array"))) {
+        if (!enviornment::_checkType(index_generic, this->enviornment->getStruct("int"))) {
             errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
         }
         auto array = this->llvm_ir_builder.CreateLoad(this->GC_pointer, this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, left, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 0)));
@@ -1076,16 +1064,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitIndexExpression(std:
         auto element_ptr_type = element_type->struct_type || element_type->name == "array" ? this->GC_shared_ptr : element_type->stand_alone_type;
         auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, array, index, "element");
 
-        llvm::Value* load = element_type->struct_type || element_type->name == "array"
-                                ? this->llvm_ir_builder.CreateLoad(this->GC_shared_ptr, element)
-                                : this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
+        llvm::Value* load = element_type->struct_type || element_type->name == "array" ? this->llvm_ir_builder.CreateLoad(this->GC_shared_ptr, element)
+                                                                                       : this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
 
         return {load, element, element_type, compiler::resolveType::StructInst};
     } else {
         if (left_generic->is_method("__index__", {left_generic, index_generic})) {
             auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
             auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
-            return {returnValue, nullptr, idx_method->return_inst, compiler::resolveType::StructInst};
+            return {returnValue, nullptr, idx_method->return_type, compiler::resolveType::StructInst};
         } else {
             errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "define the __index__ method.").raise();
             exit(1);
@@ -1107,7 +1094,7 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
             this->llvm_ir_builder.CreateStore(llvm::ConstantPointerNull::get(this->GC_pointer), RC_gep);
         }
         auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, nullptr, alloca, var_type);
-        this->enviornment->add(var);
+        this->enviornment->addRecord(var);
     } else {
         auto [var_value_resolved, var_value_alloca, _var_generic, vartt] = this->_resolveValue(var_value);
         if (vartt != compiler::resolveType::StructInst) {
@@ -1131,12 +1118,12 @@ void compiler::Compiler::_visitVariableDeclarationStatement(std::shared_ptr<AST:
                 auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
                 this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
                 auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
-                this->enviornment->add(var);
+                this->enviornment->addRecord(var);
             } else {
                 this->_incrementRC(var_value_alloca);
                 auto var = std::make_shared<enviornment::RecordVariable>(var_name->value, var_value_resolved, var_value_resolved, var_generic);
-                var->variableType = var_generic;
-                this->enviornment->add(var);
+                var->variable_type = var_generic;
+                this->enviornment->addRecord(var);
             }
         } else {
             errors::WrongType(this->source, var_value, {var_type}, "Cannot assign module or type to variable").raise();
@@ -1204,27 +1191,27 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_resolveValue(std::shared_
         case AST::NodeType::IntegerLiteral: {
             auto integer_literal = std::static_pointer_cast<AST::IntegerLiteral>(node);
             auto value = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, integer_literal->value));
-            auto alloca = this->llvm_ir_builder.CreateAlloca(this->enviornment->get_struct("int")->stand_alone_type);
+            auto alloca = this->llvm_ir_builder.CreateAlloca(this->enviornment->getStruct("int")->stand_alone_type);
             this->llvm_ir_builder.CreateStore(value, alloca);
-            return {value, alloca, this->enviornment->get_struct("int"), compiler::resolveType::StructInst};
+            return {value, alloca, this->enviornment->getStruct("int"), compiler::resolveType::StructInst};
         }
         case AST::NodeType::FloatLiteral: {
             auto float_literal = std::static_pointer_cast<AST::FloatLiteral>(node);
             auto value = llvm::ConstantFP::get(llvm_context, llvm::APFloat(float_literal->value));
-            auto alloca = this->llvm_ir_builder.CreateAlloca(this->enviornment->get_struct("float")->stand_alone_type);
+            auto alloca = this->llvm_ir_builder.CreateAlloca(this->enviornment->getStruct("float")->stand_alone_type);
             this->llvm_ir_builder.CreateStore(value, alloca);
-            return {value, alloca, this->enviornment->get_struct("float"), compiler::resolveType::StructInst};
+            return {value, alloca, this->enviornment->getStruct("float"), compiler::resolveType::StructInst};
         }
         case AST::NodeType::StringLiteral: {
             auto string_literal = std::static_pointer_cast<AST::StringLiteral>(node);
             auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
-            return {value, value, this->enviornment->get_struct("str"), compiler::resolveType::StructInst};
+            return {value, value, this->enviornment->getStruct("str"), compiler::resolveType::StructInst};
         }
         case AST::NodeType::IdentifierLiteral: {
             auto identifier_literal = std::static_pointer_cast<AST::IdentifierLiteral>(node);
-            if (this->enviornment->is_variable(identifier_literal->value)) {
-                auto variable = this->enviornment->get_variable(identifier_literal->value);
-                auto currentStructType = variable->variableType;
+            if (this->enviornment->isVariable(identifier_literal->value)) {
+                auto variable = this->enviornment->getVariable(identifier_literal->value);
+                auto currentStructType = variable->variable_type;
                 currentStructType->meta_data = node->meta_data;
                 if (currentStructType->stand_alone_type) {
                     auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, variable->allocainst);
@@ -1232,12 +1219,12 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_resolveValue(std::shared_
                 } else {
                     return {variable->allocainst, variable->allocainst, currentStructType, compiler::resolveType::StructInst};
                 }
-            } else if (this->enviornment->is_module(identifier_literal->value)) {
-                return {nullptr, nullptr, this->enviornment->get_module(identifier_literal->value), compiler::resolveType::Module};
-            } else if (this->enviornment->is_struct(identifier_literal->value)) {
-                return {nullptr, nullptr, this->enviornment->get_struct(identifier_literal->value), compiler::resolveType::StructType};
-            } else if (this->enviornment->is_Gstruct(identifier_literal->value)) {
-                return {nullptr, nullptr, this->enviornment->get_Gstruct(identifier_literal->value), compiler::resolveType::GStructType};
+            } else if (this->enviornment->isModule(identifier_literal->value)) {
+                return {nullptr, nullptr, this->enviornment->getModule(identifier_literal->value), compiler::resolveType::Module};
+            } else if (this->enviornment->isStruct(identifier_literal->value)) {
+                return {nullptr, nullptr, this->enviornment->getStruct(identifier_literal->value), compiler::resolveType::StructType};
+            } else if (this->enviornment->isGenericStruct(identifier_literal->value)) {
+                return {nullptr, nullptr, this->enviornment->getGenericStruct(identifier_literal->value), compiler::resolveType::GStructType};
             }
             errors::NotDefined(this->source, identifier_literal, "Variable or function or struct `" + identifier_literal->value + "` not defined", "Recheck the Name").raise();
             exit(1);
@@ -1254,9 +1241,9 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_resolveValue(std::shared_
         case AST::NodeType::BooleanLiteral: {
             auto boolean_literal = std::static_pointer_cast<AST::BooleanLiteral>(node);
             auto value = boolean_literal->value ? llvm::ConstantInt::getTrue(this->llvm_context) : llvm::ConstantInt::getFalse(this->llvm_context);
-            auto alloca = this->llvm_ir_builder.CreateAlloca(this->enviornment->get_struct("bool")->stand_alone_type);
+            auto alloca = this->llvm_ir_builder.CreateAlloca(this->enviornment->getStruct("bool")->stand_alone_type);
             this->llvm_ir_builder.CreateStore(value, alloca);
-            return {value, nullptr, this->enviornment->get_struct("bool"), compiler::resolveType::StructInst};
+            return {value, nullptr, this->enviornment->getStruct("bool"), compiler::resolveType::StructInst};
         }
         case AST::NodeType::ArrayLiteral: {
             return this->_visitArrayLiteral(std::static_pointer_cast<AST::ArrayLiteral>(node));
@@ -1307,25 +1294,26 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitArrayLiteral(std::sh
     if (array_literal->_new) {
         llvm::Value* gep = this->llvm_ir_builder.CreateGEP(array_type, llvm::ConstantPointerNull::get(this->GC_pointer), llvm::ConstantInt::get(this->GC_int, 1));
         llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->GC_int);
-        array = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+        array = this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("malloc", {this->enviornment->getStruct("int")})->function, {size});
     } else {
         array = this->llvm_ir_builder.CreateAlloca(array_type);
     }
 
     for (size_t i = 0; i < values.size(); ++i) {
         auto element = this->llvm_ir_builder.CreateGEP(array_type, array, {this->llvm_ir_builder.getInt64(0), this->llvm_ir_builder.getInt64(i)});
-        if(first_generic->struct_type || first_generic->name == "array") {
+        if (first_generic->struct_type || first_generic->name == "array") {
             this->_incrementRC(values[i]);
         }
         this->llvm_ir_builder.CreateStore(values[i], element);
     }
 
-    auto array_struct = std::make_shared<enviornment::RecordStructType>(*this->enviornment->get_struct("array"));
+    auto array_struct = std::make_shared<enviornment::RecordStructType>(*this->enviornment->getStruct("array"));
     array_struct->generic_sub_types.push_back(first_generic);
     auto shared_array = this->llvm_ir_builder.CreateAlloca(this->GC_shared_ptr);
     this->llvm_ir_builder.CreateStore(array, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, shared_array, 0));
     if (array_literal->_new) {
-        auto RC_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), this->GC_int->getScalarSizeInBits() / 8)});
+        auto RC_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("malloc", {this->enviornment->getStruct("int")})->function,
+                                                          {llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), this->GC_int->getScalarSizeInBits() / 8)});
         this->llvm_ir_builder.CreateStore(llvm::ConstantInt::get(this->GC_int, 0), RC_alloca);
         this->llvm_ir_builder.CreateStore(RC_alloca, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, shared_array, 1));
     } else
@@ -1335,7 +1323,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitArrayLiteral(std::sh
 
 void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement) {
     auto value = return_statement->value;
-    if(!value && this->enviornment->current_function->return_inst->name == "void") {
+    if (!value && this->enviornment->current_function->return_type->name == "void") {
         this->llvm_ir_builder.CreateRetVoid();
         throw compiler::DoneRet(); // Throws `DoneRet` Error to Indicate that Dont parse the following statements in the current block statement
     }
@@ -1351,30 +1339,30 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
             this->llvm_ir_builder.CreateRetVoid();
             throw compiler::DoneRet(); // Throws `DoneRet` Error to Indicate that Dont parse the following statements in the current block statement
         } else {
-            errors::WrongType(this->source, value, {this->enviornment->current_function->return_inst}, "Cannot return module or type from function").raise();
+            errors::WrongType(this->source, value, {this->enviornment->current_function->return_type}, "Cannot return module or type from function").raise();
             exit(1);
         }
     }
 
     auto return_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_);
-    if (!enviornment::_checkType(this->enviornment->current_function->return_inst, return_type)) {
-        if (this->canConvertType(return_type, this->enviornment->current_function->return_inst)) {
-            auto [converted_value, converted_alloca, converted_type, _] = this->convertType({return_value, return_alloca, return_type}, this->enviornment->current_function->return_inst);
+    if (!enviornment::_checkType(this->enviornment->current_function->return_type, return_type)) {
+        if (this->canConvertType(return_type, this->enviornment->current_function->return_type)) {
+            auto [converted_value, converted_alloca, converted_type, _] = this->convertType({return_value, return_alloca, return_type}, this->enviornment->current_function->return_type);
             return_value = converted_value;
             return_alloca = converted_alloca;
             if (!return_value) {
-                errors::WrongType(this->source, value, {this->enviornment->current_function->return_inst}, "Return Type mismatch").raise();
+                errors::WrongType(this->source, value, {this->enviornment->current_function->return_type}, "Return Type mismatch").raise();
                 exit(1);
             }
         } else {
-            errors::WrongType(this->source, value, {this->enviornment->current_function->return_inst}, "Return Type mismatch").raise();
+            errors::WrongType(this->source, value, {this->enviornment->current_function->return_type}, "Return Type mismatch").raise();
             exit(1);
         }
     }
-    if(return_type->struct_type)
+    if (return_type->struct_type)
         this->_incrementRC(return_value);
-    for (auto var : this->enviornment->current_function->env->getcurrentVars()) {
-        if(var->variableType->struct_type || var->variableType->name == "array") {
+    for (auto var : this->enviornment->current_function->env->getCurrentVars()) {
+        if (var->variable_type->struct_type || var->variable_type->name == "array") {
             this->_decrementRC(var->value);
         }
     }
@@ -1401,35 +1389,35 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
     auto [_, __, _struct, stt] = this->_resolveValue(type->name);
     if (stt != compiler::resolveType::StructType) {
         if (stt == compiler::resolveType::GStructType) {
-            auto gstructs = std::get<std::vector<std::shared_ptr<enviornment::RecordGStructType>>>(_struct);
+            auto gstructs = std::get<std::vector<std::shared_ptr<enviornment::RecordGenericStructType>>>(_struct);
             auto prev_env = this->enviornment;
 
             for (auto gstruct : gstructs) {
-                if (generics.size() != gstruct->structt->generics.size()) {
+                if (generics.size() != gstruct->structAST->generics.size()) {
                     continue;
                 }
 
                 this->enviornment = std::make_shared<enviornment::Enviornment>(gstruct->env);
-                std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(gstruct->structt->name)->value;
+                std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(gstruct->structAST->name)->value;
                 auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
 
-                if (!gstruct->env->is_struct(struct_name, false, generics)) {
-                    for (auto [generic, rg] : llvm::zip(generics, gstruct->structt->generics)) {
+                if (!gstruct->env->isStruct(struct_name, false, generics)) {
+                    for (auto [generic, rg] : llvm::zip(generics, gstruct->structAST->generics)) {
                         auto generic_copy = std::make_shared<enviornment::RecordStructType>(*generic);
                         generic_copy->name = std::static_pointer_cast<AST::IdentifierLiteral>(rg->name)->value;
-                        this->enviornment->add(generic_copy);
+                        this->enviornment->addRecord(generic_copy);
                     }
 
                     std::vector<llvm::Type*> field_types;
-                    auto fields = gstruct->structt->fields;
-                    this->enviornment->add(struct_record);
+                    auto fields = gstruct->structAST->fields;
+                    this->enviornment->addRecord(struct_record);
 
                     for (auto field : fields) {
                         if (field->type() == AST::NodeType::VariableDeclarationStatement) {
                             auto field_decl = std::static_pointer_cast<AST::VariableDeclarationStatement>(field);
                             std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-                            struct_record->fields.push_back(field_name);
                             auto field_type = this->_parseType(field_decl->value_type);
+                            struct_record->addSubType(field_name, field_type);
 
                             field_types.push_back(field_type->stand_alone_type ? field_type->stand_alone_type : field_type->struct_type);
 
@@ -1437,7 +1425,7 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
                                 auto field_value = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->value_type->name)->value;
                                 bool is_generic = false;
 
-                                for (const auto& generic : gstruct->structt->generics) {
+                                for (const auto& generic : gstruct->structAST->generics) {
                                     if (field_value == std::static_pointer_cast<AST::IdentifierLiteral>(generic->name)->value) {
                                         is_generic = true;
                                         break;
@@ -1449,7 +1437,6 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
                                 }
                             }
 
-                            struct_record->sub_types[field_name] = field_type;
                             auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
                             struct_type->setBody(field_types);
                             struct_record->struct_type = struct_type;
@@ -1462,10 +1449,10 @@ std::shared_ptr<enviornment::RecordStructType> compiler::Compiler::_parseType(st
                         }
                     }
                 } else {
-                    struct_record = gstruct->env->get_struct(struct_name, false, generics);
+                    struct_record = gstruct->env->getStruct(struct_name, false, generics);
                 }
 
-                gstruct->env->add(struct_record);
+                gstruct->env->addRecord(struct_record);
                 this->enviornment = prev_env;
                 return struct_record;
             }
@@ -1489,7 +1476,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
 
     if (!function_declaration_statement->generic.empty()) {
         auto func_gen_rec = std::make_shared<enviornment::RecordGenericFunction>(name, function_declaration_statement, this->enviornment);
-        this->enviornment->add(func_gen_rec);
+        this->enviornment->addRecord(func_gen_rec);
         return;
     }
 
@@ -1506,15 +1493,17 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         auto param_type = this->_parseType(param->value_type);
         param_inst_records.push_back(param_type);
         refrences.push_back(param->value_type->refrence);
-        param_types.push_back(param_type->struct_type || param_type->name == "array" ? this->GC_shared_ptr : (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type));
+        param_types.push_back(param_type->struct_type || param_type->name == "array"
+                                  ? this->GC_shared_ptr
+                                  : (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type));
     }
 
     std::shared_ptr<enviornment::RecordStructType> return_type;
     if (function_declaration_statement->return_type)
         return_type = this->_parseType(function_declaration_statement->return_type);
     else
-        return_type = this->enviornment->get_struct("void");
-    auto llvm_return_type = return_type->struct_type ? this->GC_shared_ptr : return_type->stand_alone_type ;
+        return_type = this->enviornment->getStruct("void");
+    auto llvm_return_type = return_type->struct_type ? this->GC_shared_ptr : return_type->stand_alone_type;
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
 
@@ -1534,11 +1523,11 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         auto prev_env = this->enviornment;
         this->enviornment = std::make_shared<enviornment::Enviornment>(prev_env, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>{}, name);
         func_record->env = this->enviornment;
-        this->enviornment->current_function = func_record;
+        this->enviornment->current_function = func_record.get();
 
         for (const auto& [arg, param_type_record, refrence] : llvm::zip(func->args(), param_inst_records, refrences)) {
             llvm::Value* alloca = &arg;
-            if (!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->get_struct("array"))) {
+            if (!arg.getType()->isPointerTy() || enviornment::_checkType(param_type_record, this->enviornment->getStruct("array"))) {
                 alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
                 this->llvm_ir_builder.CreateStore(&arg, alloca);
             }
@@ -1552,12 +1541,12 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
             auto record = std::make_shared<enviornment::RecordVariable>(std::string(arg.getName()), arg_value, alloca, param_type_record);
 
             func_record->arguments.push_back({arg.getName().str(), param_type_record, refrence});
-            this->enviornment->add(record);
+            this->enviornment->addRecord(record);
         }
 
         func_record->set_meta_data(function_declaration_statement->meta_data.st_line_no, function_declaration_statement->meta_data.st_col_no, function_declaration_statement->meta_data.end_line_no,
                                    function_declaration_statement->meta_data.end_col_no);
-        this->enviornment->add(func_record);
+        this->enviornment->addRecord(func_record);
 
         try {
             this->compile(body);
@@ -1591,7 +1580,7 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         struct_->methods.push_back({name, func_record});
         this->ir_gc_map_json["structs"][struct_->name]["methods"][name] = func->getName().str();
     } else {
-        this->enviornment->add(func_record);
+        this->enviornment->addRecord(func_record);
         this->ir_gc_map_json["functions"][name] = func->getName().str();
     }
 }
@@ -1615,8 +1604,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitCallExpression(std::
         arg_allocas.push_back(alloca);
     }
 
-    if (this->enviornment->is_Gfunc(name) ? this->enviornment->is_function(name, params_types, false, true) : this->enviornment->is_function(name, params_types)) {
-        auto func = this->enviornment->get_function(name, params_types, false, true);
+    if (this->enviornment->isGenericFunc(name) ? this->enviornment->isFunction(name, params_types, false, true) : this->enviornment->isFunction(name, params_types)) {
+        auto func = this->enviornment->getFunction(name, params_types, false, true);
         unsigned short idx = 0;
         for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
             if (param_type->stand_alone_type && std::get<2>(argument)) {
@@ -1626,15 +1615,15 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitCallExpression(std::
         }
         this->_checkCallType(func, call_expression, args, params_types);
         auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args);
-        return {returnValue, nullptr, func->return_inst, compiler::resolveType::StructInst};
-    } else if (this->enviornment->is_Gfunc(name)) {
-        auto gfuncs = this->enviornment->get_Gfunc(name);
+        return {returnValue, nullptr, func->return_type, compiler::resolveType::StructInst};
+    } else if (this->enviornment->isGenericFunc(name)) {
+        auto gfuncs = this->enviornment->getGenericFunc(name);
         return this->_CallGfunc(gfuncs, call_expression, name, args, params_types);
-    } else if (this->enviornment->is_Gstruct(name)) {
-        auto gstruct = this->enviornment->get_Gstruct(name);
+    } else if (this->enviornment->isGenericStruct(name)) {
+        auto gstruct = this->enviornment->getGenericStruct(name);
         return this->_CallGstruct(gstruct, call_expression, name, args, params_types);
-    } else if (this->enviornment->is_struct(name)) {
-        auto struct_record = this->enviornment->get_struct(name);
+    } else if (this->enviornment->isStruct(name)) {
+        auto struct_record = this->enviornment->getStruct(name);
         auto struct_type = struct_record->struct_type;
         llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(this->GC_shared_ptr, nullptr, name);
         if (call_expression->_new) {
@@ -1643,9 +1632,10 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitCallExpression(std::
             llvm::Value* gep =
                 this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm_context), 1));
             llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(llvm_context));
-            auto struct_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {size});
+            auto struct_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("malloc", {this->enviornment->getStruct("int")})->function, {size});
             this->llvm_ir_builder.CreateStore(struct_alloca, value_gep);
-            auto RC_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->get_function("malloc", {this->enviornment->get_struct("int")})->function, {llvm::ConstantInt::get(this->GC_int, this->GC_int->getScalarSizeInBits())});
+            auto RC_alloca = this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("malloc", {this->enviornment->getStruct("int")})->function,
+                                                              {llvm::ConstantInt::get(this->GC_int, this->GC_int->getScalarSizeInBits())});
             auto RC_gep = this->llvm_ir_builder.CreateGEP(this->GC_shared_ptr, alloca, llvm::ConstantInt::get(this->GC_int, 1));
             this->llvm_ir_builder.CreateStore(llvm::ConstantInt::get(this->GC_int, 0), RC_alloca);
             this->llvm_ir_builder.CreateStore(RC_alloca, RC_gep);
@@ -1678,9 +1668,8 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitCallExpression(std::
 
 void compiler::Compiler::_visitIfElseStatement(std::shared_ptr<AST::IfElseStatement> if_statement) {
     auto [condition_val, _, _condition, ctt] = this->_resolveValue(if_statement->condition);
-    if (ctt != compiler::resolveType::StructInst ||
-        !enviornment::_checkType(std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition), this->enviornment->get_struct("bool"))) {
-        errors::WrongType(this->source, if_statement->condition, {this->enviornment->get_struct("bool")}, "if else Condition must be bool").raise();
+    if (ctt != compiler::resolveType::StructInst || !enviornment::_checkType(std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition), this->enviornment->getStruct("bool"))) {
+        errors::WrongType(this->source, if_statement->condition, {this->enviornment->getStruct("bool")}, "if else Condition must be bool").raise();
         exit(1);
     }
 
@@ -1724,25 +1713,25 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
 
     auto [condition_val, _, _condition, ctt] = this->_resolveValue(condition);
     if (ctt != compiler::resolveType::StructInst) {
-        errors::WrongType(this->source, condition, {this->enviornment->get_struct("bool")}, "while loop Condition can't be module or type").raise();
+        errors::WrongType(this->source, condition, {this->enviornment->getStruct("bool")}, "while loop Condition can't be module or type").raise();
         exit(1);
     }
 
     auto bool_condition = std::get<std::shared_ptr<enviornment::RecordStructType>>(_condition);
-    if (!enviornment::_checkType(bool_condition, this->enviornment->get_struct("bool"))) {
-        if (this->canConvertType(bool_condition, this->enviornment->get_struct("bool"))) {
+    if (!enviornment::_checkType(bool_condition, this->enviornment->getStruct("bool"))) {
+        if (this->canConvertType(bool_condition, this->enviornment->getStruct("bool"))) {
             std::cout << "SOB" << std::endl;
-            auto x = this->convertType({condition_val, _, bool_condition}, this->enviornment->get_struct("bool"));
+            auto x = this->convertType({condition_val, _, bool_condition}, this->enviornment->getStruct("bool"));
             condition_val = x.value;
         } else {
-            errors::WrongType(this->source, condition, {this->enviornment->get_struct("bool")}, "while loop Condition must be bool").raise();
+            errors::WrongType(this->source, condition, {this->enviornment->getStruct("bool")}, "while loop Condition must be bool").raise();
             exit(1);
         }
     }
 
 
     this->enviornment->loop_body_block.push_back(BodyBB);
-    this->enviornment->loop_end_block.push_back(ContBB);
+    this->enviornment->loop_conti_block.push_back(ContBB);
     this->enviornment->loop_condition_block.push_back(CondBB);
     llvm::BasicBlock* IfBreakBB = nullptr;
     llvm::BasicBlock* NotBreakBB = nullptr;
@@ -1770,7 +1759,7 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
         // Ignore to compile the following commands if DoneRaise exception occurs
     }
 
-    if(IfBreakBB) {
+    if (IfBreakBB) {
         this->llvm_ir_builder.SetInsertPoint(IfBreakBB);
         try {
             this->compile(while_statement->ifbreak);
@@ -1781,7 +1770,7 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
             // Ignore to compile the following commands if DoneRaise exception occurs
         }
     }
-    if(NotBreakBB) {
+    if (NotBreakBB) {
         this->llvm_ir_builder.SetInsertPoint(NotBreakBB);
         try {
             this->compile(while_statement->notbreak);
@@ -1796,7 +1785,7 @@ void compiler::Compiler::_visitWhileStatement(std::shared_ptr<AST::WhileStatemen
     this->llvm_ir_builder.SetInsertPoint(ContBB);
 
     this->enviornment->loop_body_block.pop_back();
-    this->enviornment->loop_end_block.pop_back();
+    this->enviornment->loop_conti_block.pop_back();
     this->enviornment->loop_condition_block.pop_back();
     this->enviornment->loop_ifbreak_block.pop_back();
     this->enviornment->loop_notbreak_block.pop_back();
@@ -1812,8 +1801,8 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
     auto loop_from_type = std::get<std::shared_ptr<enviornment::RecordStructType>>(_loop_from_type);
     if (loop_from_type->is_method("__iter__", {loop_from_type})) {
         auto iter_geter = loop_from_type->get_method("__iter__", {loop_from_type});
-        auto iter_type = iter_geter->return_inst;
-        if (!(loop_from_type->is_method("__next__", {loop_from_type, iter_type}) && loop_from_type->is_method("__done__", {loop_from_type, iter_type}, {}, this->enviornment->get_struct("bool")))) {
+        auto iter_type = iter_geter->return_type;
+        if (!(loop_from_type->is_method("__next__", {loop_from_type, iter_type}) && loop_from_type->is_method("__done__", {loop_from_type, iter_type}, {}, this->enviornment->getStruct("bool")))) {
             std::cerr << "__next__ or __done__ method not define" << std::endl;
             exit(1);
         }
@@ -1822,7 +1811,7 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
         llvm::BasicBlock* BodyBB = llvm::BasicBlock::Create(llvm_context, "body", func);
         llvm::BasicBlock* ContBB = llvm::BasicBlock::Create(llvm_context, "cont", func);
         this->enviornment->loop_body_block.push_back(BodyBB);
-        this->enviornment->loop_end_block.push_back(ContBB);
+        this->enviornment->loop_conti_block.push_back(ContBB);
         this->enviornment->loop_condition_block.push_back(CondBB);
 
         auto next_method = loop_from_type->get_method("__next__", {loop_from_type, iter_type});
@@ -1853,23 +1842,22 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
         // Var
         auto prev_env = this->enviornment;
         this->enviornment = std::make_shared<enviornment::Enviornment>(this->enviornment);
-        auto alloca = next_method->return_inst->stand_alone_type ? this->llvm_ir_builder.CreateAlloca(next_method->return_inst->stand_alone_type)
-                                                                 : this->llvm_ir_builder.CreateAlloca(next_method->return_inst->struct_type);
-        if (next_method->return_inst->struct_type) {
-            this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateLoad(next_method->return_inst->struct_type,this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca})), alloca);
+        auto alloca = next_method->return_type->stand_alone_type ? this->llvm_ir_builder.CreateAlloca(next_method->return_type->stand_alone_type)
+                                                                 : this->llvm_ir_builder.CreateAlloca(next_method->return_type->struct_type);
+        if (next_method->return_type->struct_type) {
+            this->llvm_ir_builder.CreateStore(
+                this->llvm_ir_builder.CreateLoad(next_method->return_type->struct_type, this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca})), alloca);
         } else {
             this->llvm_ir_builder.CreateStore(this->llvm_ir_builder.CreateCall(next_method->function, {loop_from_alloca, iterator_alloca}), alloca);
         };
 
         std::shared_ptr<enviornment::RecordVariable> var;
-        if (next_method->return_inst->struct_type)
-            var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, alloca, alloca, next_method->return_inst);
+        if (next_method->return_type->struct_type)
+            var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, alloca, alloca, next_method->return_type);
         else
-            var = std::make_shared<enviornment::RecordVariable>(
-                for_statement->get->value,
-                this->llvm_ir_builder.CreateLoad(next_method->return_inst->stand_alone_type, alloca),
-                alloca, next_method->return_inst);
-        this->enviornment->add(var);
+            var = std::make_shared<enviornment::RecordVariable>(for_statement->get->value, this->llvm_ir_builder.CreateLoad(next_method->return_type->stand_alone_type, alloca), alloca,
+                                                                next_method->return_type);
+        this->enviornment->addRecord(var);
 
         try {
             this->compile(for_statement->body);
@@ -1880,7 +1868,7 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
             // Ignore to compile the following commands if DoneRaise exception occurs
         }
 
-        if(IfBreakBB) {
+        if (IfBreakBB) {
             this->llvm_ir_builder.SetInsertPoint(IfBreakBB);
             try {
                 this->compile(for_statement->ifbreak);
@@ -1891,7 +1879,7 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
                 // Ignore to compile the following commands if DoneRaise exception occurs
             }
         }
-        if(NotBreakBB) {
+        if (NotBreakBB) {
             this->llvm_ir_builder.SetInsertPoint(NotBreakBB);
             try {
                 this->compile(for_statement->notbreak);
@@ -1907,7 +1895,7 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
         this->llvm_ir_builder.SetInsertPoint(ContBB);
 
         this->enviornment->loop_body_block.pop_back();
-        this->enviornment->loop_end_block.pop_back();
+        this->enviornment->loop_conti_block.pop_back();
         this->enviornment->loop_condition_block.pop_back();
         this->enviornment->loop_ifbreak_block.pop_back();
         this->enviornment->loop_notbreak_block.pop_back();
@@ -1917,13 +1905,13 @@ void compiler::Compiler::_visitForStatement(std::shared_ptr<AST::ForStatement> f
     }
 }
 
-void compiler::Compiler::addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl, std::vector<llvm::Type*>& field_types, std::string struct_name) {
+void compiler::Compiler::addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl,
+                                          std::vector<llvm::Type*>& field_types, std::string struct_name) {
     std::string field_name = std::static_pointer_cast<AST::IdentifierLiteral>(field_decl->name)->value;
-    struct_record->fields.push_back(field_name);
 
     auto field_type = this->_parseType(field_decl->value_type);
     field_types.push_back(field_type->struct_type || field_type->name == "array" ? this->GC_shared_ptr : field_type->stand_alone_type);
-    struct_record->sub_types[field_name] = field_type;
+    struct_record->addSubType(field_name, field_type);
 
     auto struct_type = llvm::StructType::create(this->llvm_context, field_types, this->fc_st_name_prefix + struct_name);
     struct_type->setBody(field_types);
@@ -1937,14 +1925,14 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
 
     auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
     if (!struct_statement->generics.empty()) {
-        auto gsr = std::make_shared<enviornment::RecordGStructType>(struct_name, struct_statement, this->enviornment);
-        this->enviornment->add(gsr);
+        auto gsr = std::make_shared<enviornment::RecordGenericStructType>(struct_name, struct_statement, this->enviornment);
+        this->enviornment->addRecord(gsr);
         return;
     }
 
     std::vector<llvm::Type*> field_types;
     auto fields = struct_statement->fields;
-    this->enviornment->add(struct_record);
+    this->enviornment->addRecord(struct_record);
 
     for (auto field : fields) {
         if (field->type() == AST::NodeType::VariableDeclarationStatement) {
@@ -1967,8 +1955,8 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
     auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", clear_func);
     this->llvm_ir_builder.SetInsertPoint(bb);
 
-    for (size_t i = 0; i < struct_record->fields.size(); ++i) {
-        auto field_name = struct_record->fields[i];
+    for (size_t i = 0; i < struct_record->getFields().size(); ++i) {
+        auto field_name = struct_record->getFields()[i];
         auto field_type = struct_record->sub_types[field_name];
 
         if (field_type->struct_type || field_type->name == "array") {
@@ -1988,7 +1976,8 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
             this->llvm_ir_builder.CreateCondBr(is_zero, free_bb, cont_bb);
 
             this->llvm_ir_builder.SetInsertPoint(free_bb);
-            this->llvm_ir_builder.CreateCall(this->enviornment->get_function("free", {this->enviornment->get_struct("int")})->function, {this->llvm_ir_builder.CreateExtractValue(clear_func->arg_begin(), 0)});
+            this->llvm_ir_builder.CreateCall(this->enviornment->getFunction("free", {this->enviornment->getStruct("int")})->function,
+                                             {this->llvm_ir_builder.CreateExtractValue(clear_func->arg_begin(), 0)});
             this->llvm_ir_builder.CreateBr(cont_bb);
 
             this->llvm_ir_builder.SetInsertPoint(cont_bb);
@@ -1996,7 +1985,8 @@ void compiler::Compiler::_visitStructStatement(std::shared_ptr<AST::StructStatem
     }
 
     this->llvm_ir_builder.CreateRetVoid();
-    struct_record->__clear__ = std::make_shared<enviornment::RecordFunction>("__clear__", clear_func, clear_func_type, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>, bool>>(), this->enviornment->get_struct("void"));
+    struct_record->gc_struct_clear = std::make_shared<enviornment::RecordFunction>(
+        "__clear__", clear_func, clear_func_type, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::RecordStructType>, bool>>(), this->enviornment->getStruct("void"));
     this->ir_gc_map_json["structs"][struct_name]["name"] = struct_record->struct_type->getName().str();
 }
 
@@ -2019,7 +2009,7 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
 
     if (!module) {
         module = std::make_shared<enviornment::RecordModule>(module_name);
-        this->enviornment->add(module);
+        this->enviornment->addRecord(module);
     } else {
         auto new_mod = std::make_shared<enviornment::RecordModule>(module_name);
         module->record_map.push_back({module_name, new_mod});
@@ -2039,7 +2029,7 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
         gc_source_path = std::filesystem::path((GC_STD_DIR / relative_path.substr(4)).string() + ".gc");
     }
 
-    nlohmann::json ir_gc_map_json;
+    json ir_gc_map_json;
     auto ir_gc_map = std::filesystem::path(this->ir_gc_map.parent_path().string() + "/" + relative_path + ".gc" + ".json");
     if (relative_path.starts_with("std/")) {
         ir_gc_map = std::filesystem::path(GC_STD_IRGCMAP / (relative_path.substr(4) + ".gc" + ".json"));
@@ -2094,13 +2084,13 @@ void compiler::Compiler::_visitImportStatement(std::shared_ptr<AST::ImportStatem
 }
 
 void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module,
-                                                             nlohmann::json& ir_gc_map_json) {
+                                                             json& ir_gc_map_json) {
 
     auto name = std::static_pointer_cast<AST::IdentifierLiteral>(function_declaration_statement->name)->value;
 
     if (!function_declaration_statement->generic.empty()) {
         auto gsr = std::make_shared<enviornment::RecordGenericFunction>(name, function_declaration_statement, this->enviornment);
-        this->enviornment->add(gsr);
+        this->enviornment->addRecord(gsr);
         module->record_map.push_back({name, gsr});
         return;
     }
@@ -2133,15 +2123,15 @@ void compiler::Compiler::_importFunctionDeclarationStatement(std::shared_ptr<AST
 
     auto func_record = std::make_shared<enviornment::RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
     module->record_map.push_back({func_record->name, func_record});
-    this->enviornment->add(func_record);
+    this->enviornment->addRecord(func_record);
 }
 
-void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json) {
+void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, json& ir_gc_map_json) {
     std::string struct_name = std::static_pointer_cast<AST::IdentifierLiteral>(struct_statement->name)->value;
 
     if (!struct_statement->generics.empty()) {
-        auto gsr = std::make_shared<enviornment::RecordGStructType>(struct_name, struct_statement, this->enviornment);
-        this->enviornment->add(gsr);
+        auto gsr = std::make_shared<enviornment::RecordGenericStructType>(struct_name, struct_statement, this->enviornment);
+        this->enviornment->addRecord(gsr);
         module->record_map.push_back({struct_name, gsr});
         return;
     }
@@ -2149,7 +2139,7 @@ void compiler::Compiler::_importStructStatement(std::shared_ptr<AST::StructState
     std::vector<llvm::Type*> field_types;
     auto fields = struct_statement->fields;
     auto struct_record = std::make_shared<enviornment::RecordStructType>(struct_name);
-    this->enviornment->add(struct_record);
+    this->enviornment->addRecord(struct_record);
 
     for (auto field : fields) {
         if (field->type() == AST::NodeType::VariableDeclarationStatement) {

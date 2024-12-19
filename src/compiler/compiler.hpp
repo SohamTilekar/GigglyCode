@@ -84,9 +84,7 @@ class Compiler {
     struct ResolvedValue {
         llvm::Value* value;
         llvm::Value* alloca;
-        std::variant<std::vector<std::shared_ptr<enviornment::RecordGStructType>>,
-                     std::shared_ptr<enviornment::RecordModule>,
-                     std::shared_ptr<enviornment::RecordStructType>> variant;
+        std::variant<std::vector<std::shared_ptr<enviornment::RecordGenericStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>> variant;
         resolveType type;
     };
 
@@ -117,9 +115,9 @@ class Compiler {
     void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordStructType> struct_ = nullptr);
     ResolvedValue _visitCallExpression(std::shared_ptr<AST::CallExpression>);
     ResolvedValue _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
-               std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
-    ResolvedValue _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
-                 std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
+                             std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
+    ResolvedValue _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGenericStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name,
+                               std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
     ResolvedValue _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
     void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
     void _visitRaiseStatement(std::shared_ptr<AST::RaiseStatement> return_statement);
@@ -139,13 +137,15 @@ class Compiler {
     std::shared_ptr<enviornment::RecordStructType> _parseType(std::shared_ptr<AST::Type> type);
 
     ResolvedValue _memberAccess(std::shared_ptr<AST::InfixExpression> infixed_expression);
-    ResolvedValue _StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type, std::shared_ptr<enviornment::RecordStructType> right_type,
-                     std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value, llvm::Value* right_value);
+    ResolvedValue _StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type,
+                                   std::shared_ptr<enviornment::RecordStructType> right_type, std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value,
+                                   llvm::Value* right_value);
     ResolvedValue _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args,
-                    const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
+                                  const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
     void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
                         const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
-    void addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl, std::vector<llvm::Type*>& field_types, std::string struct_name);
+    void addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl, std::vector<llvm::Type*>& field_types,
+                          std::string struct_name);
     void _incrementRC(llvm::Value* value);
     void _decrementRC(llvm::Value* value);
 };
