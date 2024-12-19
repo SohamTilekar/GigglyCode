@@ -116,7 +116,7 @@ void compiler::Compiler::_decrementRC(llvm::Value* value) {
     auto is_zero = this->llvm_ir_builder.CreateICmpEQ(decremented, llvm::ConstantInt::get(this->GC_int, 0));
     this->llvm_ir_builder.CreateCondBr(is_zero, FreeBB, conti);
     this->llvm_ir_builder.SetInsertPoint(FreeBB);
-    this->llvm_ir_builder.CreateCall(this->enviornment->get_function("free", {this->enviornment->get_struct("int")})->function, {this->llvm_ir_builder.CreateLoad( this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, vars->value, 0))});
+    this->llvm_ir_builder.CreateCall(this->enviornment->get_function("free", {this->enviornment->get_struct("int")})->function, {this->llvm_ir_builder.CreateLoad( this->GC_pointer, this->llvm_ir_builder.CreateStructGEP(this->GC_shared_ptr, value, 0))});
     this->llvm_ir_builder.CreateCall(this->enviornment->get_function("free", {this->enviornment->get_struct("int")})->function, {RC_ptr});
     this->llvm_ir_builder.CreateBr(conti);
     this->llvm_ir_builder.SetInsertPoint(conti);
