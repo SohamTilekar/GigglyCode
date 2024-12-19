@@ -45,6 +45,7 @@ class RecordFunction : public Record {
     std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>, bool>> arguments;
     std::shared_ptr<RecordStructType> return_inst;
     bool varArg = false;
+    std::shared_ptr<Enviornment> env;
     RecordFunction(const std::string& name) : Record(RecordType::RecordFunction, name) {};
     RecordFunction(const std::string& name, llvm::Function* function, llvm::FunctionType* function_type, std::vector<std::tuple<std::string, std::shared_ptr<RecordStructType>, bool>> arguments,
                    std::shared_ptr<RecordStructType> return_inst, const std::unordered_map<std::string, std::any>& extra_info = {})
@@ -78,6 +79,7 @@ class RecordStructType : public Record {
     std::unordered_map<std::string, std::shared_ptr<RecordStructType>> sub_types = {};
     std::vector<std::shared_ptr<RecordStructType>> generic_sub_types = {};
     std::vector<std::tuple<std::string, std::shared_ptr<RecordFunction>>> methods = {};
+    std::shared_ptr<RecordFunction> __clear__ = nullptr;
     RecordStructType(const std::string& name) : Record(RecordType::RecordStructInst, name) {};
     RecordStructType(const std::string& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {};
     bool is_method(const std::string& name, const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types, const std::unordered_map<std::string, std::any>& ex_info = {},
@@ -155,6 +157,7 @@ class Enviornment {
     std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> get_Gfunc(const std::string& name);
     bool is_Gstruct(const std::string& name);
     std::vector<std::shared_ptr<enviornment::RecordGStructType>> get_Gstruct(const std::string& name);
+    std::vector<std::shared_ptr<RecordVariable>> getcurrentVars();
 }; // class Environment
 } // namespace enviornment
 #endif

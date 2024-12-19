@@ -146,6 +146,8 @@ class Compiler {
     void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
                         const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
     void addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl, std::vector<llvm::Type*>& field_types, std::string struct_name);
+    void _incrementRC(llvm::Value* value);
+    void _decrementRC(llvm::Value* value);
 };
 } // namespace compiler
 #endif

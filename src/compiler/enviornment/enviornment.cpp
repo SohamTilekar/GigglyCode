@@ -362,3 +362,13 @@ std::vector<std::shared_ptr<enviornment::RecordGStructType>> enviornment::Envior
     }
     return this->parent != nullptr && matching_gstructs.empty() ? this->parent->get_Gstruct(name) : matching_gstructs;
 }
+
+std::vector<std::shared_ptr<enviornment::RecordVariable>> enviornment::Enviornment::getcurrentVars() {
+    std::vector<std::shared_ptr<enviornment::RecordVariable>> vars = {};
+    for (const auto& [record_name, record] : record_map) {
+        if (record->type == RecordType::RecordVariable) {
+            vars.push_back(std::static_pointer_cast<enviornment::RecordVariable>(record));
+        }
+    }
+    return vars;
+};
