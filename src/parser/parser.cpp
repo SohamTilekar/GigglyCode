@@ -239,11 +239,12 @@ std::shared_ptr<AST::FunctionStatement> parser::Parser::_parseFunctionStatement(
             }
         }
     }
-    if (!this->_expectPeek({token::TokenType::RightArrow})) {
-        return nullptr;
+    std::shared_ptr<AST::Type> return_type = nullptr;
+    if (this->_peekTokenIs(token::TokenType::RightArrow)) {
+        this->_nextToken();
+        this->_nextToken();
+        return_type = this->_parseType();
     }
-    this->_nextToken();
-    auto return_type = this->_parseType();
     std::shared_ptr<AST::BlockStatement> body = nullptr;
     if (this->_peekTokenIs(token::TokenType::Semicolon)) {
         this->_nextToken();
@@ -422,6 +423,14 @@ std::vector<std::shared_ptr<AST::Expression>> parser::Parser::_parse_expression_
 std::shared_ptr<AST::ReturnStatement> parser::Parser::_parseReturnStatement() {
     int st_line_no = current_token->line_no;
     int st_col_no = current_token->col_no;
+    if (this->_peekTokenIs(token::TokenType::Semicolon)) {
+        this->_nextToken();
+        int end_line_no = current_token->line_no;
+        int end_col_no = current_token->col_no;
+        auto return_statement = std::make_shared<AST::ReturnStatement>();
+        return_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+        return return_statement;
+    }
     this->_nextToken();
     auto expr = this->_parseExpression(PrecedenceType::LOWEST);
     if (this->_peekTokenIs(token::TokenType::Semicolon)) {

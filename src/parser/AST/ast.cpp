@@ -139,7 +139,7 @@ std::shared_ptr<nlohmann::json> AST::FunctionStatement::toJSON() {
     for (auto& param : this->parameters) {
         jsonAst["parameters"].push_back(*param->toJSON());
     }
-    jsonAst["return_type"] = *this->return_type->toJSON();
+    jsonAst["return_type"] = this->return_type ? *this->return_type->toJSON() : nullptr;
     jsonAst["body"] = this->body ? *this->body->toJSON() : nullptr;
     jsonAst["generic"] = nlohmann::json::array();
     for (auto& gen : this->generic) {

@@ -1335,6 +1335,10 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_visitArrayLiteral(std::sh
 
 void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement) {
     auto value = return_statement->value;
+    if(!value && this->enviornment->current_function->return_inst->name == "void") {
+        this->llvm_ir_builder.CreateRetVoid();
+        throw compiler::DoneRet(); // Throws `DoneRet` Error to Indicate that Dont parse the following statements in the current block statement
+    }
     auto [return_value, return_alloca, _, rtt] = this->_resolveValue(value);
 
     if (this->enviornment->current_function == nullptr) {
@@ -1345,7 +1349,7 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     if (rtt != compiler::resolveType::StructInst) {
         if (rtt == compiler::resolveType::StructType && std::get<std::shared_ptr<enviornment::RecordStructType>>(_)->name == "void") {
             this->llvm_ir_builder.CreateRetVoid();
-            return;
+            throw compiler::DoneRet(); // Throws `DoneRet` Error to Indicate that Dont parse the following statements in the current block statement
         } else {
             errors::WrongType(this->source, value, {this->enviornment->current_function->return_inst}, "Cannot return module or type from function").raise();
             exit(1);
@@ -1385,7 +1389,6 @@ void compiler::Compiler::_visitReturnStatement(std::shared_ptr<AST::ReturnStatem
     } else {
         this->llvm_ir_builder.CreateRet(return_value);
     }
-
     throw compiler::DoneRet(); // Throws `DoneRet` Error to Indicate that Dont parse the following statements in the current block statement
 };
 
@@ -1506,7 +1509,11 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
         param_types.push_back(param_type->struct_type || param_type->name == "array" ? this->GC_shared_ptr : (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type));
     }
 
-    auto return_type = this->_parseType(function_declaration_statement->return_type);
+    std::shared_ptr<enviornment::RecordStructType> return_type;
+    if (function_declaration_statement->return_type)
+        return_type = this->_parseType(function_declaration_statement->return_type);
+    else
+        return_type = this->enviornment->get_struct("void");
     auto llvm_return_type = return_type->struct_type ? this->GC_shared_ptr : return_type->stand_alone_type ;
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
@@ -1554,7 +1561,10 @@ void compiler::Compiler::_visitFunctionDeclarationStatement(std::shared_ptr<AST:
 
         try {
             this->compile(body);
-            this->llvm_ir_builder.CreateUnreachable();
+            if (function_declaration_statement->return_type && return_type->name != "void")
+                this->llvm_ir_builder.CreateUnreachable();
+            else
+                this->llvm_ir_builder.CreateRetVoid();
         } catch (compiler::DoneRet) {
             // Ignoring
         } catch (compiler::DoneBr) {
