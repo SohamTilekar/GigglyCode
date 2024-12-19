@@ -214,6 +214,9 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             }
             {
                 auto f_node = std::static_pointer_cast<AST::BreakStatement>(node);
+                if (f_node->loopIdx >= this->enviornment->loop_ifbreak_block.size()) {
+                    errors::CompletionError("WrongLoopIdx", this->source, f_node->meta_data.st_line_no, f_node->meta_data.end_line_no, "Loop Index is out of range", "Remember: LoopIdx start with `0`").raise();
+                }
                 if (this->enviornment->loop_ifbreak_block.at(this->enviornment->loop_ifbreak_block.size() - f_node->loopIdx - 1))
                     this->llvm_ir_builder.CreateBr(this->enviornment->loop_ifbreak_block.at(this->enviornment->loop_ifbreak_block.size() - f_node->loopIdx - 1));
                 else
@@ -229,6 +232,9 @@ void compiler::Compiler::compile(std::shared_ptr<AST::Node> node) {
             }
             {
                 auto f_node = std::static_pointer_cast<AST::ContinueStatement>(node);
+                if (f_node->loopIdx >= this->enviornment->loop_ifbreak_block.size()) {
+                    errors::CompletionError("WrongLoopIdx", this->source, f_node->meta_data.st_line_no, f_node->meta_data.end_line_no, "Loop Index is out of range", "Remember: LoopIdx start with `0`").raise();
+                }
                 this->llvm_ir_builder.CreateBr(this->enviornment->loop_condition_block.at(this->enviornment->loop_condition_block.size() - f_node->loopIdx - 1));
             }
             throw compiler::DoneBr();
