@@ -222,7 +222,7 @@ class ForStatement : public Statement {
 
 class BreakStatement : public Statement {
   public:
-    int loopIdx = 0;
+    unsigned short loopIdx = 0;
     inline NodeType type() override { return NodeType::BreakStatement; };
     BreakStatement(int loopNum) : loopIdx(loopNum) {};
     std::shared_ptr<nlohmann::json> toJSON() override;
@@ -230,7 +230,7 @@ class BreakStatement : public Statement {
 
 class ContinueStatement : public Statement {
   public:
-    int loopIdx = 0;
+    unsigned short loopIdx = 0;
     inline NodeType type() override { return NodeType::ContinueStatement; };
     ContinueStatement(int loopNum) : loopIdx(loopNum) {};
     std::shared_ptr<nlohmann::json> toJSON() override;

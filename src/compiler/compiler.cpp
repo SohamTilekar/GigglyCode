@@ -268,22 +268,20 @@ void compiler::Compiler::_checkCallType(std::shared_ptr<enviornment::RecordFunct
                                         const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types) {
 
     unsigned short idx = 0;
-    bool type_mismatch = false;
     std::vector<unsigned short> mismatches;
 
     for (const auto& [pt, pst] : llvm::zip(func_record->arguments, params_types)) {
         auto expected_type = std::get<1>(pt);
-        if (!enviornment::_checkType(expected_type, pst) && this->canConvertType(pst, expected_type)) {
+        if (enviornment::_checkType(expected_type, pst)) {
+        } else if (this->canConvertType(pst, expected_type)) {
             args[idx] = this->convertType({args[idx], nullptr, pst}, expected_type).value;
-            type_mismatch = true;
         } else {
             mismatches.push_back(idx);
         }
         idx++;
     }
-
-    if (type_mismatch) {
-        errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type");
+    if (!mismatches.empty()) {
+        errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type").raise();
     }
 }
 
@@ -305,8 +303,7 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(std::vector<std
 
     for (const auto& gfunc : gfuncs) {
         this->enviornment = std::make_shared<enviornment::Enviornment>(prev_env, std::vector<std::tuple<std::string, std::shared_ptr<enviornment::Record>>>{}, name);
-        bool type_mismatch = false;
-        int param_idx = 0;
+        unsigned short param_idx = 0;
         std::vector<unsigned short> mismatch;
 
         for (const auto& [gparam, pparam] : llvm::zip(gfunc->func->parameters, params_types)) {
@@ -323,12 +320,11 @@ compiler::Compiler::ResolvedValue compiler::Compiler::_CallGfunc(std::vector<std
                 // Do nothing
             } else {
                 mismatch.push_back(param_idx);
-                type_mismatch = true;
             }
             param_idx++;
         }
 
-        if (type_mismatch) {
+        if (!mismatch.empty()) {
             mismatches.push_back(mismatch);
             continue;
         }
