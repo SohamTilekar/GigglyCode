@@ -16,14 +16,17 @@ std::string token::Token::toString(bool color) {
     // Convert variables to strings
     std::string typeString = tokenTypeString(type);
     std::string literalString = literal;
-    std::unordered_map<std::string, std::string> replacements = {{"\n", "\\$(n)"}, {"\t", "\\$(t)"}};
+    std::unordered_map<std::string, std::string> replacements = {
+        {"\n", "\\$(n)"},
+        {"\t", "\\$(t)"}
+    };
 
     // Replace special characters in literalString
-    for (auto& replacement : replacements) {
-        size_t pos = literalString.find(replacement.first);
-        while (pos != std::string::npos) {
-            literalString.replace(pos, 1, replacement.second);
-            pos = literalString.find(replacement.first, pos + replacement.second.size());
+    for (const auto& replacement : replacements) {
+        size_t pos = 0;
+        while ((pos = literalString.find(replacement.first, pos)) != std::string::npos) {
+            literalString.replace(pos, replacement.first.length(), replacement.second);
+            pos += replacement.second.length();
         }
     }
 
@@ -36,23 +39,23 @@ std::string token::Token::toString(bool color) {
     std::string literalPaddingStr(literalPadding, ' ');
 
     // Apply padding to each field for alignment
-    if (typeString.length() < 15)
-        typeString += std::string(15 - typeString.length(), ' ');
-    if (literalString.length() < 2)
-        lineNoString += std::string(2 - lineNoString.length(), ' ');
-    if (colNoString.length() < 2)
-        colNoString += std::string(2 - colNoString.length(), ' ');
-    if (endColNoString.length() < 2)
-        endColNoString += std::string(2 - endColNoString.length(), ' ');
+    if (typeString.length() < 15) typeString += std::string(15 - typeString.length(), ' ');
+    if (literalString.length() < 2) lineNoString += std::string(2 - lineNoString.length(), ' ');
+    if (colNoString.length() < 2) colNoString += std::string(2 - colNoString.length(), ' ');
+    if (endColNoString.length() < 2) endColNoString += std::string(2 - endColNoString.length(), ' ');
 
     // Construct the formatted string with colors
-    return (color ? colorRed : "") + "[type: " + (color ? colorReset + colorBlue : "") + typeString + (color ? colorRed : "") + ", literal: " + (color ? colorGreen + "\"" + colorYellow : "") +
-           literalPaddingStr + literalString + literalPaddingStr + (color ? colorGreen + "\"" : "") + ", line_no: " + (color ? colorReset + colorGreen : "") + lineNoString +
-           (color ? colorReset : "") + ", col_no: " + (color ? colorReset + colorMagenta : "") + colNoString + (color ? colorReset : "") + ", end_col_no: " + (color ? colorReset + colorMagenta : "") +
-           endColNoString + (color ? colorReset : "") + (color ? colorRed : "") + "]" + (color ? colorReset : "");
+    return (color ? colorRed : "") + "[type: " + (color ? colorReset + colorBlue : "") + typeString
+        + (color ? colorRed : "") + ", literal: " + (color ? colorGreen + "\"" + colorYellow : "")
+        + literalPaddingStr + literalString + literalPaddingStr + (color ? colorGreen + "\"" : "")
+        + ", line_no: " + (color ? colorReset + colorGreen : "") + lineNoString
+        + (color ? colorReset : "") + ", col_no: " + (color ? colorReset + colorMagenta : "") + colNoString
+        + (color ? colorReset : "") + ", end_col_no: " + (color ? colorReset + colorMagenta : "") + endColNoString
+        + (color ? colorReset : "") + (color ? colorRed : "") + "]" + (color ? colorReset : "");
 }
 
 std::string token::tokenTypeString(TokenType type) {
+    // Convert Token to string for Debuging
     switch (type) {
         case TokenType::Identifier:
             return "Identifier";

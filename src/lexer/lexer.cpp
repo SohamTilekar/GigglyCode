@@ -7,11 +7,12 @@
 
 Lexer::Lexer(const std::string& source) {
     this->source = source;
-    this->pos = -1;
-    this->line_no = 1;
-    this->col_no = -1;
-    this->current_char = "";
-    this->_readChar();
+    // Calling the `_readChar` will incremnt the `pos` & `col_no`
+    pos = -1;
+    line_no = 1;
+    col_no = -1;
+    current_char = "";
+    _readChar();
 }
 
 token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
@@ -309,14 +310,14 @@ void Lexer::_skipWhitespace() {
         while (this->current_char != "\n" && this->current_char != "") {
             this->_readChar();
         }
-        this->_skipWhitespace();
+        this->_skipWhitespace(); // Recusive call to also skip the white space
     }
 }
 
-bool Lexer::_isDigit(const std::string& character) { return character >= "0" && character <= "9"; };
+bool Lexer::_isDigit(const std::string& character) { return character >= "0" && character <= "9"; /* 0-9 in ansi is lied in one after the another*/ };
 
 
-bool Lexer::_isLetter(const std::string& character) { return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z") || character == "_"; };
+bool Lexer::_isLetter(const std::string& character) { return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z") || character == "_"; /* a-z & A-Z in ansi is lied in one after the another*/ };
 
 std::string getStringOnLineNumber(const std::string& input_string, int line_number) {
     std::istringstream input(input_string);
@@ -325,10 +326,10 @@ std::string getStringOnLineNumber(const std::string& input_string, int line_numb
         if (i == line_number - 1) {
             return line; // Found the line
         } else if (i > line_number - 1) {
-            break; // Line number not found
+            return ""; // Line not found
         }
     }
-    return ""; // Line number not found
+    return ""; // Line not found
 }
 
 int getNumberOfLines(const std::string& str) { return std::count(str.begin(), str.end(), '\n') + 1; }
