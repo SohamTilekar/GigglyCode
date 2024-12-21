@@ -6,4 +6,39 @@ ColumnLimit: 200
 PenaltyBreakAssignment: 2
 PenaltyReturnTypeOnItsOwnLine: 200
 PointerAlignment: Left
-SpaceBeforeParens: Never
+IndentCaseLabels: true
+AlignAfterOpenBracket: BlockIndent
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossComments: true
+  PadOperators: true
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossComments: true
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+  AlignCaseColons: false
+AlignOperands: Align
+BreakBeforeBinaryOperators: NonAssignment
+AllowAllArgumentsOnNextLine: false
+# AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseExpressionOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortCompoundRequirementOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakBeforeMultilineStrings: false
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBraces: Custom
+BreakAdjacentStringLiterals: true
+BreakArrays: true
+BreakBeforeTernaryOperators: true
+FixNamespaceComments: true
