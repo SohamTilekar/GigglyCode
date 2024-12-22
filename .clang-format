@@ -1,43 +1,50 @@
-Language: Cpp
+# Based on LLVM style
 BasedOnStyle: LLVM
+Language: Cpp
+
+# Indentation settings
 IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Attach
+
+# Control wrapping of function arguments
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+
+# Control alignment
+AlignAfterOpenBracket: Align
+AlignOperands: false
+
+# Control binary operator breaking
+BreakBeforeBinaryOperators: None
+
+# Miscellaneous settings for better readability
+IndentCaseLabels: true
 MaxEmptyLinesToKeep: 2
 ColumnLimit: 200
-PenaltyBreakAssignment: 2
-PenaltyReturnTypeOnItsOwnLine: 200
-PointerAlignment: Left
-IndentCaseLabels: true
-AlignAfterOpenBracket: BlockIndent
-AlignArrayOfStructures: Right
-AlignConsecutiveAssignments:
-  Enabled: true
-  AcrossComments: true
-  PadOperators: true
-AlignConsecutiveMacros:
-  Enabled: true
-  AcrossComments: true
-AlignConsecutiveShortCaseStatements:
-  Enabled: true
-  AcrossEmptyLines: true
-  AcrossComments: true
-  AlignCaseColons: false
-AlignOperands: Align
-BreakBeforeBinaryOperators: NonAssignment
-AllowAllArgumentsOnNextLine: false
+
+# Disable conflicting alignment settings
+AlignConsecutiveAssignments: false
+AlignConsecutiveMacros: false
+#AlignConsecutiveShortCaseStatements: false
+
+# Control how different code constructs are handled
 AllowShortBlocksOnASingleLine: Always
-AllowShortCaseExpressionOnASingleLine: true
-AllowShortCaseLabelsOnASingleLine: true
-AllowShortCompoundRequirementOnASingleLine: true
-AllowShortEnumsOnASingleLine: true
-AllowShortFunctionsOnASingleLine: All
+AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: true
-AlwaysBreakBeforeMultilineStrings: false
-BinPackArguments: false
-BinPackParameters: false
-BreakBeforeBraces: Custom
-BreakAdjacentStringLiterals: true
-BreakArrays: true
-BreakBeforeTernaryOperators: true
-FixNamespaceComments: true
+
+# Brace wrapping settings
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: true
+  AfterClass: true
+  AfterStruct: true
+  AfterNamespace: true
+  BeforeElse: true
+
+# Other stylistic preferences
+PointerAlignment: Left
