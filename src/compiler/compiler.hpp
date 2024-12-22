@@ -1,6 +1,16 @@
 #ifndef COMPILER_HPP
 #define COMPILER_HPP
 
+/**
+ * @file compiler.hpp
+ * @brief Defines the Compiler class responsible for compiling the AST into LLVM IR.
+ *
+ * This header file declares the Compiler class within the `compiler` namespace.
+ * The Compiler class handles the compilation process, including type conversion,
+ * AST traversal, and LLVM IR generation.
+ */
+
+// LLVM Headers
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
@@ -18,136 +28,602 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
 
+// Standard Library Headers
 #include <filesystem>
 #include <memory>
-#include <string>
 #include <variant>
 #include <vector>
 
+// Project-specific Headers
 #include "../parser/AST/ast.hpp"
 #include "./enviornment/enviornment.hpp"
 
+// External variables
+extern std::filesystem::path GC_STD_DIR;    ///< Path to standard directory
+extern std::filesystem::path GC_STD_IRGCMAP;///< Path to IR-GC map file
 
-extern std::filesystem::path GC_STD_DIR;
-extern std::filesystem::path GC_STD_IRGCMAP;
 namespace compiler {
 
+/**
+ * @brief Alias for the environment namespace used within the compiler.
+ */
+using namespace enviornment;
+
+/**
+ * @brief Type aliases for commonly used types to improve code readability.
+ */
+using std::vector;
+using GenericStructTypeVector = vector<GenericStructTypePtr>; ///< Vector of generic struct type pointers
+using ResolvedValueVariant    = std::variant<GenericStructTypeVector, ModulePtr, StructTypePtr>; ///< Variant type for resolved values
+using LLVMValueVector         = vector<llvm::Value*>; ///< Vector of LLVM values
+using StructTypeVector        = vector<StructTypePtr>; ///< Vector of struct type pointers
+using GenericFunctionVector   = vector<GenericFunctionPtr>; ///< Vector of generic function pointers
+using llBB                    = llvm::BasicBlock; ///< Alias for LLVM BasicBlock
+
+/**
+ * @class NotCompiledError
+ * @brief Exception thrown when a file has not been compiled.
+ */
 class NotCompiledError : public std::exception {
   public:
-    std::string path;
-    NotCompiledError(const std::string& path) : path(path) {}
-    const char* what() const throw() { return ("File " + path + " is not compiled").c_str(); }
+    Str path; ///< Path of the file that was not compiled
+
+    /**
+     * @brief Constructs a NotCompiledError with the given file path.
+     * @param path The path of the uncompiled file.
+     */
+    NotCompiledError(const Str& path) : path(path) {}
+
+    /**
+     * @brief Retrieves the error message.
+     * @return C-string containing the error message.
+     */
+    const char* what() const noexcept override {
+        static Str error_message;
+        error_message = "File " + path + " is not compiled";
+        return error_message.c_str();
+    }
 };
 
+/**
+ * @class DoneRet
+ * @brief Exception indicating that a return statement was not properly handled.
+ */
 class DoneRet : public std::exception {
   public:
+    /**
+     * @brief Constructs a DoneRet exception.
+     */
     DoneRet() {}
-    const char* what() const throw() { return "Rety Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
+
+    /**
+     * @brief Retrieves the error message.
+     * @return C-string containing the error message.
+     */
+    const char* what() const noexcept override {
+        return "Return should be caught in if-else & while, but it was not (InternalCompilationError).";
+    }
 };
 
+/**
+ * @class DoneBr
+ * @brief Exception indicating that a branch statement was not properly handled.
+ */
 class DoneBr : public std::exception {
   public:
+    /**
+     * @brief Constructs a DoneBr exception.
+     */
     DoneBr() {}
-    const char* what() const throw() { return "Br Should Be get Catch in the ifelse & while but it not InternalCompilationError"; }
+
+    /**
+     * @brief Retrieves the error message.
+     * @return C-string containing the error message.
+     */
+    const char* what() const noexcept override {
+        return "Branching should be caught in if-else & while, but it was not (InternalCompilationError).";
+    }
 };
 
+/**
+ * @enum resolveType
+ * @brief Enumeration of different types used during type resolution.
+ */
 enum class resolveType {
-    Module,
-    StructInst,
-    StructType,
-    GStructType,
+    Module,      ///< Represents a module
+    StructInst,  ///< Represents a struct instance
+    StructType,  ///< Represents a struct type
+    GStructType, ///< Represents a generic struct type
 };
 
+/**
+ * @class Compiler
+ * @brief Main class responsible for compiling the abstract syntax tree (AST) into LLVM IR.
+ *
+ * The Compiler class traverses the AST, performs type checking and conversion, manages
+ * the LLVM context and module, and generates the corresponding LLVM IR code.
+ */
 class Compiler {
   public:
-    llvm::LLVMContext llvm_context;
-    std::unique_ptr<llvm::Module> llvm_module;
-    llvm::IRBuilder<> llvm_ir_builder; // Move the declaration here
-
-    std::string source;
-    std::filesystem::path buildDir;
-    std::filesystem::path relativePath;
-    std::filesystem::path file_path;
-    std::filesystem::path ir_gc_map;
-    nlohmann::json ir_gc_map_json;
-
-    std::string fc_st_name_prefix;
-
-    std::shared_ptr<enviornment::Enviornment> enviornment;
-
-    std::vector<llvm::BasicBlock*> function_entery_block = {};
-
-    Compiler(const std::string& source, std::filesystem::path file_path, std::filesystem::path ir_gc_map, std::filesystem::path buildDir, std::filesystem::path relativePath);
-
-    void compile(std::shared_ptr<AST::Node> node);
-
+    /**
+     * @struct ResolvedValue
+     * @brief Represents a value that has been resolved during compilation.
+     */
     struct ResolvedValue {
-        llvm::Value* value;
-        llvm::Value* alloca;
-        std::variant<std::vector<std::shared_ptr<enviornment::RecordGenericStructType>>, std::shared_ptr<enviornment::RecordModule>, std::shared_ptr<enviornment::RecordStructType>> variant;
-        resolveType type;
+        llvm::Value* value;    ///< The LLVM value
+        llvm::Value* alloca;   ///< The allocation instruction
+        ResolvedValueVariant variant; ///< Variant holding additional resolved data
+        resolveType type;      ///< Type of the resolved value
     };
 
-    ResolvedValue convertType(std::tuple<llvm::Value*, llvm::Value*, std::shared_ptr<enviornment::RecordStructType>> of, std::shared_ptr<enviornment::RecordStructType> to);
-    static bool canConvertType(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to);
-    bool conversionPrecidence(std::shared_ptr<enviornment::RecordStructType> from, std::shared_ptr<enviornment::RecordStructType> to);
+    // === Public Members ===
+
+    llvm::LLVMContext llvm_context;                      ///< LLVM context
+    std::unique_ptr<llvm::Module> llvm_module;           ///< LLVM module
+    llvm::IRBuilder<> llvm_ir_builder;                   ///< LLVM IR builder
+
+    Str source;                                          ///< Source code as a string
+    std::filesystem::path buildDir;                      ///< Build directory path
+    std::filesystem::path relativePath;                  ///< Relative path of the source file
+    std::filesystem::path file_path;                     ///< Full path of the source file
+    std::filesystem::path ir_gc_map;                     ///< Path to the IR-GC map
+
+    nlohmann::json ir_gc_map_json;                        ///< JSON object for IR-GC mapping
+
+    Str fc_st_name_prefix;                                ///< Prefix for function and struct names
+
+    EnviornmentPtr env;                                   ///< Pointer to the compiler environment
+
+    vector<llBB*> function_entry_block;                   ///< Entry blocks for functions
+
+    // === Public Methods ===
+
+    /**
+     * @brief Constructs a Compiler instance.
+     * @param source The source code to compile.
+     * @param file_path The file path of the source code.
+     * @param ir_gc_map The path to the IR-GC map file.
+     * @param buildDir The build directory path.
+     * @param relativePath The relative path of the source file.
+     */
+    Compiler(const Str& source, const std::filesystem::path& file_path, const std::filesystem::path& ir_gc_map, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
+
+    /**
+     * @brief Starts the compilation process for the given AST node.
+     * @param node Shared pointer to the root AST node.
+     */
+    void compile(shared_ptr<AST::Node> node);
+
+    /**
+     * @brief Converts a type from one struct type to another.
+     * @param from Tuple containing LLVM values and the source struct type.
+     * @param to The target struct type.
+     * @return The resolved value after conversion.
+     */
+    ResolvedValue convertType(const std::tuple<llvm::Value*, llvm::Value*, StructTypePtr>& from, StructTypePtr to);
+
+    /**
+     * @brief Checks if one struct type can be converted to another.
+     * @param from The source struct type.
+     * @param to The target struct type.
+     * @return True if conversion is possible, false otherwise.
+     */
+    static bool canConvertType(StructTypePtr from, StructTypePtr to);
+
+    /**
+     * @brief Determines the precedence of type conversion between two struct types.
+     * @param from The source struct type.
+     * @param to The target struct type.
+     * @return Boolean indicating the precedence.
+     */
+    bool conversionPrecidence(StructTypePtr from, StructTypePtr to);
 
   private:
-    llvm::PointerType* GC_pointer = nullptr;
-    llvm::StructType* GC_shared_ptr = nullptr;
-    llvm::Type* GC_int = nullptr;
-    llvm::Type* GC_int32 = nullptr;
-    llvm::Type* GC_void = nullptr;
+    // === Private Members ===
+
+    // LLVM Type Pointers
+    llvm::PointerType* ll_pointer   = nullptr; ///< LLVM pointer type
+    llvm::StructType* ll_shared_ptr = nullptr; ///< LLVM shared pointer struct type
+    llvm::Type* ll_int              = nullptr; ///< LLVM integer type
+    llvm::Type* ll_int32            = nullptr; ///< LLVM 32-bit integer type
+    llvm::Type* ll_void             = nullptr; ///< LLVM void type
+    llvm::Type* ll_uint             = nullptr; ///< LLVM unsigned integer type
+    llvm::Type* ll_uint32           = nullptr; ///< LLVM 32-bit unsigned integer type
+    llvm::Type* ll_float            = nullptr; ///< LLVM float type
+    llvm::Type* ll_float32          = nullptr; ///< LLVM 32-bit float type
+    llvm::Type* ll_char             = nullptr; ///< LLVM char type
+    llvm::Type* ll_str              = nullptr; ///< LLVM string type
+    llvm::Type* ll_bool             = nullptr; ///< LLVM boolean type
+    llvm::PointerType* ll_array     = nullptr; ///< LLVM array pointer type
+
+    // Garbage-Collected Struct Types
+    StructTypePtr gc_int     = nullptr; ///< GC wrapper for int
+    StructTypePtr gc_int32   = nullptr; ///< GC wrapper for int32
+    StructTypePtr gc_void    = nullptr; ///< GC wrapper for void
+    StructTypePtr gc_uint    = nullptr; ///< GC wrapper for uint
+    StructTypePtr gc_uint32  = nullptr; ///< GC wrapper for uint32
+    StructTypePtr gc_float   = nullptr; ///< GC wrapper for float
+    StructTypePtr gc_float32 = nullptr; ///< GC wrapper for float32
+    StructTypePtr gc_char    = nullptr; ///< GC wrapper for char
+    StructTypePtr gc_str     = nullptr; ///< GC wrapper for string
+    StructTypePtr gc_bool    = nullptr; ///< GC wrapper for boolean
+    StructTypePtr gc_array   = nullptr; ///< GC wrapper for array
+
+    // === Private Methods ===
+
+    /**
+     * @brief Initializes built-in types and functions.
+     */
     void _initializeBuiltins();
 
-    void _visitProgram(std::shared_ptr<AST::Program> program);
+    /**
+     * @brief Initializes the LLVM module with the given path.
+     * @param path_str The path string for the LLVM module.
+     */
+    void _initializeLLVMModule(const Str& path_str);
 
-    void _visitExpressionStatement(std::shared_ptr<AST::ExpressionStatement> expression_statement);
+    /**
+     * @brief Initializes the compiler environment.
+     */
+    void _initializeEnvironment();
 
-    ResolvedValue _visitInfixExpression(std::shared_ptr<AST::InfixExpression> infixed_expression);
-    ResolvedValue _visitIndexExpression(std::shared_ptr<AST::IndexExpression> index_expression);
+    /**
+     * @brief Initializes the IR-GC mapping from JSON.
+     */
+    void _initializeIRGCMap();
 
-    void _visitVariableDeclarationStatement(std::shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement);
-    void _visitVariableAssignmentStatement(std::shared_ptr<AST::VariableAssignmentStatement> variable_assignment_statement);
+    // --- AST Visitor Methods ---
 
-    void _visitIfElseStatement(std::shared_ptr<AST::IfElseStatement> if_statement);
+    /**
+     * @brief Visits a Program node in the AST.
+     * @param program Shared pointer to the Program node.
+     */
+    void _visitProgram(shared_ptr<AST::Program> program);
 
-    void _visitFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordStructType> struct_ = nullptr);
-    ResolvedValue _visitCallExpression(std::shared_ptr<AST::CallExpression>);
-    ResolvedValue _CallGfunc(std::vector<std::shared_ptr<enviornment::RecordGenericFunction>> gfuncs, std::shared_ptr<AST::CallExpression> func_call, std::string name, std::vector<llvm::Value*> args,
-                             std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
-    ResolvedValue _CallGstruct(std::vector<std::shared_ptr<enviornment::RecordGenericStructType>> gstructs, std::shared_ptr<AST::CallExpression> func_call, std::string name,
-                               std::vector<llvm::Value*> args, std::vector<std::shared_ptr<enviornment::RecordStructType>> params_types);
-    ResolvedValue _visitArrayLiteral(std::shared_ptr<AST::ArrayLiteral> array_literal);
-    void _visitReturnStatement(std::shared_ptr<AST::ReturnStatement> return_statement);
-    void _visitRaiseStatement(std::shared_ptr<AST::RaiseStatement> return_statement);
-    void _visitBlockStatement(std::shared_ptr<AST::BlockStatement> block_statement);
-    void _visitWhileStatement(std::shared_ptr<AST::WhileStatement> while_statement);
-    void _visitForStatement(std::shared_ptr<AST::ForStatement> for_statement);
-    void _visitStructStatement(std::shared_ptr<AST::StructStatement> struct_statement);
-    void _visitTryCatchStatement(std::shared_ptr<AST::TryCatchStatement> tc_statement);
+    /**
+     * @brief Visits an ExpressionStatement node in the AST.
+     * @param expression_statement Shared pointer to the ExpressionStatement node.
+     */
+    void _visitExpressionStatement(shared_ptr<AST::ExpressionStatement> expression_statement);
 
-    void _visitImportStatement(std::shared_ptr<AST::ImportStatement> import_statement, std::shared_ptr<enviornment::RecordModule> module = nullptr);
+    /**
+     * @brief Visits a VariableDeclarationStatement node in the AST.
+     * @param variable_declaration_statement Shared pointer to the VariableDeclarationStatement node.
+     */
+    void _visitVariableDeclarationStatement(shared_ptr<AST::VariableDeclarationStatement> variable_declaration_statement);
 
-    ResolvedValue _resolveValue(std::shared_ptr<AST::Node> node);
+    /**
+     * @brief Visits a VariableAssignmentStatement node in the AST.
+     * @param variable_assignment_statement Shared pointer to the VariableAssignmentStatement node.
+     */
+    void _visitVariableAssignmentStatement(shared_ptr<AST::VariableAssignmentStatement> variable_assignment_statement);
 
-    void _importFunctionDeclarationStatement(std::shared_ptr<AST::FunctionStatement> function_declaration_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
-    void _importStructStatement(std::shared_ptr<AST::StructStatement> struct_statement, std::shared_ptr<enviornment::RecordModule> module, nlohmann::json& ir_gc_map_json);
+    /**
+     * @brief Visits an IfElseStatement node in the AST.
+     * @param if_statement Shared pointer to the IfElseStatement node.
+     */
+    void _visitIfElseStatement(shared_ptr<AST::IfElseStatement> if_statement);
 
-    std::shared_ptr<enviornment::RecordStructType> _parseType(std::shared_ptr<AST::Type> type);
+    /**
+     * @brief Visits a FunctionDeclarationStatement node in the AST.
+     * @param function_declaration_statement Shared pointer to the FunctionDeclarationStatement node.
+     * @param struct_ Optional struct type if the function is a method.
+     */
+    void _visitFunctionDeclarationStatement(ASTFunctionStatementPtr function_declaration_statement, StructTypePtr struct_ = nullptr);
 
-    ResolvedValue _memberAccess(std::shared_ptr<AST::InfixExpression> infixed_expression);
-    ResolvedValue _StructInfixCall(const std::string& op_method, const std::string& op, std::shared_ptr<enviornment::RecordStructType> left_type,
-                                   std::shared_ptr<enviornment::RecordStructType> right_type, std::shared_ptr<AST::Expression> left, std::shared_ptr<AST::Expression> right, llvm::Value* left_value,
-                                   llvm::Value* right_value);
-    ResolvedValue _manageFuncCall(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*> args,
-                                  const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
-    void _checkCallType(std::shared_ptr<enviornment::RecordFunction> func_record, std::shared_ptr<AST::CallExpression> func_call, std::vector<llvm::Value*>& args,
-                        const std::vector<std::shared_ptr<enviornment::RecordStructType>>& params_types);
-    void addFieldToStruct(std::shared_ptr<enviornment::RecordStructType> struct_record, std::shared_ptr<AST::VariableDeclarationStatement> field_decl, std::vector<llvm::Type*>& field_types,
-                          std::string struct_name);
+    /**
+     * @brief Visits a ReturnStatement node in the AST.
+     * @param return_statement Shared pointer to the ReturnStatement node.
+     */
+    void _visitReturnStatement(shared_ptr<AST::ReturnStatement> return_statement);
+
+    /**
+     * @brief Visits a RaiseStatement node in the AST.
+     * @param raise_statement Shared pointer to the RaiseStatement node.
+     */
+    void _visitRaiseStatement(shared_ptr<AST::RaiseStatement> raise_statement);
+
+    /**
+     * @brief Visits a BlockStatement node in the AST.
+     * @param block_statement Shared pointer to the BlockStatement node.
+     */
+    void _visitBlockStatement(shared_ptr<AST::BlockStatement> block_statement);
+
+    /**
+     * @brief Visits a WhileStatement node in the AST.
+     * @param while_statement Shared pointer to the WhileStatement node.
+     */
+    void _visitWhileStatement(shared_ptr<AST::WhileStatement> while_statement);
+
+    /**
+     * @brief Visits a ForStatement node in the AST.
+     * @param for_statement Shared pointer to the ForStatement node.
+     */
+    void _visitForStatement(shared_ptr<AST::ForStatement> for_statement);
+
+    /**
+     * @brief Visits a StructStatement node in the AST.
+     * @param struct_statement Shared pointer to the StructStatement node.
+     */
+    void _visitStructStatement(ASTStructStatementPtr struct_statement);
+
+    /**
+     * @brief Visits a TryCatchStatement node in the AST.
+     * @param tc_statement Shared pointer to the TryCatchStatement node.
+     */
+    void _visitTryCatchStatement(shared_ptr<AST::TryCatchStatement> tc_statement);
+
+    /**
+     * @brief Visits an ImportStatement node in the AST.
+     * @param import_statement Shared pointer to the ImportStatement node.
+     * @param module Optional module pointer if importing into a module.
+     */
+    void _visitImportStatement(shared_ptr<AST::ImportStatement> import_statement, ModulePtr module = nullptr);
+
+    /**
+     * @brief Visits a BreakStatement node in the AST.
+     * @param node Shared pointer to the BreakStatement node.
+     */
+    void _visitBreakStatement(shared_ptr<AST::BreakStatement> node);
+
+    /**
+     * @brief Visits a ContinueStatement node in the AST.
+     * @param node Shared pointer to the ContinueStatement node.
+     */
+    void _visitContinueStatement(shared_ptr<AST::ContinueStatement> node);
+
+    // --- Expression Visitor Methods ---
+
+    /**
+     * @brief Visits an InfixExpression node in the AST.
+     * @param infix_expression Shared pointer to the InfixExpression node.
+     * @return The resolved value of the expression.
+     */
+    ResolvedValue _visitInfixExpression(shared_ptr<AST::InfixExpression> infix_expression);
+
+    /**
+     * @brief Visits an IndexExpression node in the AST.
+     * @param index_expression Shared pointer to the IndexExpression node.
+     * @return The resolved value of the expression.
+     */
+    ResolvedValue _visitIndexExpression(shared_ptr<AST::IndexExpression> index_expression);
+
+    /**
+     * @brief Visits a CallExpression node in the AST.
+     * @param call_expression Shared pointer to the CallExpression node.
+     * @return The resolved value of the expression.
+     */
+    ResolvedValue _visitCallExpression(shared_ptr<AST::CallExpression> call_expression);
+
+    /**
+     * @brief Visits an ArrayLiteral node in the AST.
+     * @param array_literal Shared pointer to the ArrayLiteral node.
+     * @return The resolved value of the array literal.
+     */
+    ResolvedValue _visitArrayLiteral(shared_ptr<AST::ArrayLiteral> array_literal);
+
+    /**
+     * @brief Resolves the value of a given AST node.
+     * @param node Shared pointer to the AST node.
+     * @return The resolved value of the node.
+     */
+    ResolvedValue _resolveValue(shared_ptr<AST::Node> node);
+
+    /**
+     * @brief Handles member access expressions in the AST.
+     * @param infix_expression Shared pointer to the InfixExpression node representing member access.
+     * @return The resolved value after member access.
+     */
+    ResolvedValue _memberAccess(shared_ptr<AST::InfixExpression> infix_expression);
+
+    // --- Import Utilities ---
+
+    /**
+     * @brief Imports a function declaration into a module.
+     * @param function_declaration_statement Shared pointer to the FunctionDeclarationStatement node.
+     * @param module Pointer to the target module.
+     * @param ir_gc_map_json Reference to the IR-GC map JSON object.
+     */
+    void _importFunctionDeclarationStatement(ASTFunctionStatementPtr function_declaration_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
+
+    /**
+     * @brief Imports a struct declaration into a module.
+     * @param struct_statement Shared pointer to the StructStatement node.
+     * @param module Pointer to the target module.
+     * @param ir_gc_map_json Reference to the IR-GC map JSON object.
+     */
+    void _importStructStatement(ASTStructStatementPtr struct_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
+
+    // --- Type Parsing and Conversion ---
+
+    /**
+     * @brief Parses a type from the AST.
+     * @param type Shared pointer to the Type node.
+     * @return Pointer to the parsed StructType.
+     */
+    StructTypePtr _parseType(shared_ptr<AST::Type> type);
+
+    /**
+     * @brief Handles infix operations involving struct types.
+     * @param op_method The method name for the operation.
+     * @param op The operator as a string.
+     * @param left_type The type of the left operand.
+     * @param right_type The type of the right operand.
+     * @param left Shared pointer to the left expression.
+     * @param right Shared pointer to the right expression.
+     * @param left_value LLVM value of the left operand.
+     * @param right_value LLVM value of the right operand.
+     * @return The resolved value after the operation.
+     */
+    ResolvedValue _StructInfixCall(
+        const Str& op_method,
+        const Str& op,
+        StructTypePtr left_type,
+        StructTypePtr right_type,
+        shared_ptr<AST::Expression> left,
+        shared_ptr<AST::Expression> right,
+        llvm::Value* left_value,
+        llvm::Value* right_value
+    );
+
+    // --- Function Call Management ---
+
+    /**
+     * @brief Manages a function call within the compiler.
+     * @param func_record Pointer to the function record.
+     * @param func_call Shared pointer to the CallExpression node.
+     * @param args Vector of LLVM values representing the arguments.
+     * @param params_types Vector of struct types representing parameter types.
+     * @return The resolved value after the function call.
+     */
+    ResolvedValue _manageFuncCall(FunctionPtr func_record, shared_ptr<AST::CallExpression> func_call, LLVMValueVector args, const StructTypeVector& params_types);
+
+    /**
+     * @brief Checks the types of arguments in a function call.
+     * @param func_record Pointer to the function record.
+     * @param func_call Shared pointer to the CallExpression node.
+     * @param args Reference to the vector of LLVM values representing the arguments.
+     * @param params_types Vector of struct types representing parameter types.
+     */
+    void _checkAndConvertCallType(FunctionPtr func_record, shared_ptr<AST::CallExpression> func_call, LLVMValueVector& args, const StructTypeVector& params_types);
+
+    /**
+     * @brief Calls a generic function.
+     * @param gfuncs Vector of generic function pointers.
+     * @param func_call Shared pointer to the CallExpression node.
+     * @param name The name of the function.
+     * @param args Reference to the vector of LLVM argument values.
+     * @param params_types Vector of struct types representing parameter types.
+     * @return The resolved value after the function call.
+     */
+    ResolvedValue _CallGfunc(const vector<GenericFunctionPtr>& gfuncs, const shared_ptr<AST::CallExpression> func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
+
+    /**
+     * @brief Calls a generic struct method.
+     * @param gstructs Vector of generic struct type pointers.
+     * @param func_call Shared pointer to the CallExpression node.
+     * @param name The name of the struct method.
+     * @param args Reference to the vector of LLVM argument values.
+     * @param params_types Vector of struct types representing parameter types.
+     * @return The resolved value after the struct method call.
+     */
+    ResolvedValue _CallGstruct(
+        const vector<GenericStructTypePtr>& gstructs, const shared_ptr<AST::CallExpression> func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types
+    );
+
+    // --- Struct Field Management ---
+
+    /**
+     * @brief Adds a field to a struct type.
+     * @param struct_record Pointer to the struct type record.
+     * @param field_decl Shared pointer to the VariableDeclarationStatement node representing the field.
+     * @param field_types Reference to the vector of LLVM types representing the struct's fields.
+     * @param struct_name The name of the struct.
+     */
+    void addFieldToStruct(StructTypePtr struct_record, shared_ptr<AST::VariableDeclarationStatement> field_decl, vector<llvm::Type*>& field_types, const Str& struct_name);
+
+    // --- Reference Counting Utilities ---
+
+    /**
+     * @brief Increments the reference count of a given LLVM value.
+     * @param value Pointer to the LLVM value.
+     */
     void _incrementRC(llvm::Value* value);
+
+    /**
+     * @brief Decrements the reference count of a given LLVM value.
+     * @param value Pointer to the LLVM value.
+     */
     void _decrementRC(llvm::Value* value);
+
+    // --- Helper Methods ---
+
+    /**
+     * @brief Extracts a prefix from a given path string.
+     * @param path_str The path string.
+     * @return The extracted prefix.
+     */
+    Str extractPrefix(const Str& path_str);
+
+    /**
+     * @brief Replaces delimiters in a given string with appropriate characters.
+     * @param prefix Reference to the string whose delimiters are to be replaced.
+     */
+    void replaceDelimiters(Str& prefix);
+
+    /**
+     * @brief Creates a function record in the compiler environment.
+     * @param function_declaration_statement Shared pointer to the FunctionDeclarationStatement node.
+     * @param struct_ Optional struct type if the function is a method.
+     * @param module Optional pointer to the module where the function is declared.
+     * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
+     */
+    void _createFunctionRecord(
+        ASTFunctionStatementPtr function_declaration_statement, StructTypePtr struct_ = nullptr, std::shared_ptr<RecordModule> module = nullptr, const nlohmann::json& ir_gc_map_json = nlohmann::json()
+    );
+
+    /**
+     * @brief Creates a struct record in the compiler environment.
+     * @param struct_statement Shared pointer to the StructStatement node.
+     * @param module Pointer to the module where the struct is declared.
+     * @param ir_gc_map_json Reference to the IR-GC map JSON object.
+     */
+    void _createStructRecord(ASTStructStatementPtr struct_statement, std::shared_ptr<RecordModule> module, const nlohmann::json& ir_gc_map_json);
+
+    /**
+     * @brief Creates a clear method for a given struct type.
+     * @param struct_record Pointer to the struct type record.
+     */
+    void _createClearMethod(StructTypePtr struct_record);
+
+    /**
+     * @brief Handles calling a struct method.
+     * @param struct_record Pointer to the struct type record.
+     * @param call_expression Shared pointer to the CallExpression node.
+     */
+    ResolvedValue _callStruct(StructTypePtr struct_record, shared_ptr<AST::CallExpression> call_expression, vector<StructTypePtr> params_types, LLVMValueVector args);
+
+    /**
+     * @brief Processes a function declaration within a struct.
+     * @param field The AST node for the field.
+     * @param struct_record The record for the struct.
+     * @param ir_gc_map_json The JSON object for IR-GC mapping.
+     */
+    void _processFieldFunction(
+        AST::NodePtr field,
+        std::shared_ptr<RecordStructType> struct_record,
+        const nlohmann::json& ir_gc_map_json
+    );
+
+    /**
+     * @brief Handles generic subtypes for a field.
+     * @param field The AST node for the field.
+     * @param struct_statement The struct's AST statement.
+     * @param struct_record The record for the struct.
+     * @param field_type The parsed type of the field.
+     */
+    void _handleGenericSubType(
+        AST::NodePtr field,
+        ASTStructStatementPtr struct_statement,
+        std::shared_ptr<RecordStructType> struct_record,
+        StructTypePtr field_type
+    );
+
+    /**
+     * @brief Processes a variable declaration within a struct.
+     * @param field The AST node for the field.
+     * @param struct_statement The struct's AST statement.
+     * @param struct_record The record for the struct.
+     * @param field_types The vector of LLVM field types being built.
+     */
+    void _processFieldDeclaration(
+        AST::NodePtr field,
+        ASTStructStatementPtr struct_statement,
+        std::shared_ptr<RecordStructType> struct_record,
+        vector<llvm::Type*>& field_types
+    );
 };
+
 } // namespace compiler
-#endif
+
+#endif // COMPILER_HPP
