@@ -7,14 +7,14 @@
 #include <string>
 
 // Color and style codes
-const std::string RESET = "\033[0m";
-const std::string BOLD = "\033[1m";
-const std::string RED = "\033[1;31m";
+const std::string RESET      = "\033[0m";
+const std::string BOLD       = "\033[1m";
+const std::string RED        = "\033[1;31m";
 const std::string LIGHT_GRAY = "\033[0;97m";
-const std::string MAGENTA = "\033[1;35m";
-const std::string CYAN = "\033[1;36m";
-const std::string BLUE = "\033[1;34m";
-const std::string YELLOW = "\033[1;33m";
+const std::string MAGENTA    = "\033[1;35m";
+const std::string CYAN       = "\033[1;36m";
+const std::string BLUE       = "\033[1;34m";
+const std::string YELLOW     = "\033[1;33m";
 
 class LineIterator {
   public:
@@ -62,30 +62,22 @@ void print_source_context(const std::string& source, int st_line, int end_line, 
     std::cerr << CYAN << BOLD << "Source Context:" << RESET << "\n";
     LineIterator lineIterator(source, st_line, end_line);
     int c_line = st_line;
-    if (st_line > 1) {
-        std::cerr << BLUE << (st_line - 1) << " |" << RESET << " " << LIGHT_GRAY << lineIterator.get_before_start_line() << RESET;
-    }
+    if (st_line > 1) { std::cerr << BLUE << (st_line - 1) << " |" << RESET << " " << LIGHT_GRAY << lineIterator.get_before_start_line() << RESET; }
     while (lineIterator.has_next()) {
         auto line = lineIterator.next();
         std::cerr << BLUE << c_line << " |" << RESET << " " << LIGHT_GRAY << line << RESET << "\n";
 
         for (const auto& [line_num, underline, color] : underlines) {
-            if (c_line == line_num) {
-                std::cerr << BLUE << std::string(std::to_string(c_line).length(), ' ') << " |" << RESET << color << BOLD << underline << RESET << "\n";
-            }
+            if (c_line == line_num) { std::cerr << BLUE << std::string(std::to_string(c_line).length(), ' ') << " |" << RESET << color << BOLD << underline << RESET << "\n"; }
         }
 
         c_line++;
     }
-    if (end_line < getNumberOfLines(source)) {
-        std::cerr << BLUE << (end_line) << " |" << RESET << " " << LIGHT_GRAY << lineIterator.get_after_end_line() << RESET << "\n";
-    }
+    if (end_line < getNumberOfLines(source)) { std::cerr << BLUE << (end_line) << " |" << RESET << " " << LIGHT_GRAY << lineIterator.get_after_end_line() << RESET << "\n"; }
 }
 
 void print_suggested_fix(const std::string& suggestedFix) {
-    if (!suggestedFix.empty()) {
-        std::cerr << "\n" << YELLOW << BOLD << "Suggested Fix:" << RESET << " " << LIGHT_GRAY << suggestedFix << RESET << "\n\n";
-    }
+    if (!suggestedFix.empty()) { std::cerr << "\n" << YELLOW << BOLD << "Suggested Fix:" << RESET << " " << LIGHT_GRAY << suggestedFix << RESET << "\n\n"; }
 }
 
 void errors::Error::raise() {
@@ -108,7 +100,9 @@ void errors::NoPrefixParseFnError::raise() {
 void errors::SyntaxError::raise() {
     print_banner("Syntax Error");
     print_error_message(message);
-    std::vector<std::tuple<int, std::string, std::string>> underlines = {{token.line_no, std::string(token.col_no, ' ') + std::string(token.end_col_no - token.col_no, '^'), RED}};
+    std::vector<std::tuple<int, std::string, std::string>> underlines = {
+        {token.line_no, std::string(token.col_no, ' ') + std::string(token.end_col_no - token.col_no, '^'), RED}
+    };
     print_source_context(source, token.line_no, token.line_no + getNumberOfLines(token.literal) - 1, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
@@ -117,12 +111,16 @@ void errors::SyntaxError::raise() {
 void errors::NodeOutside::raise() {
     print_banner("Compilation Error");
     print_error_message(message);
-    std::vector<std::tuple<int, std::string, std::string>> underlines = {{node.meta_data.st_line_no,
-                                                                          std::string(node.meta_data.st_col_no + 1, ' ') + std::string(this->nodeType == errors::outsideNodeType::Break      ? 5
-                                                                                                                                       : this->nodeType == errors::outsideNodeType::Continue ? 8
-                                                                                                                                                                                             : 6,
-                                                                                                                                       '^'),
-                                                                          RED}};
+    std::vector<std::tuple<int, std::string, std::string>> underlines = {
+        {node.meta_data.st_line_no,
+         std::string(node.meta_data.st_col_no + 1, ' ')
+             + std::string(
+                 this->nodeType == errors::outsideNodeType::Break      ? 5
+                 : this->nodeType == errors::outsideNodeType::Continue ? 8
+                                                                       : 6,
+         '^'
+             ), RED}
+    };
     print_source_context(source, node.meta_data.st_line_no, node.meta_data.end_line_no, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
@@ -142,15 +140,15 @@ void errors::NoOverload::raise() {
 
     // Extract the start and end lines of the function call
     int start_line = func_call->meta_data.st_line_no;
-    int end_line = func_call->meta_data.end_line_no;
+    int end_line   = func_call->meta_data.end_line_no;
 
     // Prepare the underlines for mismatched arguments
     std::vector<std::tuple<int, std::string, std::string>> underlines;
     for (const auto& mismatch : this->missmatches) {
         for (int idx : mismatch) {
-            int line_no = start_line;
-            int col_no = std::static_pointer_cast<AST::CallExpression>(func_call)->arguments[idx]->meta_data.st_col_no;
-            int end_col_no = std::static_pointer_cast<AST::CallExpression>(func_call)->arguments[idx]->meta_data.end_col_no;
+            int line_no           = start_line;
+            int col_no            = std::static_pointer_cast<AST::CallExpression>(func_call)->arguments[idx]->meta_data.st_col_no;
+            int end_col_no        = std::static_pointer_cast<AST::CallExpression>(func_call)->arguments[idx]->meta_data.end_col_no;
             std::string underline = std::string(col_no, ' ') + std::string(end_col_no - col_no, '^');
             underlines.push_back({line_no, underline, RED});
         }
@@ -169,7 +167,7 @@ void errors::DosentContain::raise() {
 
     // Extract the start and end lines of the `from` and `member`
     int start_line = from->meta_data.st_line_no;
-    int end_line = from->meta_data.end_line_no;
+    int end_line   = from->meta_data.end_line_no;
 
     // Prepare the underlines for `from` and `member`
     std::vector<std::tuple<int, std::string, std::string>> underlines;
@@ -193,7 +191,8 @@ void errors::WrongInfix::raise() {
     print_banner("Wrong Infix");
     print_error_message(message);
     std::vector<std::tuple<int, std::string, std::string>> underlines = {
-        {left->meta_data.st_line_no, std::string(left->meta_data.st_col_no + 1, ' ') + std::string(right->meta_data.end_col_no - left->meta_data.st_col_no + 1, '^'), RED}};
+        {left->meta_data.st_line_no, std::string(left->meta_data.st_col_no + 1, ' ') + std::string(right->meta_data.end_col_no - left->meta_data.st_col_no + 1, '^'), RED}
+    };
     print_source_context(source, left->meta_data.st_line_no, right->meta_data.end_line_no, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
@@ -206,14 +205,13 @@ void errors::WrongType::raise() {
         std::string x = "Expected ";
         for (size_t i = 0; i < this->expected.size(); ++i) {
             x += this->expected[i]->name;
-            if (i < this->expected.size() - 1) {
-                x += " or ";
-            }
+            if (i < this->expected.size() - 1) { x += " or "; }
         }
         print_message(x + " but got");
     }
     std::vector<std::tuple<int, std::string, std::string>> underlines = {
-        {exp->meta_data.st_line_no, std::string(exp->meta_data.st_col_no + 1, ' ') + std::string(exp->meta_data.end_col_no - exp->meta_data.st_col_no + 1, '^'), RED}};
+        {exp->meta_data.st_line_no, std::string(exp->meta_data.st_col_no + 1, ' ') + std::string(exp->meta_data.end_col_no - exp->meta_data.st_col_no + 1, '^'), RED}
+    };
     print_source_context(source, exp->meta_data.st_line_no, exp->meta_data.end_line_no, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
@@ -225,7 +223,7 @@ void errors::Cantindex::raise() {
 
     // Extract the start and end lines of the `exp`
     int start_line = exp->meta_data.st_line_no;
-    int end_line = exp->meta_data.end_line_no;
+    int end_line   = exp->meta_data.end_line_no;
 
     // Prepare the underlines for `exp->left` and `exp->index`
     std::vector<std::tuple<int, std::string, std::string>> underlines;
@@ -251,7 +249,14 @@ void errors::NotDefined::raise() {
     print_banner("Not Defined");
     print_error_message(message);
     std::string underline = std::string(Name->meta_data.st_col_no + 1, ' ') + std::string(Name->meta_data.end_col_no - Name->meta_data.st_col_no + 1, '^');
-    print_source_context(source, Name->meta_data.st_line_no, Name->meta_data.end_line_no, {{Name->meta_data.st_line_no, underline, RED}});
+    print_source_context(
+        source,
+        Name->meta_data.st_line_no,
+        Name->meta_data.end_line_no,
+        {
+            {Name->meta_data.st_line_no, underline, RED}
+    }
+    );
     print_suggested_fix(suggestedFix);
 
     exit(EXIT_FAILURE);

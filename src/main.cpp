@@ -1,10 +1,5 @@
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
+#include <llvm/Support/FileSystem.h>
+#include <memory>
 
 #include "compiler/compiler.hpp"
 #include "include/cli11.hpp"
@@ -14,7 +9,7 @@
 
 #define DEBUG_LEXER
 #define DEBUG_PARSER
-#define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
+#define DEBUG_LEXER_OUTPUT_PATH  "./dump/lexer_output.log"
 #define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.json"
 
 using json = nlohmann::json;
@@ -43,24 +38,20 @@ void setIrGcMap(const std::string& filePath, const std::string& ir_gc_map, json&
     // Initialize the ir_gc_map JSON structure if the file does not exist
     json ir_gc_map_json;
     if (!std::filesystem::exists(ir_gc_map)) {
-        ir_gc_map_json["uptodate"] = false;
-        ir_gc_map_json["functions"] = json::object();
-        ir_gc_map_json["structs"] = json::object();
+        ir_gc_map_json["uptodate"]   = false;
+        ir_gc_map_json["functions"]  = json::object();
+        ir_gc_map_json["structs"]    = json::object();
         ir_gc_map_json["GSinstance"] = nlohmann::json::object();
         ir_gc_map_json["GFinstance"] = nlohmann::json::object();
         // Create the ir_gc_map file
         std::filesystem::create_directories(std::filesystem::path(ir_gc_map).parent_path());
         std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
-        if (!ir_gc_map_file_out.is_open()) {
-            throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
-        }
+        if (!ir_gc_map_file_out.is_open()) { throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map); }
         ir_gc_map_file_out << ir_gc_map_json.dump(4);
         ir_gc_map_file_out.close();
     } else {
         std::ifstream ir_gc_map_file(ir_gc_map);
-        if (!ir_gc_map_file.is_open()) {
-            throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map);
-        }
+        if (!ir_gc_map_file.is_open()) { throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map); }
         ir_gc_map_file >> ir_gc_map_json;
         ir_gc_map_file.close();
     }
@@ -72,15 +63,21 @@ void setIrGcMap(const std::string& filePath, const std::string& ir_gc_map, json&
     }
 
     std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
-    if (!ir_gc_map_file_out.is_open()) {
-        throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
-    }
+    if (!ir_gc_map_file_out.is_open()) { throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map); }
     ir_gc_map_file_out << ir_gc_map_json.dump(4);
     ir_gc_map_file_out.close();
 }
 
-void compileFile(const std::string& filePath, const std::string& outputFilePath, const std::string& ir_gc_map, const std::string& objFilePath, const std::string& buildDir,
-                 const std::string& relativePath, json& compiledFilesRecord, const std::string& optimizationLevel) {
+void compileFile(
+    const std::string& filePath,
+    const std::string& outputFilePath,
+    const std::string& ir_gc_map,
+    const std::string& objFilePath,
+    const std::string& buildDir,
+    const std::string& relativePath,
+    json& compiledFilesRecord,
+    const std::string& optimizationLevel
+) {
     std::string fileContent = readFileToString(filePath);
 
     // Check if the file has changed
@@ -130,9 +127,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         } else {
             std::cout << debug_program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
         }
-        if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
-            std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
-        }
+        if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) { std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl; }
 #endif
         // Lexer
         Lexer lexer(fileContent);
@@ -140,7 +135,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         parser::Parser parsr(std::make_shared<Lexer>(lexer));
         auto program = parsr.parseProgram();
         // Compiler
-        auto comp = compiler::Compiler(fileContent, std::filesystem::absolute(filePath), std::filesystem::path(ir_gc_map), buildDir, relativePath);
+        auto comp    = compiler::Compiler(fileContent, std::filesystem::absolute(filePath), std::filesystem::path(ir_gc_map), buildDir, relativePath);
         comp.compile(program);
         std::error_code EC;
         llvm::raw_fd_ostream file(outputFilePath, EC, llvm::sys::fs::OF_None);
@@ -154,7 +149,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         // Convert .ll to .o using clang
         std::filesystem::create_directories(std::filesystem::path(objFilePath).parent_path());
         std::string command = "clang -c " + outputFilePath + " -o " + objFilePath + " -Woverride-module" + (optimizationLevel != "" ? (" -O" + optimizationLevel) : "");
-        int result = std::system(command.c_str());
+        int result          = std::system(command.c_str());
         if (result != 0) {
             std::cerr << "Error: Failed to convert " << outputFilePath << " to " << objFilePath << std::endl;
         } else {
@@ -163,9 +158,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         // Update the compiled files record
         compiledFilesRecord[filePath] = currentHash;
         std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
-        if (!ir_gc_map_file_out.is_open()) {
-            throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
-        }
+        if (!ir_gc_map_file_out.is_open()) { throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map); }
         comp.ir_gc_map_json["uptodate"] = true;
         ir_gc_map_file_out << comp.ir_gc_map_json.dump(4);
         ir_gc_map_file_out.close();
@@ -173,7 +166,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         // Use Clang to convert the C file to LLVM IR
         std::filesystem::create_directories(std::filesystem::path(objFilePath).parent_path());
         std::string command = "clang -emit-llvm -S " + (optimizationLevel != "" ? (" -O" + optimizationLevel) : "") + filePath + " -o " + outputFilePath;
-        int result = std::system(command.c_str());
+        int result          = std::system(command.c_str());
         if (result != 0) {
             std::cerr << "Error: Failed to compile " << filePath << " to " << outputFilePath << std::endl;
             exit(1);
@@ -182,7 +175,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         }
         std::filesystem::create_directories(std::filesystem::path(objFilePath).parent_path());
         command = "clang -c " + filePath + " -o " + objFilePath + (optimizationLevel != "" ? (" -O" + optimizationLevel) : "");
-        result = std::system(command.c_str());
+        result  = std::system(command.c_str());
         if (result != 0) {
             std::cerr << "Error: Failed to compile " << filePath << " to " << objFilePath << std::endl;
             exit(1);
@@ -193,16 +186,12 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         compiledFilesRecord[filePath] = currentHash;
         json ir_gc_map_json;
         std::ifstream ir_gc_map_file(ir_gc_map);
-        if (!ir_gc_map_file.is_open()) {
-            throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map);
-        }
+        if (!ir_gc_map_file.is_open()) { throw std::runtime_error("Failed to open ir_gc_map file: " + ir_gc_map); }
         ir_gc_map_file >> ir_gc_map_json;
         ir_gc_map_file.close();
         ir_gc_map_json["uptodate"] = true;
         std::ofstream ir_gc_map_file_out(ir_gc_map, std::ios::trunc);
-        if (!ir_gc_map_file_out.is_open()) {
-            throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map);
-        }
+        if (!ir_gc_map_file_out.is_open()) { throw std::runtime_error("Failed to open ir_gc_map file for writing: " + ir_gc_map); }
         ir_gc_map_file_out << ir_gc_map_json.dump(4);
         ir_gc_map_file_out.close();
     } else if (filePath.ends_with(".rs")) {
@@ -210,7 +199,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
         std::string irFilePath = outputFilePath + ".ll";
         std::filesystem::create_directories(std::filesystem::path(irFilePath).parent_path());
         std::string rustcCommand = "rustc -emit=llvm-ir " + filePath + " -o " + irFilePath + (optimizationLevel != "" ? (" -C opt-level=" + optimizationLevel) : "");
-        int rustcResult = std::system(rustcCommand.c_str());
+        int rustcResult          = std::system(rustcCommand.c_str());
         if (rustcResult != 0) {
             std::cerr << "Error: Failed to compile " << filePath << " to LLVM IR" << std::endl;
         } else {
@@ -218,7 +207,7 @@ void compileFile(const std::string& filePath, const std::string& outputFilePath,
             // Convert LLVM IR to object file using Clang
             std::filesystem::create_directories(std::filesystem::path(objFilePath).parent_path());
             std::string clangCommand = "clang -c " + irFilePath + " -o " + objFilePath + (optimizationLevel != "" ? (" -O" + optimizationLevel) : "");
-            int clangResult = std::system(clangCommand.c_str());
+            int clangResult          = std::system(clangCommand.c_str());
             if (clangResult != 0) {
                 std::cerr << "Error: Failed to convert " << irFilePath << " to " << objFilePath << std::endl;
             } else {
@@ -247,28 +236,38 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
     // Compile each .gc file in the src director
     for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
         if (entry.is_regular_file() && (entry.path().extension() == ".gc" || entry.path().extension() == ".c")) {
-            std::string relativePath = std::filesystem::relative(entry.path(), srcDir).string();
+            std::string relativePath   = std::filesystem::relative(entry.path(), srcDir).string();
             std::string outputFilePath = buildDir + "/ir/" + relativePath + ".ll";
-            std::string ir_gc_map = buildDir + "/ir_gc_map/" + relativePath + ".json";
-            std::string objFilePath = buildDir + "/obj/" + relativePath + ".o";
+            std::string ir_gc_map      = buildDir + "/ir_gc_map/" + relativePath + ".json";
+            std::string objFilePath    = buildDir + "/obj/" + relativePath + ".o";
             std::filesystem::create_directories(std::filesystem::path(outputFilePath).parent_path());
             if (entry.path().extension() == ".c") {
                 compileFile(entry.path().string(), outputFilePath, ir_gc_map, objFilePath, buildDir, relativePath, compiledFilesRecord, optimizationLevel);
                 return;
             } else if (entry.path().extension() == ".gc") {
-                std::vector<std::tuple<std::string, std::string, std::string, std::string, std::string>> filesRecord = {{entry.path().string(), outputFilePath, ir_gc_map, objFilePath, relativePath}};
+                std::vector<std::tuple<std::string, std::string, std::string, std::string, std::string>> filesRecord = {
+                    {entry.path().string(), outputFilePath, ir_gc_map, objFilePath, relativePath}
+                };
                 while (!filesRecord.empty()) {
                     try {
                         auto& fileTuple = filesRecord.back();
-                        compileFile(std::get<0>(fileTuple), std::get<1>(fileTuple), std::get<2>(fileTuple), std::get<3>(fileTuple), buildDir, std::get<4>(fileTuple), compiledFilesRecord,
-                                    optimizationLevel);
+                        compileFile(
+                            std::get<0>(fileTuple),
+                            std::get<1>(fileTuple),
+                            std::get<2>(fileTuple),
+                            std::get<3>(fileTuple),
+                            buildDir,
+                            std::get<4>(fileTuple),
+                            compiledFilesRecord,
+                            optimizationLevel
+                        );
                         filesRecord.pop_back();
                     } catch (const compiler::NotCompiledError& e) {
-                        auto gcFile = e.path;
-                        std::string _relativePath = std::filesystem::relative(gcFile, srcDir).string();
+                        auto gcFile                 = e.path;
+                        std::string _relativePath   = std::filesystem::relative(gcFile, srcDir).string();
                         std::string _outputFilePath = buildDir + "/ir/" + _relativePath + ".ll";
                         std::filesystem::create_directories(std::filesystem::path(_outputFilePath).parent_path());
-                        std::string _ir_gc_map = buildDir + "/ir_gc_map/" + _relativePath + ".json";
+                        std::string _ir_gc_map   = buildDir + "/ir_gc_map/" + _relativePath + ".json";
                         std::string _objFilePath = buildDir + "/obj/" + _relativePath + ".o";
                         filesRecord.push_back({gcFile, _outputFilePath, _ir_gc_map, _objFilePath, _relativePath});
                     }
@@ -284,13 +283,13 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: GC_STD_DIR environment variable is not set." << std::endl;
         return 1;
     }
-    GC_STD_DIR = std::filesystem::path(gcStdDir);
+    GC_STD_DIR                 = std::filesystem::path(gcStdDir);
     const char* gc_Std_IrGcMap = std::getenv("GC_STD_IRGCMAP");
     if (gc_Std_IrGcMap == nullptr) {
         std::cerr << "Error: GC_STD_IRGCMAP environment variable is not set." << std::endl;
         return 1;
     }
-    GC_STD_IRGCMAP = gc_Std_IrGcMap;
+    GC_STD_IRGCMAP       = gc_Std_IrGcMap;
     const char* gcStdObj = std::getenv("GC_STD_OBJ");
     if (gcStdObj == nullptr) {
         std::cerr << "Error: GC_STD_OBJ environment variable is not set." << std::endl;
@@ -307,10 +306,10 @@ int main(int argc, char* argv[]) {
     app.add_option("-o,--output", executablePath, "Output executable path")->required();
     CLI11_PARSE(app, argc, argv);
 
-    std::string srcDir = inputFolderPath + "/src";
-    std::string buildDir = inputFolderPath + "/build";
-    std::string irDir = buildDir + "/ir";
-    std::string irGcMapDir = buildDir + "/ir_gc_map";
+    std::string srcDir         = inputFolderPath + "/src";
+    std::string buildDir       = inputFolderPath + "/build";
+    std::string irDir          = buildDir + "/ir";
+    std::string irGcMapDir     = buildDir + "/ir_gc_map";
     std::string recordFilePath = buildDir + "/compiled_files_record.json";
 
     // Ensure the input folder contains the required directories and files
@@ -347,13 +346,11 @@ int main(int argc, char* argv[]) {
     // Link all .o files into a single executable
     std::string objFiles;
     for (const auto& entry : std::filesystem::recursive_directory_iterator(buildDir + "/obj")) {
-        if (entry.is_regular_file() && entry.path().extension() == ".o") {
-            objFiles += entry.path().string() + " ";
-        }
+        if (entry.is_regular_file() && entry.path().extension() == ".o") { objFiles += entry.path().string() + " "; }
     }
     std::cout << objFiles << std::endl;
     std::string linkCommand = "clang -O3 " + objFiles + " -o " + executablePath; //  + std::string(gcStdObj)
-    int linkResult = std::system(linkCommand.c_str());
+    int linkResult          = std::system(linkCommand.c_str());
     if (linkResult != 0) {
         std::cerr << "Error: Failed to link object files into executable " << executablePath << std::endl;
         return 1;

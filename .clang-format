@@ -24,7 +24,6 @@ AlignConsecutiveShortCaseStatements:
 AlignOperands: Align
 BreakBeforeBinaryOperators: NonAssignment
 AllowAllArgumentsOnNextLine: false
-# AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: Always
 AllowShortCaseExpressionOnASingleLine: true
 AllowShortCaseLabelsOnASingleLine: true
