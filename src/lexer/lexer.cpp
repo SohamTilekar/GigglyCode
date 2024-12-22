@@ -8,9 +8,9 @@
 Lexer::Lexer(const std::string& source) {
     this->source = source;
     // Calling the `_readChar` will incremnt the `pos` & `col_no`
-    pos          = -1;
-    line_no      = 1;
-    col_no       = -1;
+    pos = -1;
+    line_no = 1;
+    col_no = -1;
     current_char = "";
     _readChar();
 }
@@ -111,7 +111,7 @@ std::shared_ptr<token::Token> Lexer::nextToken() {
             this->_readChar(); // Move to next character after '--'
         } else if (this->_isDigit(*(this->_peekChar()))) {
             this->_readChar(); // Move to next character after '-'
-            token          = this->_readNumber();
+            token = this->_readNumber();
             token->literal = "-" + token->literal;
             return token;
         } else if (*this->_peekChar() == "=") {
@@ -226,11 +226,11 @@ std::shared_ptr<token::Token> Lexer::nextToken() {
     } else {
         if (*this->_isString() != "") {
             std::shared_ptr<std::string> str = this->_readString(*this->_isString());
-            token                            = this->_newToken(token::TokenType::String, *str);
+            token = this->_newToken(token::TokenType::String, *str);
             return token;
         } else if (this->_isLetter(this->current_char)) {
             std::shared_ptr<std::string> ident = this->_readIdentifier();
-            token                              = this->_newToken(this->_lookupIdent(ident), *ident);
+            token = this->_newToken(this->_lookupIdent(ident), *ident);
             return token;
         } else if (this->_isDigit(this->current_char)) {
             token = this->_readNumber();
@@ -265,10 +265,12 @@ std::shared_ptr<std::string> Lexer::_peekChar(int offset) {
     }
 }
 
-std::shared_ptr<token::Token> Lexer::_newToken(token::TokenType type, std::string currentChar) { return std::make_shared<token::Token>(type, currentChar, line_no, col_no); }
+std::shared_ptr<token::Token> Lexer::_newToken(token::TokenType type, std::string currentChar) {
+    return std::make_shared<token::Token>(type, currentChar, line_no, col_no);
+}
 
 std::shared_ptr<token::Token> Lexer::_readNumber() {
-    int dot_count      = 0;
+    int dot_count = 0;
     std::string number = "";
     while (this->_isDigit(this->current_char) || this->current_char == ".") {
         if (this->current_char == ".") {
@@ -313,7 +315,9 @@ void Lexer::_skipWhitespace() {
     }
 }
 
-bool Lexer::_isDigit(const std::string& character) { return character >= "0" && character <= "9"; /* 0-9 in ansi is lied in one after the another*/ };
+bool Lexer::_isDigit(const std::string& character) {
+    return character >= "0" && character <= "9"; /* 0-9 in ansi is lied in one after the another*/
+};
 
 bool Lexer::_isLetter(const std::string& character) {
     return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z") || character == "_"; /* a-z & A-Z in ansi is lied in one after the another*/
@@ -333,7 +337,9 @@ std::string getStringOnLineNumber(const std::string& input_string, int line_numb
     return ""; // Line not found
 }
 
-int getNumberOfLines(const std::string& str) { return std::count(str.begin(), str.end(), '\n') + 1; }
+int getNumberOfLines(const std::string& str) {
+    return std::count(str.begin(), str.end(), '\n') + 1;
+}
 
 std::shared_ptr<std::string> Lexer::_isString() {
     // Check for double or single quotes to identify string literals
@@ -362,7 +368,7 @@ std::shared_ptr<std::string> Lexer::_isString() {
 }
 
 std::shared_ptr<std::string> Lexer::_readString(const std::string& quote) {
-    std::string str     = "";
+    std::string str = "";
     std::string literal = quote;
     // Handle triple quotes
     if (quote == "\"\"\"" || quote == "'''") {
@@ -373,21 +379,17 @@ std::shared_ptr<std::string> Lexer::_readString(const std::string& quote) {
         this->_readChar();
         // Handle unterminated string literals
         if (this->current_char == "") {
-            errors::raiseSyntaxError(
-                "Invalid Str",
-                this->source,
-                token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
-                "Unterminated string literal",
-                "Add a closing " + quote + " to terminate the string literal"
-            );
+            errors::raiseSyntaxError("Invalid Str",
+                                     this->source,
+                                     token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
+                                     "Unterminated string literal",
+                                     "Add a closing " + quote + " to terminate the string literal");
         } else if (this->current_char == "\n" && quote != "\"\"\"" && quote != "'''") {
-            errors::raiseSyntaxError(
-                "Invalid Str",
-                this->source,
-                token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
-                "Unterminated string literal",
-                "Add a closing " + quote + " to terminate the string literal"
-            );
+            errors::raiseSyntaxError("Invalid Str",
+                                     this->source,
+                                     token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
+                                     "Unterminated string literal",
+                                     "Add a closing " + quote + " to terminate the string literal");
         } else if (this->current_char == "\\") {
             this->_readChar();
             // Handle escape sequences

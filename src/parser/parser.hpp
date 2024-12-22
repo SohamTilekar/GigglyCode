@@ -24,10 +24,10 @@ namespace parser {
 using std::shared_ptr;
 using token::TokenType;
 using ExpressionPtr = shared_ptr<AST::Expression>;
-using StatementPtr  = shared_ptr<AST::Statement>;
-using ErrorPtr      = shared_ptr<errors::Error>;
-using TokenPtr      = shared_ptr<token::Token>;
-using LexerPtr      = shared_ptr<Lexer>;
+using StatementPtr = shared_ptr<AST::Statement>;
+using ErrorPtr = shared_ptr<errors::Error>;
+using TokenPtr = shared_ptr<token::Token>;
+using LexerPtr = shared_ptr<Lexer>;
 using std::make_shared;
 
 /**
@@ -51,64 +51,64 @@ enum class PrecedenceType {
 // Token precedence mapping
 static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
     // Lowest precedence
-    {           TokenType::Illegal,        PrecedenceType::LOWEST},
-    {          TokenType::Ellipsis,        PrecedenceType::LOWEST},
-    {         TokenType::EndOfFile,        PrecedenceType::LOWEST},
+    {TokenType::Illegal, PrecedenceType::LOWEST},
+    {TokenType::Ellipsis, PrecedenceType::LOWEST},
+    {TokenType::EndOfFile, PrecedenceType::LOWEST},
 
     // Assignment operators
-    {         TokenType::PlusEqual,        PrecedenceType::ASSIGN},
-    {         TokenType::DashEqual,        PrecedenceType::ASSIGN},
-    {     TokenType::AsteriskEqual,        PrecedenceType::ASSIGN},
-    {      TokenType::PercentEqual,        PrecedenceType::ASSIGN},
-    {        TokenType::CaretEqual,        PrecedenceType::ASSIGN},
-    { TokenType::ForwardSlashEqual,        PrecedenceType::ASSIGN},
-    {TokenType::BackwardSlashEqual,        PrecedenceType::ASSIGN},
-    {            TokenType::Equals,        PrecedenceType::ASSIGN},
-    {                TokenType::Is,        PrecedenceType::ASSIGN},
+    {TokenType::PlusEqual, PrecedenceType::ASSIGN},
+    {TokenType::DashEqual, PrecedenceType::ASSIGN},
+    {TokenType::AsteriskEqual, PrecedenceType::ASSIGN},
+    {TokenType::PercentEqual, PrecedenceType::ASSIGN},
+    {TokenType::CaretEqual, PrecedenceType::ASSIGN},
+    {TokenType::ForwardSlashEqual, PrecedenceType::ASSIGN},
+    {TokenType::BackwardSlashEqual, PrecedenceType::ASSIGN},
+    {TokenType::Equals, PrecedenceType::ASSIGN},
+    {TokenType::Is, PrecedenceType::ASSIGN},
 
     // Comparison operators
-    {       TokenType::GreaterThan,   PrecedenceType::COMPARISION},
-    {          TokenType::LessThan,   PrecedenceType::COMPARISION},
-    {TokenType::GreaterThanOrEqual,   PrecedenceType::COMPARISION},
-    {   TokenType::LessThanOrEqual,   PrecedenceType::COMPARISION},
-    {        TokenType::EqualEqual,   PrecedenceType::COMPARISION},
-    {         TokenType::NotEquals,   PrecedenceType::COMPARISION},
-    {        TokenType::BitwiseAnd,   PrecedenceType::COMPARISION},
-    {         TokenType::BitwiseOr,   PrecedenceType::COMPARISION},
-    {        TokenType::BitwiseXor,   PrecedenceType::COMPARISION},
-    {         TokenType::LeftShift,   PrecedenceType::COMPARISION},
-    {        TokenType::RightShift,   PrecedenceType::COMPARISION},
-    {                TokenType::Or,   PrecedenceType::COMPARISION},
-    {               TokenType::And,   PrecedenceType::COMPARISION},
+    {TokenType::GreaterThan, PrecedenceType::COMPARISION},
+    {TokenType::LessThan, PrecedenceType::COMPARISION},
+    {TokenType::GreaterThanOrEqual, PrecedenceType::COMPARISION},
+    {TokenType::LessThanOrEqual, PrecedenceType::COMPARISION},
+    {TokenType::EqualEqual, PrecedenceType::COMPARISION},
+    {TokenType::NotEquals, PrecedenceType::COMPARISION},
+    {TokenType::BitwiseAnd, PrecedenceType::COMPARISION},
+    {TokenType::BitwiseOr, PrecedenceType::COMPARISION},
+    {TokenType::BitwiseXor, PrecedenceType::COMPARISION},
+    {TokenType::LeftShift, PrecedenceType::COMPARISION},
+    {TokenType::RightShift, PrecedenceType::COMPARISION},
+    {TokenType::Or, PrecedenceType::COMPARISION},
+    {TokenType::And, PrecedenceType::COMPARISION},
 
     // Addition and subtraction
-    {              TokenType::Plus,           PrecedenceType::SUM},
-    {              TokenType::Dash,           PrecedenceType::SUM},
+    {TokenType::Plus, PrecedenceType::SUM},
+    {TokenType::Dash, PrecedenceType::SUM},
 
     // Multiplication and division
-    {          TokenType::Asterisk,       PrecedenceType::PRODUCT},
-    {           TokenType::Percent,       PrecedenceType::PRODUCT},
-    {      TokenType::ForwardSlash,       PrecedenceType::PRODUCT},
-    {     TokenType::BackwardSlash,       PrecedenceType::PRODUCT},
+    {TokenType::Asterisk, PrecedenceType::PRODUCT},
+    {TokenType::Percent, PrecedenceType::PRODUCT},
+    {TokenType::ForwardSlash, PrecedenceType::PRODUCT},
+    {TokenType::BackwardSlash, PrecedenceType::PRODUCT},
 
     // Exponentiation
-    {  TokenType::AsteriskAsterisk,      PrecedenceType::Exponent},
+    {TokenType::AsteriskAsterisk, PrecedenceType::Exponent},
 
     // Prefix operators
-    {        TokenType::BitwiseNot,        PrecedenceType::PREFIX},
+    {TokenType::BitwiseNot, PrecedenceType::PREFIX},
 
     // Postfix operators
-    {         TokenType::Increment,       PrecedenceType::POSTFIX},
-    {         TokenType::Decrement,       PrecedenceType::POSTFIX},
+    {TokenType::Increment, PrecedenceType::POSTFIX},
+    {TokenType::Decrement, PrecedenceType::POSTFIX},
 
     // Member access
-    {               TokenType::Dot, PrecedenceType::MEMBER_ACCESS},
+    {TokenType::Dot, PrecedenceType::MEMBER_ACCESS},
 
     // Function calls
-    {         TokenType::LeftParen,          PrecedenceType::CALL},
+    {TokenType::LeftParen, PrecedenceType::CALL},
 
     // Array indexing
-    {       TokenType::LeftBracket,         PrecedenceType::INDEX},
+    {TokenType::LeftBracket, PrecedenceType::INDEX},
 };
 
 /**
@@ -119,39 +119,39 @@ class Parser {
   public:
     LexerPtr lexer;                   ///< The lexer used for tokenizing the input
     TokenPtr current_token = nullptr; ///< The current token being parsed
-    TokenPtr peek_token    = nullptr; ///< The next token to be parsed
+    TokenPtr peek_token = nullptr;    ///< The next token to be parsed
 
     // Prefix parse functions
     std::unordered_map<TokenType, std::function<ExpressionPtr()>> prefix_parse_fns = {
-        {    TokenType::Integer,    std::bind(&Parser::_parseIntegerLiteral, this)},
-        {      TokenType::Float,      std::bind(&Parser::_parseFloatLiteral, this)},
-        {     TokenType::String,     std::bind(&Parser::_parseStringLiteral, this)},
-        {       TokenType::True,    std::bind(&Parser::_parseBooleanLiteral, this)},
-        {      TokenType::False,    std::bind(&Parser::_parseBooleanLiteral, this)},
-        { TokenType::Identifier,        std::bind(&Parser::_parseIdentifier, this)},
-        {  TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)},
-        {TokenType::LeftBracket,      std::bind(&Parser::_parseArrayLiteral, this)},
-        {        TokenType::New,               std::bind(&Parser::_parseNew, this)},
+        {TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},
+        {TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
+        {TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},
+        {TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
+        {TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},
+        {TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
+        {TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)},
+        {TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
+        {TokenType::New, std::bind(&Parser::_parseNew, this)},
     };
 
     // Infix parse functions
     std::unordered_map<TokenType, std::function<ExpressionPtr(ExpressionPtr)>> infix_parse_Fns = {
-        {                TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {               TokenType::And, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {              TokenType::Plus, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {              TokenType::Dash, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {          TokenType::Asterisk, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {      TokenType::ForwardSlash, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {           TokenType::Percent, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {  TokenType::AsteriskAsterisk, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {       TokenType::GreaterThan, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {          TokenType::LessThan, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::And, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Plus, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Dash, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Asterisk, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::ForwardSlash, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Percent, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::AsteriskAsterisk, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::GreaterThan, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::LessThan, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::GreaterThanOrEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {   TokenType::LessThanOrEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {        TokenType::EqualEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {         TokenType::NotEquals, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {               TokenType::Dot, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {       TokenType::LeftBracket, std::bind(&Parser::_parseIndexExpression, this, std::placeholders::_1)},
+        {TokenType::LessThanOrEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::EqualEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::NotEquals, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Dot, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::LeftBracket, std::bind(&Parser::_parseIndexExpression, this, std::placeholders::_1)},
     };
 
     /**

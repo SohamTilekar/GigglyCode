@@ -45,11 +45,11 @@ class TryCatchStatement;
 class StructStatement;
 
 using std::shared_ptr;
-using NodePtr       = shared_ptr<Node>;
+using NodePtr = shared_ptr<Node>;
 using ExpressionPtr = shared_ptr<Expression>;
-using StatementPtr  = shared_ptr<Statement>;
-using Json          = nlohmann::json;
-using JsonPtr       = shared_ptr<Json>;
+using StatementPtr = shared_ptr<Statement>;
+using Json = nlohmann::json;
+using JsonPtr = shared_ptr<Json>;
 using std::make_shared;
 
 enum class NodeType {
@@ -95,10 +95,10 @@ enum class NodeType {
 std::string nodeTypeToString(NodeType type);
 
 struct MetaData {
-    int st_line_no                                                                                  = -1;
-    int st_col_no                                                                                   = -1;
-    int end_line_no                                                                                 = -1;
-    int end_col_no                                                                                  = -1;
+    int st_line_no = -1;
+    int st_col_no = -1;
+    int end_line_no = -1;
+    int end_col_no = -1;
     std::unordered_map<std::string, std::variant<int, std::string, std::tuple<int, int>>> more_data = {};
 };
 
@@ -109,16 +109,16 @@ class Node : public std::enable_shared_from_this<Node> {
 
     inline void set_meta_data(int st_line_num, int st_col_num, int end_line_num, int end_col_num) {
         if (this->type() == NodeType::IdentifierLiteral) return;
-        meta_data.st_line_no  = st_line_num;
-        meta_data.st_col_no   = st_col_num;
+        meta_data.st_line_no = st_line_num;
+        meta_data.st_col_no = st_col_num;
         meta_data.end_line_no = end_line_num;
-        meta_data.end_col_no  = end_col_num;
+        meta_data.end_col_no = end_col_num;
     }
 
     virtual inline NodeType type() { return NodeType::Unknown; }
 
     virtual inline JsonPtr toJSON() {
-        auto json    = Json();
+        auto json = Json();
         json["type"] = nodeTypeToString(this->type());
         return make_shared<Json>(json);
     }
@@ -236,14 +236,12 @@ class FunctionStatement : public Statement {
     shared_ptr<Type> return_type;
     shared_ptr<BlockStatement> body;
     std::vector<shared_ptr<GenericType>> generic;
-    inline FunctionStatement(
-        ExpressionPtr name,
-        std::vector<shared_ptr<FunctionParameter>> parameters,
-        std::vector<shared_ptr<FunctionParameter>> closure_parameters,
-        shared_ptr<Type> return_type,
-        shared_ptr<BlockStatement> body,
-        const std::vector<shared_ptr<GenericType>>& generic
-    )
+    inline FunctionStatement(ExpressionPtr name,
+                             std::vector<shared_ptr<FunctionParameter>> parameters,
+                             std::vector<shared_ptr<FunctionParameter>> closure_parameters,
+                             shared_ptr<Type> return_type,
+                             shared_ptr<BlockStatement> body,
+                             const std::vector<shared_ptr<GenericType>>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
         this->extra_info["autocast"] = false;
     }
@@ -402,11 +400,11 @@ class IdentifierLiteral : public Expression {
   public:
     std::string value;
     inline IdentifierLiteral(shared_ptr<token::Token> value) {
-        this->value                 = value->literal;
-        this->meta_data.st_line_no  = value->line_no;
+        this->value = value->literal;
+        this->meta_data.st_line_no = value->line_no;
         this->meta_data.end_line_no = value->line_no;
-        this->meta_data.st_col_no   = value->col_no;
-        this->meta_data.end_col_no  = value->end_col_no;
+        this->meta_data.st_col_no = value->col_no;
+        this->meta_data.end_col_no = value->end_col_no;
     }
     inline NodeType type() override { return NodeType::IdentifierLiteral; };
     JsonPtr toJSON() override;
@@ -422,8 +420,8 @@ class BooleanLiteral : public Expression {
 
 class StructStatement : public Statement {
   public:
-    ExpressionPtr name                            = nullptr;
-    std::vector<StatementPtr> fields              = {};
+    ExpressionPtr name = nullptr;
+    std::vector<StatementPtr> fields = {};
     std::vector<shared_ptr<GenericType>> generics = {};
     inline StructStatement(ExpressionPtr name, const std::vector<StatementPtr>& fields) : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
