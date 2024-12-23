@@ -105,30 +105,30 @@ class RecordModule;
 // Type Aliases for Improved Readability
 
 using Str = std::string; ///< Alias for std::string.
-using Any = std::any; ///< Alias for std::any.
+using Any = std::any;    ///< Alias for std::any.
 using std::shared_ptr;
-using StrAnyMap               = std::unordered_map<Str, Any>; ///< Map from string to any type.
-using StrRecordMap            = std::vector<std::tuple<Str, shared_ptr<Record>>>; ///< Vector of tuples mapping strings to records.
-using StructTypePtr           = shared_ptr<RecordStructType>; ///< Shared pointer to RecordStructType.
-using FunctionPtr             = shared_ptr<RecordFunction>; ///< Shared pointer to RecordFunction.
-using GenericFunctionPtr      = shared_ptr<RecordGenericFunction>; ///< Shared pointer to RecordGenericFunction.
-using GenericStructTypePtr    = shared_ptr<RecordGenericStructType>; ///< Shared pointer to RecordGenericStructType.
-using ModulePtr               = shared_ptr<RecordModule>; ///< Shared pointer to RecordModule.
-using VariablePtr             = shared_ptr<RecordVariable>; ///< Shared pointer to RecordVariable.
-using EnviornmentPtr          = shared_ptr<Enviornment>; ///< Shared pointer to Enviornment.
-using ASTFunctionStatementPtr = shared_ptr<AST::FunctionStatement>; ///< Shared pointer to AST FunctionStatement.
-using ASTStructStatementPtr   = shared_ptr<AST::StructStatement>; ///< Shared pointer to AST StructStatement.
+using StrAnyMap = std::unordered_map<Str, Any>;                        ///< Map from string to any type.
+using StrRecordMap = std::vector<std::tuple<Str, shared_ptr<Record>>>; ///< Vector of tuples mapping strings to records.
+using StructTypePtr = shared_ptr<RecordStructType>;                    ///< Shared pointer to RecordStructType.
+using FunctionPtr = shared_ptr<RecordFunction>;                        ///< Shared pointer to RecordFunction.
+using GenericFunctionPtr = shared_ptr<RecordGenericFunction>;          ///< Shared pointer to RecordGenericFunction.
+using GenericStructTypePtr = shared_ptr<RecordGenericStructType>;      ///< Shared pointer to RecordGenericStructType.
+using ModulePtr = shared_ptr<RecordModule>;                            ///< Shared pointer to RecordModule.
+using VariablePtr = shared_ptr<RecordVariable>;                        ///< Shared pointer to RecordVariable.
+using EnviornmentPtr = shared_ptr<Enviornment>;                        ///< Shared pointer to Enviornment.
+using ASTFunctionStatementPtr = shared_ptr<AST::FunctionStatement>;    ///< Shared pointer to AST FunctionStatement.
+using ASTStructStatementPtr = shared_ptr<AST::StructStatement>;        ///< Shared pointer to AST StructStatement.
 
 /**
  * @enum RecordType
  * @brief Enumeration of different types of records.
  */
 enum class RecordType {
-    RecordGStructType, ///< Represents a generic struct type record.
-    RecordStructInst,  ///< Represents a struct instance record.
-    RecordVariable,    ///< Represents a variable record.
-    RecordFunction,    ///< Represents a function record.
-    RecordModule,      ///< Represents a module record.
+    RecordGStructType,    ///< Represents a generic struct type record.
+    RecordStructInst,     ///< Represents a struct instance record.
+    RecordVariable,       ///< Represents a variable record.
+    RecordFunction,       ///< Represents a function record.
+    RecordModule,         ///< Represents a module record.
     RecordGenericFunction ///< Represents a generic function record.
 };
 
@@ -142,9 +142,9 @@ enum class RecordType {
  */
 class Record {
   public:
-    RecordType type; ///< The type of the record.
-    Str name; ///< The name of the record.
-    AST::MetaData meta_data; ///< Metadata associated with the record.
+    RecordType type;           ///< The type of the record.
+    Str name;                  ///< The name of the record.
+    AST::MetaData meta_data;   ///< Metadata associated with the record.
     StrAnyMap extra_info = {}; ///< Additional information stored in the record.
 
     /**
@@ -155,10 +155,10 @@ class Record {
      * @param endColNo Ending column number.
      */
     virtual inline void set_meta_data(int stLineNo, int stColNo, int endLineNo, int endColNo) {
-        this->meta_data.st_line_no  = stLineNo;
-        this->meta_data.st_col_no   = stColNo;
+        this->meta_data.st_line_no = stLineNo;
+        this->meta_data.st_col_no = stColNo;
         this->meta_data.end_line_no = endLineNo;
-        this->meta_data.end_col_no  = endColNo;
+        this->meta_data.end_col_no = endColNo;
     }
 
     /**
@@ -167,8 +167,7 @@ class Record {
      * @param name The name of the record.
      * @param extraInfo Optional extra information for the record.
      */
-    Record(const RecordType& type, const Str& name, const StrAnyMap& extraInfo = {})
-        : type(type), name(name), extra_info(extraInfo) {}
+    Record(const RecordType& type, const Str& name, const StrAnyMap& extraInfo = {}) : type(type), name(name), extra_info(extraInfo) {}
 }; // class Record
 
 /**
@@ -180,7 +179,7 @@ class Record {
  */
 class RecordFunction : public Record {
   public:
-    llvm::Function* function = nullptr; ///< Pointer to the LLVM Function.
+    llvm::Function* function = nullptr;          ///< Pointer to the LLVM Function.
     llvm::FunctionType* function_type = nullptr; ///< Pointer to the LLVM FunctionType.
     /**
      * @brief Vector of arguments where each argument is a tuple containing:
@@ -190,8 +189,8 @@ class RecordFunction : public Record {
      */
     std::vector<std::tuple<Str, StructTypePtr, bool>> arguments;
     StructTypePtr return_type; ///< Pointer to the struct type of the return value.
-    bool is_var_arg = false; ///< Indicates if the function accepts variable number of arguments.
-    EnviornmentPtr env; ///< Pointer to the environment in which the function is defined.
+    bool is_var_arg = false;   ///< Indicates if the function accepts variable number of arguments.
+    EnviornmentPtr env;        ///< Pointer to the environment in which the function is defined.
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -208,14 +207,12 @@ class RecordFunction : public Record {
      * @param returnInst Pointer to the struct type of the return value.
      * @param extraInfo Optional extra information.
      */
-    RecordFunction(
-        const Str& name,
-        llvm::Function* function,
-        llvm::FunctionType* functionType,
-        std::vector<std::tuple<Str, StructTypePtr, bool>> arguments,
-        StructTypePtr returnInst,
-        const StrAnyMap& extraInfo = {}
-    )
+    RecordFunction(const Str& name,
+                   llvm::Function* function,
+                   llvm::FunctionType* functionType,
+                   std::vector<std::tuple<Str, StructTypePtr, bool>> arguments,
+                   StructTypePtr returnInst,
+                   const StrAnyMap& extraInfo = {})
         : Record(RecordType::RecordFunction, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst) {}
 
     /**
@@ -310,7 +307,7 @@ class RecordFunction : public Record {
 class RecordGenericFunction : public Record {
   public:
     ASTFunctionStatementPtr func = nullptr; ///< Pointer to the AST FunctionStatement.
-    EnviornmentPtr env           = nullptr; ///< Pointer to the environment.
+    EnviornmentPtr env = nullptr;           ///< Pointer to the environment.
 
     /**
      * @brief Constructs a RecordGenericFunction with the specified name, function, and environment.
@@ -318,8 +315,7 @@ class RecordGenericFunction : public Record {
      * @param func Pointer to the AST FunctionStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericFunction(const Str& name, ASTFunctionStatementPtr func, EnviornmentPtr env)
-        : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
+    RecordGenericFunction(const Str& name, ASTFunctionStatementPtr func, EnviornmentPtr env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
 
     /**
      * @brief Sets the AST FunctionStatement pointer.
@@ -352,7 +348,7 @@ class RecordGenericFunction : public Record {
 class RecordGenericStructType : public Record {
   public:
     ASTStructStatementPtr structAST = nullptr; ///< Pointer to the AST StructStatement.
-    EnviornmentPtr env              = nullptr; ///< Pointer to the environment.
+    EnviornmentPtr env = nullptr;              ///< Pointer to the environment.
 
     /**
      * @brief Constructs a RecordGenericStructType with the specified name, struct AST, and environment.
@@ -360,8 +356,7 @@ class RecordGenericStructType : public Record {
      * @param structAST Pointer to the AST StructStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericStructType(const Str& name, ASTStructStatementPtr structAST, EnviornmentPtr env)
-        : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {}
+    RecordGenericStructType(const Str& name, ASTStructStatementPtr structAST, EnviornmentPtr env) : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {}
 
     /**
      * @brief Sets the AST StructStatement pointer.
@@ -396,10 +391,10 @@ class RecordStructType : public Record {
     std::vector<Str> fields = {}; ///< List of field names in the struct.
 
   public:
-    llvm::Type* stand_alone_type = nullptr; ///< Pointer to the standalone LLVM Type.
-    llvm::StructType* struct_type = nullptr; ///< Pointer to the LLVM StructType.
+    llvm::Type* stand_alone_type = nullptr;                ///< Pointer to the standalone LLVM Type.
+    llvm::StructType* struct_type = nullptr;               ///< Pointer to the LLVM StructType.
     std::unordered_map<Str, StructTypePtr> sub_types = {}; ///< Map of subtypes by field name.
-    std::vector<StructTypePtr> generic_sub_types = {}; ///< Vector of generic subtypes.
+    std::vector<StructTypePtr> generic_sub_types = {};     ///< Vector of generic subtypes.
     /**
      * @brief Vector of methods where each method is a tuple containing:
      * - Method name.
@@ -419,8 +414,7 @@ class RecordStructType : public Record {
      * @param name The name of the struct type.
      * @param stand_alone_type Pointer to the standalone LLVM Type.
      */
-    RecordStructType(const Str& name, llvm::Type* stand_alone_type)
-        : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {}
+    RecordStructType(const Str& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {}
 
     /**
      * @brief Checks if a method with the given name and parameters exists in the struct.
@@ -495,8 +489,8 @@ class RecordStructType : public Record {
  */
 class RecordVariable : public Record {
   public:
-    llvm::Value* value = nullptr; ///< Pointer to the LLVM Value representing the variable.
-    llvm::Value* allocainst = nullptr; ///< Pointer to the LLVM Allocation Instruction.
+    llvm::Value* value = nullptr;          ///< Pointer to the LLVM Value representing the variable.
+    llvm::Value* allocainst = nullptr;     ///< Pointer to the LLVM Allocation Instruction.
     StructTypePtr variable_type = nullptr; ///< Pointer to the struct type of the variable.
 
     /**
@@ -549,8 +543,7 @@ class RecordModule : public Record {
      * @param name The name of the module.
      * @param record_map The map of records within the module.
      */
-    RecordModule(const Str& name, const StrRecordMap& record_map)
-        : Record(RecordType::RecordModule, name), record_map(record_map) {}
+    RecordModule(const Str& name, const StrRecordMap& record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {}
 
     /**
      * @brief Constructs a RecordModule with the specified name.
@@ -651,8 +644,8 @@ class RecordModule : public Record {
  */
 class Enviornment {
   public:
-    EnviornmentPtr parent; ///< Pointer to the parent environment.
-    Str name; ///< Name of the current environment.
+    EnviornmentPtr parent;   ///< Pointer to the parent environment.
+    Str name;                ///< Name of the current environment.
     StrRecordMap record_map; ///< Map of records within the environment.
 
     RecordFunction* current_function = nullptr; ///< Pointer to the current function record.
@@ -675,15 +668,14 @@ class Enviornment {
      * If a parent environment is provided, the loop-related basic blocks
      * and the current function pointer are inherited from the parent.
      */
-    Enviornment(EnviornmentPtr parent = nullptr, const StrRecordMap& records = {}, Str name = "unnamed")
-        : parent(parent), name(name), record_map(records) {
+    Enviornment(EnviornmentPtr parent = nullptr, const StrRecordMap& records = {}, Str name = "unnamed") : parent(parent), name(name), record_map(records) {
         if (parent) {
-            this->loop_conti_block     = parent->loop_conti_block;
-            this->loop_body_block      = parent->loop_body_block;
+            this->loop_conti_block = parent->loop_conti_block;
+            this->loop_body_block = parent->loop_body_block;
             this->loop_condition_block = parent->loop_condition_block;
-            this->loop_ifbreak_block   = parent->loop_ifbreak_block;
-            this->loop_notbreak_block  = parent->loop_notbreak_block;
-            this->current_function     = parent->current_function;
+            this->loop_ifbreak_block = parent->loop_ifbreak_block;
+            this->loop_notbreak_block = parent->loop_notbreak_block;
+            this->current_function = parent->current_function;
         }
     }
 
