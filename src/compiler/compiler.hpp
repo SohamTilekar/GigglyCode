@@ -155,6 +155,7 @@ class Compiler {
         llvm::Value* alloca;          ///< The allocation instruction
         ResolvedValueVariant variant; ///< Variant holding additional resolved data
         resolveType type;             ///< Type of the resolved value
+        bool inscope;                 ///< True if the Given Resolved value is not assigned to function | not owned by function
     };
 
     // === Constructors ===
@@ -183,7 +184,7 @@ class Compiler {
      * @param to The target struct type.
      * @return The resolved value after conversion.
      */
-    ResolvedValue convertType(const std::tuple<llvm::Value*, llvm::Value*, StructTypePtr>& from, StructTypePtr to);
+    ResolvedValue convertType(const ResolvedValue& from, StructTypePtr to);
 
     /**
      * @brief Checks if one struct type can be converted to another.
@@ -612,7 +613,7 @@ class Compiler {
      * @return A tuple containing the loaded LLVM value, allocation LLVM value,
      *         the generic struct type pointer, and the resolve type.
      */
-    std::tuple<llvm::Value*, llvm::Value*, StructTypePtr, resolveType> _resolveAndValidateLeftOperand(const std::shared_ptr<AST::IndexExpression>& index_expression);
+    Compiler::ResolvedValue _resolveAndValidateLeftOperand(const std::shared_ptr<AST::IndexExpression>& index_expression);
 
     /**
      * @brief Resolves and validates the index operand of the index expression.
@@ -620,7 +621,7 @@ class Compiler {
      * @return A tuple containing the loaded LLVM value, allocation LLVM value,
      *         the generic struct type pointer, and the resolve type.
      */
-    std::tuple<llvm::Value*, llvm::Value*, StructTypePtr, resolveType> _resolveAndValidateIndexOperand(const std::shared_ptr<AST::IndexExpression>& index_expression);
+    Compiler::ResolvedValue _resolveAndValidateIndexOperand(const std::shared_ptr<AST::IndexExpression>& index_expression);
 
     /**
      * @brief Handles array indexing logic.
@@ -751,7 +752,7 @@ class Compiler {
      * @param value Shared pointer to the expression representing the return value.
      * @return A tuple containing the LLVM return value, allocation, and the StructTypePtr.
      */
-    std::tuple<llvm::Value*, llvm::Value*, StructTypePtr> _resolveAndValidateReturnValue(const std::shared_ptr<AST::Expression>& value);
+    ResolvedValue _resolveAndValidateReturnValue(const std::shared_ptr<AST::Expression>& value);
 
     /**
      * @brief Checks and performs type conversion if necessary.
