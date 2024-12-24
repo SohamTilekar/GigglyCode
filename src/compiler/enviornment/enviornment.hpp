@@ -401,7 +401,6 @@ class RecordStructType : public Record {
      * - Pointer to the function record.
      */
     std::vector<std::tuple<Str, FunctionPtr>> methods = {};
-    FunctionPtr gc_struct_clear = nullptr; ///< Pointer to the garbage collection clear function.
 
     /**
      * @brief Constructs a RecordStructType with the specified name.
@@ -787,7 +786,7 @@ class Enviornment {
      * @brief Retrieves all variables in the current environment.
      * @return Vector of pointers to VariableRecords.
      */
-    std::vector<VariablePtr> getCurrentVars();
+    std::vector<VariablePtr> getCurrentFuncVars();
 
     /**
      * @brief Enters a new loop scope by adding loop-related basic blocks.

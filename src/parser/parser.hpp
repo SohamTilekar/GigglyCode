@@ -6,6 +6,7 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
+#include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -14,6 +15,69 @@
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
+
+#define LOG
+#define LOG_PATH "./dump/dbg.log"
+
+#ifdef LOG
+#include <fstream>
+#include <mutex>
+
+namespace parser {
+
+/**
+ * @class Logger
+ * @brief Singleton Logger class for handling log messages.
+ */
+ class Logger {
+ public:
+     /**
+      * @brief Get the singleton instance of the Logger.
+      *
+      * @param path The file path for the log file. Defaults to LOG_PATH.
+      * @return Logger& Reference to the singleton Logger instance.
+      */
+     static Logger& getInstance(const std::string& path = LOG_PATH) {
+         static Logger instance(path);
+         return instance;
+     }
+
+     /**
+      * @brief Log a message with detailed meta information.
+      *
+      * @param file_name The name of the source file.
+      * @param function_name The name of the function.
+      * @param line_no The line number in the source file.
+      * @param message The message to log.
+      */
+     void log(const std::string& file_name, const std::string& function_name, int line_no, const std::string& message) {
+         std::lock_guard<std::mutex> guard(mtx_);
+         if (log_stream_.is_open()) {
+             log_stream_ << "[" << file_name << ":" << function_name << ":" << line_no << "] " << message << std::endl;
+         }
+     }
+private:
+    std::ofstream log_stream_;
+    std::mutex mtx_;
+
+    // Private constructor to enforce singleton pattern
+    Logger(const std::string& path) : log_stream_(path, std::ios::out | std::ios::app) {
+        if (!log_stream_) {
+            std::cerr << "Failed to open log file: " << path << std::endl;
+        }
+    }
+
+    // Delete copy constructor and assignment operator
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+};
+
+} // namespace parser
+
+#else
+// If LOG is not defined, define LOG_MSG as empty to eliminate logging overhead
+#define LOG_MSG(message)
+#endif
 
 namespace parser {
 /**

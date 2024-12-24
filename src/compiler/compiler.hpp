@@ -155,7 +155,6 @@ class Compiler {
         llvm::Value* alloca;          ///< The allocation instruction
         ResolvedValueVariant variant; ///< Variant holding additional resolved data
         resolveType type;             ///< Type of the resolved value
-        bool inscope;                 ///< True if the Given Resolved value is not assigned to function | not owned by function
     };
 
     // === Constructors ===
@@ -231,7 +230,6 @@ class Compiler {
 
     // --- LLVM Type Pointers ---
     llvm::PointerType* ll_pointer = nullptr;   ///< LLVM pointer type
-    llvm::StructType* ll_shared_ptr = nullptr; ///< LLVM shared pointer struct type
     llvm::Type* ll_int = nullptr;              ///< LLVM integer type
     llvm::Type* ll_int32 = nullptr;            ///< LLVM 32-bit integer type
     llvm::Type* ll_void = nullptr;             ///< LLVM void type
@@ -281,6 +279,8 @@ class Compiler {
      * @brief Initializes the IR-GC mapping from JSON.
      */
     void _initializeIRGCMap();
+
+    void _initializeArrayType();
 
     // --- AST Visitor Methods ---
 
@@ -516,20 +516,6 @@ class Compiler {
     ResolvedValue
     _CallGstruct(const vector<GenericStructTypePtr>& gstructs, const shared_ptr<AST::CallExpression> func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
 
-    // --- Reference Counting Utilities ---
-
-    /**
-     * @brief Increments the reference count of a given LLVM value.
-     * @param value Pointer to the LLVM value.
-     */
-    void _incrementRC(llvm::Value* value);
-
-    /**
-     * @brief Decrements the reference count of a given LLVM value.
-     * @param value Pointer to the LLVM value.
-     */
-    void _decrementRC(StructTypePtr type, llvm::Value* value);
-
     // --- Helper Methods ---
 
     /**
@@ -564,12 +550,6 @@ class Compiler {
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
     void _createStructRecord(ASTStructStatementPtr struct_statement, std::shared_ptr<RecordModule> module, const nlohmann::json& ir_gc_map_json);
-
-    /**
-     * @brief Creates a clear method for a given struct type.
-     * @param struct_record Pointer to the struct type record.
-     */
-    void _createClearMethod(StructTypePtr struct_record);
 
     /**
      * @brief Handles calling a struct method.
@@ -736,12 +716,6 @@ class Compiler {
     // --- Return Statement Handlers ---
 
     /**
-     * @brief Handles the return statement when the return type is void.
-     * @param return_statement Shared pointer to the ReturnStatement node.
-     */
-    void _handleVoidReturnStatement(const std::shared_ptr<AST::ReturnStatement>& return_statement);
-
-    /**
      * @brief Handles the return statement when there is a return value.
      * @param return_statement Shared pointer to the ReturnStatement node.
      */
@@ -760,11 +734,6 @@ class Compiler {
      * @param return_type Reference to the StructTypePtr of the return value.
      */
     void _checkAndConvertReturnType(AST::ExpressionPtr value, StructTypePtr& return_type);
-
-    /**
-     * @brief Performs cleanup of reference counts before returning.
-     */
-    void _cleanupReferenceCounts();
 
     /**
      * @brief Creates the appropriate LLVM return instruction based on types.

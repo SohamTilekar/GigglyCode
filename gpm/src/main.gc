@@ -1,6 +1,13 @@
-import "std/cliapp";
+struct Point {
+    x: int;
+    y: int;
+    def __init__(self: Point, x: int, y: int) {
+        self.x = x;
+        self.y = y;
+    };
+}
 
-def main(argc: int, argv: array[str]) -> int {
-    arg_parser: cliapp.CliApp = cliapp.CliApp(argc, argv);
-    return 0;
+def main() -> int {
+    X: Point = new Point(0, 1);
+    return X.y;
 }
