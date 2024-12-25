@@ -115,6 +115,9 @@ enum class TokenType {
     Raise,    // Raise keyword 'raise'
     IfBreak,  // IfBreak keyword 'ifbreak'
     NotBreak, // NotBreak keyword 'notbreak'
+    Switch,   // Switch keyword 'switch'
+    Case,     // Case keyword 'case'
+    Other,    // Other keyword 'other'
 };
 
 /**

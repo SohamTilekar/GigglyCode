@@ -282,6 +282,8 @@ class Compiler {
 
     void _initializeArrayType();
 
+    void _initilizeCSTDLib();
+
     // --- AST Visitor Methods ---
 
     /**
@@ -356,6 +358,12 @@ class Compiler {
      * @param struct_statement Shared pointer to the StructStatement node.
      */
     void _visitStructStatement(ASTStructStatementPtr struct_statement);
+
+    /**
+     * @brief Visits a SwitchCaseStatement node in the AST.
+     * @param switch_statement Shared pointer to the SwitchCaseStatement node.
+     */
+    void _visitSwitchCaseStatement(shared_ptr<AST::SwitchCaseStatement> switch_statement);
 
     /**
      * @brief Visits a TryCatchStatement node in the AST.

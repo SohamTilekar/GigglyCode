@@ -1,6 +1,7 @@
 #ifndef AST_HPP
 #define AST_HPP
 #include <any>
+#include <llvm/ADT/STLExtras.h>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -43,6 +44,7 @@ class VariableDeclarationStatement;
 class VariableAssignmentStatement;
 class TryCatchStatement;
 class StructStatement;
+class SwitchCaseStatement;
 
 using std::shared_ptr;
 using NodePtr = shared_ptr<Node>;
@@ -74,6 +76,7 @@ enum class NodeType {
     ImportStatement,
     TryCatchStatement,
     RaiseStatement,
+    SwitchCaseStatement,
 
     // Types
     Type,
@@ -100,6 +103,14 @@ struct MetaData {
     int end_line_no = -1;
     int end_col_no = -1;
     std::unordered_map<std::string, std::variant<int, std::string, std::tuple<int, int>>> more_data = {};
+    virtual inline bool operator==(MetaData other) {
+        return (
+            this->st_col_no == other.st_col_no
+            && this->st_line_no == other.st_line_no
+            && this->end_col_no == other.end_col_no
+            && this->end_line_no == other.end_col_no
+        );
+    };
 };
 
 class Node : public std::enable_shared_from_this<Node> {
@@ -122,6 +133,12 @@ class Node : public std::enable_shared_from_this<Node> {
         json["type"] = nodeTypeToString(this->type());
         return make_shared<Json>(json);
     }
+    inline bool operator==(Node other) {
+        return (
+            this->meta_data == other.meta_data
+            && this->type() == other.type()
+        );
+    };
 
     std::shared_ptr<Expression> castToExpression() { return std::static_pointer_cast<Expression>(shared_from_this()); }
     std::shared_ptr<Statement> castToStatement() { return std::static_pointer_cast<Statement>(shared_from_this()); }
@@ -145,6 +162,7 @@ class Node : public std::enable_shared_from_this<Node> {
     std::shared_ptr<VariableAssignmentStatement> castToVariableAssignmentStatement() { return std::static_pointer_cast<VariableAssignmentStatement>(shared_from_this()); }
     std::shared_ptr<TryCatchStatement> castToTryCatchStatement() { return std::static_pointer_cast<TryCatchStatement>(shared_from_this()); }
     std::shared_ptr<StructStatement> castToStructStatement() { return std::static_pointer_cast<StructStatement>(shared_from_this()); }
+    std::shared_ptr<SwitchCaseStatement> castToSwitchCaseStatement() { return std::static_pointer_cast<SwitchCaseStatement>(shared_from_this()); }
     // Expression Casts
     std::shared_ptr<IdentifierLiteral> castToIdentifierLiteral() { return std::static_pointer_cast<IdentifierLiteral>(shared_from_this()); }
     std::shared_ptr<IntegerLiteral> castToIntegerLiteral() { return std::static_pointer_cast<IntegerLiteral>(shared_from_this()); }
@@ -167,8 +185,17 @@ class Type : public Node {
     std::vector<shared_ptr<Type>> generics;
     bool refrence;
     inline Type(ExpressionPtr name, const std::vector<shared_ptr<Type>>& generics, bool refrence) : name(name), generics(generics), refrence(refrence) {}
-    inline NodeType type() override { return NodeType::Type; };
+    NodeType type() override { return NodeType::Type; };
     JsonPtr toJSON() override;
+    inline bool operator==(Type other) {
+        if (this->name != other.name) return false;
+        if (this->refrence != other.refrence) return false;
+        if(this->generics.size() != other.generics.size()) return false;
+        for (auto [sg, og] : llvm::zip(this->generics, other.generics)) {
+            if (sg != og) return false;
+        }
+        return true;
+    }
 };
 
 class GenericType : public Node {
@@ -178,6 +205,14 @@ class GenericType : public Node {
     inline GenericType(ExpressionPtr name, const std::vector<shared_ptr<Type>>& generic_union) : name(name), generic_union(generic_union) {}
     inline NodeType type() override { return NodeType::GenericType; };
     JsonPtr toJSON() override;
+    virtual inline bool operator==(GenericType other) {
+        if (this->name != other.name) return false;
+        if(this->generic_union.size() != other.generic_union.size()) return false;
+        for (auto [sg, og] : llvm::zip(this->generic_union, other.generic_union)) {
+            if (sg != og) return false;
+        }
+        return true;
+    }
 };
 
 class Program : public Node {
@@ -347,6 +382,17 @@ class TryCatchStatement : public Statement {
     inline TryCatchStatement(StatementPtr try_block, std::vector<std::tuple<shared_ptr<Type>, shared_ptr<IdentifierLiteral>, StatementPtr>> catch_blocks)
         : try_block(try_block), catch_blocks(catch_blocks) {}
     inline NodeType type() override { return NodeType::TryCatchStatement; };
+    JsonPtr toJSON() override;
+};
+
+class SwitchCaseStatement : public Statement {
+  public:
+    ExpressionPtr condition;
+    std::vector<std::tuple<ExpressionPtr, StatementPtr>> cases;
+    StatementPtr other;
+    inline SwitchCaseStatement(ExpressionPtr condition, std::vector<std::tuple<ExpressionPtr, StatementPtr>> cases, StatementPtr other = nullptr)
+        : condition(condition), cases(cases), other(other) {};
+    inline NodeType type() override { return NodeType::SwitchCaseStatement; };
     JsonPtr toJSON() override;
 };
 

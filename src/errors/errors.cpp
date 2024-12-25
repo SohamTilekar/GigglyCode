@@ -322,12 +322,7 @@ void errors::UnknownNodeTypeError::raise() {
 
 void errors::ReturnTypeMismatchError::raise() {
     print_banner("Return Type Mismatch Error");
-    std::string expectedStr;
-    for (size_t i = 0; i < expectedType->name.size(); ++i) {
-        expectedStr += expectedType->name[i];
-        if (i < expectedType->name.size() - 1) expectedStr += " or ";
-    }
-    std::string errorMsg = "Return type mismatch: Expected '" + expectedStr + "'.";
+    std::string errorMsg = "Return type mismatch: Expected '" + expectedType->name + "'.";
     print_error_message(errorMsg);
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = {

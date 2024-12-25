@@ -229,6 +229,16 @@ JsonPtr TryCatchStatement::toJSON() {
     return std::make_shared<Json>(jsonAst);
 }
 
+JsonPtr SwitchCaseStatement::toJSON() {
+    auto jsonAst = Json();
+    jsonAst["type"] = nodeTypeToString(type());
+    jsonAst["condition"] = *condition->toJSON();
+    jsonAst["catch"] = Json::array();
+    for (auto& [_case, block] : cases) { jsonAst["case"].push_back({*_case->toJSON(), *block->toJSON()}); };
+    jsonAst["other"] = other ? *other->toJSON() : nullptr;
+    return std::make_shared<Json>(jsonAst);
+}
+
 JsonPtr InfixExpression::toJSON() {
     auto jsonAst = Json();
     jsonAst["type"] = nodeTypeToString(type());

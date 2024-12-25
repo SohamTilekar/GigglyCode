@@ -1,6 +1,7 @@
 // TODO: Add Meta Data to all of the Record.
 #include "compiler.hpp"
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -205,6 +206,9 @@ void Compiler::compile(shared_ptr<AST::Node> node) {
             break;
         case AST::NodeType::TryCatchStatement:
             this->_visitTryCatchStatement(node->castToTryCatchStatement());
+            break;
+        case AST::NodeType::SwitchCaseStatement:
+            this->_visitSwitchCaseStatement(node->castToSwitchCaseStatement());
             break;
         case AST::NodeType::BlockStatement:
             this->_visitBlockStatement(node->castToBlockStatement());
@@ -1521,26 +1525,77 @@ void Compiler::_visitVariableAssignmentStatement(const std::shared_ptr<AST::Vari
     }
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveIntegerLiteral(const std::shared_ptr<AST::IntegerLiteral>& integer_literal) {
+void Compiler::_visitSwitchCaseStatement(shared_ptr<AST::SwitchCaseStatement> switch_statement) {
+    // Create a new basic block for the switch statement
+    llvm::Function* function = llvm_ir_builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock* default_block = llvm::BasicBlock::Create(llvm_context, "default", function);
+    llvm::BasicBlock* end_block = llvm::BasicBlock::Create(llvm_context, "end_switch", function);
+
+    // Resolve the condition value
+    ResolvedValue condition_value = _resolveValue(switch_statement->condition);
+
+    // Create the switch instruction
+    llvm::SwitchInst* switch_inst = llvm_ir_builder.CreateSwitch(condition_value.value, default_block, switch_statement->cases.size());
+    llvm::BasicBlock* garbage_block = llvm::BasicBlock::Create(llvm_context, "garbage", function);
+    llvm_ir_builder.SetInsertPoint(garbage_block);
+    // Create basic blocks for each case
+    std::vector<llvm::BasicBlock*> case_blocks;
+    for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
+        llvm::BasicBlock* case_block = llvm::BasicBlock::Create(llvm_context, "case", function);
+        case_blocks.push_back(case_block);
+    }
+
+    // Populate the switch instruction with cases
+    for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
+        auto [case_expr, case_stmt] = switch_statement->cases[i];
+        ResolvedValue case_value = _resolveValue(case_expr);
+        switch_inst->addCase(llvm::cast<llvm::ConstantInt>(case_value.value), case_blocks[i]);
+    }
+
+    llvm_ir_builder.CreateUnreachable();
+    // Visit each case block
+    for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
+        llvm_ir_builder.SetInsertPoint(case_blocks[i]);
+        auto [case_expr, case_stmt] = switch_statement->cases[i];
+        _visitBlockStatement(case_stmt->castToBlockStatement());
+        if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) {
+            llvm_ir_builder.CreateBr(end_block);
+        }
+    }
+
+    // Visit the default block
+    llvm_ir_builder.SetInsertPoint(default_block);
+    if (switch_statement->other) {
+        _visitBlockStatement(switch_statement->other->castToBlockStatement());
+    }
+    if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) {
+        llvm_ir_builder.CreateBr(end_block);
+    }
+
+    // Set the insert point to the end block
+    llvm_ir_builder.SetInsertPoint(end_block);
+}
+
+Compiler::ResolvedValue Compiler::_resolveIntegerLiteral(const std::shared_ptr<AST::IntegerLiteral>& integer_literal) {
     auto value = llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, integer_literal->value));
     auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("int")->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
     return {value, alloca, this->env->getStruct("int"), resolveType::StructInst};
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveFloatLiteral(const std::shared_ptr<AST::FloatLiteral>& float_literal) {
+Compiler::ResolvedValue Compiler::_resolveFloatLiteral(const std::shared_ptr<AST::FloatLiteral>& float_literal) {
     auto value = llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(float_literal->value));
     auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("float")->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
     return {value, alloca, this->env->getStruct("float"), resolveType::StructInst};
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveStringLiteral(const std::shared_ptr<AST::StringLiteral>& string_literal) {
+Compiler::ResolvedValue Compiler::_resolveStringLiteral(const std::shared_ptr<AST::StringLiteral>& string_literal) {
     auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
     return {value, value, this->env->getStruct("str"), resolveType::StructInst};
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(const std::shared_ptr<AST::IdentifierLiteral>& identifier_literal) {
+Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(const std::shared_ptr<AST::IdentifierLiteral>& identifier_literal) {
     if (this->env->isVariable(identifier_literal->value)) {
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
@@ -1562,30 +1617,30 @@ compiler::Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(const std:
     std::exit(1);
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveInfixExpression(const std::shared_ptr<AST::InfixExpression>& infix_expression) {
+Compiler::ResolvedValue Compiler::_resolveInfixExpression(const std::shared_ptr<AST::InfixExpression>& infix_expression) {
     return this->_visitInfixExpression(infix_expression);
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveIndexExpression(const std::shared_ptr<AST::IndexExpression>& index_expression) {
+Compiler::ResolvedValue Compiler::_resolveIndexExpression(const std::shared_ptr<AST::IndexExpression>& index_expression) {
     return this->_visitIndexExpression(index_expression);
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveCallExpression(const std::shared_ptr<AST::CallExpression>& call_expression) {
+Compiler::ResolvedValue Compiler::_resolveCallExpression(const std::shared_ptr<AST::CallExpression>& call_expression) {
     return this->_visitCallExpression(call_expression);
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveBooleanLiteral(const std::shared_ptr<AST::BooleanLiteral>& boolean_literal) {
+Compiler::ResolvedValue Compiler::_resolveBooleanLiteral(const std::shared_ptr<AST::BooleanLiteral>& boolean_literal) {
     auto value = boolean_literal->value ? llvm::ConstantInt::getTrue(this->llvm_context) : llvm::ConstantInt::getFalse(this->llvm_context);
     auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("bool")->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
     return {value, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveArrayLiteral(const std::shared_ptr<AST::ArrayLiteral>& array_literal) {
+Compiler::ResolvedValue Compiler::_resolveArrayLiteral(const std::shared_ptr<AST::ArrayLiteral>& array_literal) {
     return this->_visitArrayLiteral(array_literal);
 }
 
-compiler::Compiler::ResolvedValue Compiler::_resolveValue(shared_ptr<AST::Node> node) {
+Compiler::ResolvedValue Compiler::_resolveValue(shared_ptr<AST::Node> node) {
     switch (node->type()) {
         case AST::NodeType::IntegerLiteral:
             return this->_resolveIntegerLiteral(node->castToIntegerLiteral());
@@ -1886,7 +1941,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(shared_ptr<AST::CallExpre
     }
 
     if (this->env->isGenericFunc(name) ? this->env->isFunction(name, params_types, false, true) : this->env->isFunction(name, params_types)) {
-        auto func = this->env->getFunction(name, params_types, false, true);
+        auto func = this->env->isGenericFunc(name) ?  this->env->getFunction(name, params_types, false, true) : this->env->getFunction(name, params_types);
         unsigned short idx = 0;
         for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
             if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }

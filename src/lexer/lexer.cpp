@@ -74,6 +74,12 @@ token::TokenType Lexer::_lookupIdent(std::shared_ptr<std::string> ident) {
         return token::TokenType::NotBreak;
     } else if (*ident == "ifbreak") {
         return token::TokenType::IfBreak;
+    } else if (*ident == "switch") {
+        return token::TokenType::Switch;
+    } else if (*ident == "case") {
+        return token::TokenType::Case;
+    } else if (*ident == "other") {
+        return token::TokenType::Other;
     }
 
     return token::TokenType::Identifier;

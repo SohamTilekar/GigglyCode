@@ -187,7 +187,7 @@ class RecordFunction : public Record {
      * - Pointer to the struct type of the argument.
      * - Boolean indicating if the argument is passed by reference.
      */
-    std::vector<std::tuple<Str, StructTypePtr, bool>> arguments;
+    std::vector<std::tuple<Str, StructTypePtr, bool>> arguments = {};
     StructTypePtr return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;   ///< Indicates if the function accepts variable number of arguments.
     EnviornmentPtr env;        ///< Pointer to the environment in which the function is defined.

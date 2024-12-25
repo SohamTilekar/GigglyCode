@@ -103,6 +103,8 @@ StatementPtr Parser::_parseStatement() {
             return this->_parseStructStatement(); // [structFT] -> [}]
         case TokenType::Try:
             return this->_parseTryCatchStatement(); // [tryFT] -> [;]
+        case TokenType::Switch:
+            return this->_parseSwitchCaseStatement(); // [switchFT] -> [;]
         case TokenType::Volatile:
             this->_nextToken();                                            // [volatileFT] -> [Identifier!]
             LOG_TOK()
@@ -567,7 +569,8 @@ shared_ptr<AST::BlockStatement> Parser::_parseBlockStatement() {
         this->_nextToken(); // [StatementLT] -> [Next Statement or }]
         LOG_TOK()
     }
-    if (this->_peekTokenIs(TokenType::Semicolon)) { this->_nextToken();
+    if (this->_peekTokenIs(TokenType::Semicolon)) {
+        this->_nextToken();
         LOG_TOK()
     } // [}LT] -> [;]
 
@@ -659,6 +662,43 @@ shared_ptr<AST::TryCatchStatement> Parser::_parseTryCatchStatement() {
     }
 
     return make_shared<AST::TryCatchStatement>(try_block, catch_blocks);
+}
+
+shared_ptr<AST::SwitchCaseStatement> Parser::_parseSwitchCaseStatement() {
+    this->_expectPeek(TokenType::LeftParen); // [switchFT] -> [(]
+    LOG_TOK()
+    this->_nextToken(); // [(] -> [ExpresionFT]
+    LOG_TOK()
+    auto condition = this->_parseExpression(PrecedenceType::LOWEST); // [ExpresisonFT] -> [ExpresisonLT]
+    this->_nextToken(); // [ExpresisonLT] -> [)]
+    this->_expectPeek(TokenType::LeftBrace); // [)] -> [{]
+    std::vector<std::tuple<ExpressionPtr, StatementPtr>> case_blocks;
+
+    while (this->_peekTokenIs(TokenType::Case)) {
+        this->_nextToken();                       // [try] -> [catch]
+        LOG_TOK()
+        this->_expectPeek(TokenType::LeftParen);  // [catch] -> [(]
+        this->_nextToken();                       // [(] -> [Exception Type]
+        LOG_TOK()
+        auto _case = this->_parseExpression(PrecedenceType::LOWEST); // [Exception Type] remains unchanged
+        this->_expectPeek(TokenType::RightParen);   // [Identifier] -> [)]
+        this->_nextToken();                         // [)] -> [Catch Block Statement]
+        LOG_TOK()
+        auto catch_block = this->_parseStatement(); // [Statement] -> [Next Token]
+        case_blocks.push_back({_case, catch_block});
+    }
+    StatementPtr other = nullptr;
+    if (this->_peekTokenIs(TokenType::Other)) {
+        this->_nextToken(); // [Statement] -> [Other]
+        LOG_TOK()
+        this->_nextToken(); // [Other] -> [StatementFT]
+        LOG_TOK()
+        other = this->_parseStatement();
+        LOG_TOK()
+    }
+    this->_expectPeek(TokenType::RightBrace);
+    LOG_TOK()
+    return make_shared<AST::SwitchCaseStatement>(condition, case_blocks, other);
 }
 
 ExpressionPtr Parser::_parseInfixIdenifier() {

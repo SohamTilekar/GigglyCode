@@ -1,5 +1,6 @@
 #include "./token.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -38,7 +39,7 @@ std::string token::Token::toString(bool color) {
 
     // Apply padding to each field for alignment
     if (typeString.length() < 15) typeString += std::string(15 - typeString.length(), ' ');
-    if (literalString.length() < 2) lineNoString += std::string(2 - lineNoString.length(), ' ');
+    if (literalString.length() < 2) lineNoString += std::string(2 - literalString.length(), ' ');
     if (colNoString.length() < 2) colNoString += std::string(2 - colNoString.length(), ' ');
     if (endColNoString.length() < 2) endColNoString += std::string(2 - endColNoString.length(), ' ');
 
@@ -214,6 +215,12 @@ std::string token::tokenTypeString(TokenType type) {
             return "NotBreak";
         case TokenType::IfBreak:
             return "IfBreak";
+        case TokenType::Switch:
+            return "Switch";
+        case TokenType::Case:
+            return "Case";
+        case TokenType::Other:
+            return "Other";
         default:
             return "unknown token type(" + std::to_string(static_cast<int>(type)) + ")";
     }

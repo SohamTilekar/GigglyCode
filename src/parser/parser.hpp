@@ -517,6 +517,13 @@ class Parser {
     shared_ptr<AST::TryCatchStatement> _parseTryCatchStatement();
 
     /**
+     * @brief Parse a switch-case statement
+     *
+     * @return shared_ptr<AST::SwitchCaseStatement> The parsed switch-case statement
+     */
+    shared_ptr<AST::SwitchCaseStatement> _parseSwitchCaseStatement();
+
+    /**
      * @brief Parse a function call expression
      *
      * Handles the invocation of functions with arguments.
