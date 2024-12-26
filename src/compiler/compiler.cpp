@@ -576,7 +576,7 @@ void Compiler::_createFunctionRecord(ASTFunctionStatementPtr function_declaratio
         auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
         this->function_entry_block.push_back(bb);
         this->llvm_ir_builder.SetInsertPoint(bb);
-        if (this->fc_st_name_prefix == "main.gc..") {
+        if (this->fc_st_name_prefix == "main.gc.." && name == "main") {
             func->setGC("statepoint-example");
         }
 
