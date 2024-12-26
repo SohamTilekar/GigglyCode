@@ -10,9 +10,7 @@ Type::~Type() {
         name = nullptr;
     }
     for (auto gen : generics) {
-        if (gen) {
-            delete gen;
-        }
+        if (gen) { delete gen; }
     }
     generics.clear();
 }
@@ -23,18 +21,14 @@ GenericType::~GenericType() {
         name = nullptr;
     }
     for (auto gen : generic_union) {
-        if (gen) {
-            delete gen;
-        }
+        if (gen) { delete gen; }
     }
     generic_union.clear();
 }
 
 Program::~Program() {
     for (auto stmt : statements) {
-        if (stmt) {
-            delete stmt;
-        }
+        if (stmt) { delete stmt; }
     }
     statements.clear();
 }
@@ -48,9 +42,7 @@ ExpressionStatement::~ExpressionStatement() {
 
 BlockStatement::~BlockStatement() {
     for (auto stmt : statements) {
-        if (stmt) {
-            delete stmt;
-        }
+        if (stmt) { delete stmt; }
     }
     statements.clear();
 }
@@ -86,15 +78,11 @@ FunctionStatement::~FunctionStatement() {
         name = nullptr;
     }
     for (auto param : parameters) {
-        if (param) {
-            delete param;
-        }
+        if (param) { delete param; }
     }
     parameters.clear();
     for (auto param : closure_parameters) {
-        if (param) {
-            delete param;
-        }
+        if (param) { delete param; }
     }
     closure_parameters.clear();
     if (return_type) {
@@ -106,9 +94,7 @@ FunctionStatement::~FunctionStatement() {
         body = nullptr;
     }
     for (auto gen : generic) {
-        if (gen) {
-            delete gen;
-        }
+        if (gen) { delete gen; }
     }
     generic.clear();
 }
@@ -119,15 +105,11 @@ CallExpression::~CallExpression() {
         name = nullptr;
     }
     for (auto arg : arguments) {
-        if (arg) {
-            delete arg;
-        }
+        if (arg) { delete arg; }
     }
     arguments.clear();
     for (auto gen : generics) {
-        if (gen) {
-            delete gen;
-        }
+        if (gen) { delete gen; }
     }
     generics.clear();
 }
@@ -307,24 +289,18 @@ StructStatement::~StructStatement() {
         name = nullptr;
     }
     for (auto stmt : fields) {
-        if (stmt) {
-            delete stmt;
-        }
+        if (stmt) { delete stmt; }
     }
     fields.clear();
     for (auto gen : generics) {
-        if (gen) {
-            delete gen;
-        }
+        if (gen) { delete gen; }
     }
     generics.clear();
 }
 
 ArrayLiteral::~ArrayLiteral() {
     for (auto elem : elements) {
-        if (elem) {
-            delete elem;
-        }
+        if (elem) { delete elem; }
     }
     elements.clear();
 }
@@ -399,9 +375,7 @@ std::string Type::toStr() {
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
-    for (auto& gen : generics) {
-        out << YAML::Load(gen->toStr());
-    }
+    for (auto& gen : generics) { out << YAML::Load(gen->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -413,9 +387,7 @@ std::string GenericType::toStr() {
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "generic_union" << YAML::Value << YAML::BeginSeq;
-    for (auto& gen : generic_union) {
-        out << YAML::Load(gen->toStr());
-    }
+    for (auto& gen : generic_union) { out << YAML::Load(gen->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -426,9 +398,7 @@ std::string Program::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "statements" << YAML::Value << YAML::BeginSeq;
-    for (auto& stmt : statements) {
-        out << YAML::Load(stmt->toStr());
-    }
+    for (auto& stmt : statements) { out << YAML::Load(stmt->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -453,9 +423,7 @@ std::string BlockStatement::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "statements" << YAML::Value << YAML::BeginSeq;
-    for (auto& stmt : statements) {
-        out << YAML::Load(stmt->toStr());
-    }
+    for (auto& stmt : statements) { out << YAML::Load(stmt->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -495,9 +463,7 @@ std::string FunctionStatement::toStr() {
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "parameters" << YAML::Value << YAML::BeginSeq;
-    for (auto& param : parameters) {
-        out << YAML::Load(param->toStr());
-    }
+    for (auto& param : parameters) { out << YAML::Load(param->toStr()); }
     out << YAML::EndSeq;
     out << YAML::Key << "return_type";
     if (return_type) {
@@ -512,9 +478,7 @@ std::string FunctionStatement::toStr() {
         out << YAML::Value << "null";
     }
     out << YAML::Key << "generic" << YAML::Value << YAML::BeginSeq;
-    for (auto& gen : generic) {
-        out << YAML::Load(gen->toStr());
-    }
+    for (auto& gen : generic) { out << YAML::Load(gen->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -537,9 +501,7 @@ std::string CallExpression::toStr() {
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "arguments" << YAML::Value << YAML::BeginSeq;
-    for (auto& arg : arguments) {
-        out << YAML::Load(arg->toStr());
-    }
+    for (auto& arg : arguments) { out << YAML::Load(arg->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -826,14 +788,10 @@ std::string StructStatement::toStr() {
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "fields" << YAML::Value << YAML::BeginSeq;
-    for (auto& field : fields) {
-        out << YAML::Load(field->toStr());
-    }
+    for (auto& field : fields) { out << YAML::Load(field->toStr()); }
     out << YAML::EndSeq;
     out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
-    for (auto& gen : generics) {
-        out << YAML::Load(gen->toStr());
-    }
+    for (auto& gen : generics) { out << YAML::Load(gen->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -844,9 +802,7 @@ std::string ArrayLiteral::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "elements" << YAML::Value << YAML::BeginSeq;
-    for (auto& element : elements) {
-        out << YAML::Load(element->toStr());
-    }
+    for (auto& element : elements) { out << YAML::Load(element->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());

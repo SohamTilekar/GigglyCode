@@ -10,10 +10,8 @@
 
 using namespace parser;
 #ifdef LOG
-#define LOG_MSG(msg) \
-    Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, msg);
-#define LOG_TOK() \
-    Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, this->current_token.toString(false));
+#define LOG_MSG(msg) Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, msg);
+#define LOG_TOK() Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, this->current_token.toString(false));
 #else
 #define LOG_MSG(msg)
 #define LOG_TOK()
@@ -106,7 +104,7 @@ AST::Statement* Parser::_parseStatement() {
         case TokenType::Switch:
             return this->_parseSwitchCaseStatement(); // [switchFT] -> [;]
         case TokenType::Volatile:
-            this->_nextToken();                                            // [volatileFT] -> [Identifier!]
+            this->_nextToken(); // [volatileFT] -> [Identifier!]
             LOG_TOK()
             return this->_parseVariableDeclaration(nullptr, -1, -1, true); // [Identifier!FT] -> [;]
         default:
@@ -435,7 +433,7 @@ AST::BreakStatement* Parser::_parseBreakStatement() {
     int loopNum = 0;
     if (this->_currentTokenIs(TokenType::Integer)) {
         loopNum = std::stoi(current_token.literal); // [IntegerFT] -> [Next Token]
-        this->_nextToken();                          // [Next Token] remains unchanged
+        this->_nextToken();                         // [Next Token] remains unchanged
         LOG_TOK()
     }
     int end_line_no = current_token.line_no;
@@ -453,7 +451,7 @@ AST::ContinueStatement* Parser::_parseContinueStatement() {
     int loopNum = 0;
     if (this->_currentTokenIs(TokenType::Integer)) {
         loopNum = std::stoi(current_token.literal); // [IntegerFT] -> [Next Token]
-        this->_nextToken();                          // [Next Token] remains unchanged
+        this->_nextToken();                         // [Next Token] remains unchanged
         LOG_TOK()
     }
     int end_line_no = current_token.line_no;
@@ -545,10 +543,11 @@ AST::ReturnStatement* Parser::_parseReturnStatement() {
 AST::RaiseStatement* Parser::_parseRaiseStatement() {
     int st_line_no = current_token.line_no;
     int st_col_no = current_token.col_no;
-    this->_nextToken();                                                   // [raiseFT] -> [Expression]
+    this->_nextToken(); // [raiseFT] -> [Expression]
     LOG_TOK()
-    auto expr = this->_parseExpression(PrecedenceType::LOWEST);           // [Expression] remains unchanged
-    if (this->_peekTokenIs(TokenType::Semicolon)) { this->_nextToken();
+    auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Expression] remains unchanged
+    if (this->_peekTokenIs(TokenType::Semicolon)) {
+        this->_nextToken();
         LOG_TOK()
     } // [Expression] -> [;]
     int end_line_no = current_token.line_no;
@@ -604,7 +603,7 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
     this->_expectPeek(TokenType::Colon); // [Identifier] -> [:]
     this->_nextToken();                  // [:] -> [Type]
     LOG_TOK()
-    auto type = this->_parseType();      // [Type] remains unchanged
+    auto type = this->_parseType(); // [Type] remains unchanged
     if (this->_peekTokenIs(TokenType::Semicolon)) {
         this->_nextToken(); // [Type] -> [;]
         LOG_TOK()
@@ -617,7 +616,7 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         variableDeclarationStatement->meta_data.more_data["name_end_col_no"] = current_token.end_col_no;
         return variableDeclarationStatement;
     } else if (this->_expectPeek({TokenType::Equals, TokenType::Semicolon})) {
-        this->_nextToken();                                         // [Type] -> [=] or [Type] -> [;]
+        this->_nextToken(); // [Type] -> [=] or [Type] -> [;]
         LOG_TOK()
         auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Expression] remains unchanged
         this->_nextToken();                                         // [Expression] -> [;]
@@ -635,22 +634,22 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
 }
 
 AST::TryCatchStatement* Parser::_parseTryCatchStatement() {
-    this->_nextToken();                       // [tryFT] -> [Statement]
+    this->_nextToken(); // [tryFT] -> [Statement]
     LOG_TOK()
     auto try_block = this->_parseStatement(); // [Statement] -> [Next Token]
     std::vector<std::tuple<AST::Type*, AST::IdentifierLiteral*, AST::Statement*>> catch_blocks;
 
     while (this->_peekTokenIs(TokenType::Catch)) {
-        this->_nextToken();                       // [try] -> [catch]
+        this->_nextToken(); // [try] -> [catch]
         LOG_TOK()
-        this->_expectPeek(TokenType::LeftParen);  // [catch] -> [(]
-        this->_nextToken();                       // [(] -> [Exception Type]
+        this->_expectPeek(TokenType::LeftParen); // [catch] -> [(]
+        this->_nextToken();                      // [(] -> [Exception Type]
         LOG_TOK()
         auto exception_type = this->_parseType(); // [Exception Type] remains unchanged
         this->_expectPeek(TokenType::Identifier); // [Exception Type] -> [Identifier]
         auto exception_var = new AST::IdentifierLiteral(this->current_token);
-        this->_expectPeek(TokenType::RightParen);   // [Identifier] -> [)]
-        this->_nextToken();                         // [)] -> [Catch Block Statement]
+        this->_expectPeek(TokenType::RightParen); // [Identifier] -> [)]
+        this->_nextToken();                       // [)] -> [Catch Block Statement]
         LOG_TOK()
         auto catch_block = this->_parseStatement(); // [Statement] -> [Next Token]
         catch_blocks.push_back({exception_type, exception_var, catch_block});
@@ -670,19 +669,19 @@ AST::SwitchCaseStatement* Parser::_parseSwitchCaseStatement() {
     this->_nextToken(); // [(] -> [ExpresionFT]
     LOG_TOK()
     auto condition = this->_parseExpression(PrecedenceType::LOWEST); // [ExpresisonFT] -> [ExpresisonLT]
-    this->_nextToken(); // [ExpresisonLT] -> [)]
-    this->_expectPeek(TokenType::LeftBrace); // [)] -> [{]
+    this->_nextToken();                                              // [ExpresisonLT] -> [)]
+    this->_expectPeek(TokenType::LeftBrace);                         // [)] -> [{]
     std::vector<std::tuple<AST::Expression*, AST::Statement*>> case_blocks;
 
     while (this->_peekTokenIs(TokenType::Case)) {
-        this->_nextToken();                       // [try] -> [catch]
+        this->_nextToken(); // [try] -> [catch]
         LOG_TOK()
-        this->_expectPeek(TokenType::LeftParen);  // [catch] -> [(]
-        this->_nextToken();                       // [(] -> [Exception Type]
+        this->_expectPeek(TokenType::LeftParen); // [catch] -> [(]
+        this->_nextToken();                      // [(] -> [Exception Type]
         LOG_TOK()
         auto _case = this->_parseExpression(PrecedenceType::LOWEST); // [Exception Type] remains unchanged
-        this->_expectPeek(TokenType::RightParen);   // [Identifier] -> [)]
-        this->_nextToken();                         // [)] -> [Catch Block Statement]
+        this->_expectPeek(TokenType::RightParen);                    // [Identifier] -> [)]
+        this->_nextToken();                                          // [)] -> [Catch Block Statement]
         LOG_TOK()
         auto catch_block = this->_parseStatement(); // [Statement] -> [Next Token]
         case_blocks.push_back({_case, catch_block});
@@ -708,9 +707,9 @@ AST::Expression* Parser::_parseInfixIdenifier() {
     }
     if (!this->_peekTokenIs(TokenType::Dot)) { return new AST::IdentifierLiteral(this->current_token); }
     auto li = new AST::IdentifierLiteral(this->current_token);
-    this->_nextToken();                                                                              // [Identifier] -> [.]
+    this->_nextToken(); // [Identifier] -> [.]
     LOG_TOK()
-    this->_nextToken();                                                                              // [.] -> [Next Identifier]
+    this->_nextToken(); // [.] -> [Next Identifier]
     LOG_TOK()
     return new AST::InfixExpression(li, TokenType::Dot, ".", this->_parseInfixIdenifier()); // [Next Identifier] remains unchanged
 }
@@ -732,7 +731,8 @@ AST::Type* Parser::_parseType() {
             generics.push_back(generic);
             this->_nextToken(); // [Generic Type] -> [,] or []]
             LOG_TOK()
-            if (this->current_token.type == TokenType::Comma) { this->_nextToken();
+            if (this->current_token.type == TokenType::Comma) {
+                this->_nextToken();
                 LOG_TOK()
             }
         }
@@ -755,8 +755,8 @@ AST::Statement* Parser::_parseVariableAssignment(AST::Expression* identifier, in
         st_col_no = current_token.col_no;
         identifier = new AST::IdentifierLiteral(this->current_token);
     }
-    this->_expectPeek(TokenType::Equals);                       // [Identifier] -> [=]
-    this->_nextToken();                                         // [=] -> [Expression]
+    this->_expectPeek(TokenType::Equals); // [Identifier] -> [=]
+    this->_nextToken();                   // [=] -> [Expression]
     LOG_TOK()
     auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Expression] remains unchanged
     this->_nextToken();                                         // [Expression] -> [;]
@@ -797,7 +797,8 @@ AST::StructStatement* Parser::_parseStructStatement() {
         this->_nextToken(); // [StatementLT] -> [Next Statement or }]
         LOG_TOK()
     }
-    if (this->peek_token.type == TokenType::Semicolon) { this->_nextToken();
+    if (this->peek_token.type == TokenType::Semicolon) {
+        this->_nextToken();
         LOG_TOK()
     } // [}] -> [;]
     int end_line_no = current_token.line_no;
@@ -841,15 +842,15 @@ AST::Statement* Parser::_parseIfElseStatement() {
     this->_nextToken();                      // [(] -> [Condition]
     LOG_TOK()
     auto condition = this->_parseExpression(PrecedenceType::LOWEST);
-    this->_expectPeek(TokenType::RightParen);   // [Condition] -> [)]
-    this->_nextToken();                         // [)] -> [Consequence]
+    this->_expectPeek(TokenType::RightParen); // [Condition] -> [)]
+    this->_nextToken();                       // [)] -> [Consequence]
     LOG_TOK()
     auto consequence = this->_parseStatement(); // [Consequence] -> [Next Token]
     AST::Statement* alternative = nullptr;
     if (this->_peekTokenIs(TokenType::Else)) {
-        this->_nextToken();                    // [Consequence] -> [else]
+        this->_nextToken(); // [Consequence] -> [else]
         LOG_TOK()
-        this->_nextToken();                    // [else] -> [Alternative]
+        this->_nextToken(); // [else] -> [Alternative]
         LOG_TOK()
         alternative = this->_parseStatement(); // [Alternative] -> [Next Token]
     }
@@ -868,7 +869,7 @@ AST::Expression* Parser::_parseInfixExpression(AST::Expression* leftNode) {
     infix_expr->meta_data.more_data["operator_st_col_no"] = this->current_token.col_no;
     infix_expr->meta_data.more_data["operator_end_col_no"] = this->current_token.end_col_no;
     auto precedence = this->_currentPrecedence();
-    this->_nextToken();                                     // [Operator] -> [Next Expression]
+    this->_nextToken(); // [Operator] -> [Next Expression]
     LOG_TOK()
     infix_expr->right = this->_parseExpression(precedence); // [Next Expression] remains unchanged
     int end_line_no = infix_expr->right->meta_data.end_line_no;
@@ -884,7 +885,7 @@ AST::Expression* Parser::_parseIndexExpression(AST::Expression* leftNode) {
     index_expr->meta_data.more_data["index_line_no"] = this->current_token.line_no;
     index_expr->meta_data.more_data["index_st_col_no"] = this->current_token.col_no;
     index_expr->meta_data.more_data["index_end_col_no"] = this->current_token.end_col_no;
-    this->_nextToken();                                                // [LeftBracket] -> [Index Expression]
+    this->_nextToken(); // [LeftBracket] -> [Index Expression]
     LOG_TOK()
     index_expr->index = this->_parseExpression(PrecedenceType::INDEX); // [Index Expression] remains unchanged
     int end_line_no = index_expr->index->meta_data.end_line_no;
@@ -997,8 +998,8 @@ AST::Expression* Parser::_parseArrayLiteral() {
     auto elements = std::vector<AST::Expression*>();
     for (_nextToken(); !_currentTokenIs(TokenType::RightBracket); _nextToken()) { // [LeftBracket] -> [Element]
         LOG_TOK()
-        if (_currentTokenIs(TokenType::Comma)) { continue; }                      // Skip commas
-        auto expr = _parseExpression(PrecedenceType::LOWEST);                     // [Element] remains unchanged
+        if (_currentTokenIs(TokenType::Comma)) { continue; }  // Skip commas
+        auto expr = _parseExpression(PrecedenceType::LOWEST); // [Element] remains unchanged
         if (expr) { elements.push_back(expr); }
     }
     auto array = new AST::ArrayLiteral(elements, is_new_arr);

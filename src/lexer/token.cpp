@@ -1,8 +1,6 @@
 #include "./token.hpp"
 
-#include <cstdint>
 #include <iostream>
-#include <string>
 #include <unordered_map>
 
 std::string token::Token::toString(bool color) {

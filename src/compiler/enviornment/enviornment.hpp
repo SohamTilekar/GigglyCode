@@ -10,18 +10,7 @@
  * modules, and their respective environments during the compilation process.
  */
 
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Value.h>
-
-#include <memory>
-#include <string>
-#include <tuple>
-#include <unordered_map>
-#include <vector>
 
 #include "../../parser/AST/ast.hpp"
 
@@ -336,9 +325,7 @@ class RecordGenericFunction : public Record {
     }
 
     ~RecordGenericFunction() {
-        if (this->func) {
-            delete func;
-        }
+        if (this->func) { delete func; }
     }
 };
 
@@ -382,9 +369,7 @@ class RecordGenericStructType : public Record {
         return this;
     }
     ~RecordGenericStructType() {
-        if (structAST) {
-            delete structAST;
-        }
+        if (structAST) { delete structAST; }
     }
 };
 

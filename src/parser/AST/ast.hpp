@@ -1,15 +1,10 @@
 #ifndef AST_HPP
 #define AST_HPP
 #include <any>
-#include <llvm/ADT/STLExtras.h>
-#include <memory>
-#include <string>
-#include <tuple>
 #include <unordered_map>
 #include <variant>
 #include <vector>
 
-#include "../../include/json.hpp"
 #include "../../lexer/token.hpp"
 
 namespace AST {
@@ -45,9 +40,6 @@ class VariableAssignmentStatement;
 class TryCatchStatement;
 class StructStatement;
 class SwitchCaseStatement;
-
-using Json = nlohmann::json;
-using std::make_shared;
 
 enum class NodeType {
     Program,
@@ -373,8 +365,7 @@ class VariableDeclarationStatement : public Statement {
     Type* value_type;
     Expression* value;
     bool is_volatile = false;
-    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = true)
-        : name(name), value_type(type), value(value), is_volatile(is_volatile) {}
+    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = true) : name(name), value_type(type), value(value), is_volatile(is_volatile) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
     std::string toStr() override;
 
@@ -398,8 +389,7 @@ class TryCatchStatement : public Statement {
   public:
     Statement* try_block;
     std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks;
-    inline TryCatchStatement(Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks)
-        : try_block(try_block), catch_blocks(catch_blocks) {}
+    inline TryCatchStatement(Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks) : try_block(try_block), catch_blocks(catch_blocks) {}
     inline NodeType type() override { return NodeType::TryCatchStatement; };
     std::string toStr() override;
 
@@ -412,8 +402,7 @@ class SwitchCaseStatement : public Statement {
     Expression* condition;
     std::vector<std::tuple<Expression*, Statement*>> cases;
     Statement* other;
-    inline SwitchCaseStatement(Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr)
-        : condition(condition), cases(cases), other(other) {};
+    inline SwitchCaseStatement(Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr) : condition(condition), cases(cases), other(other) {};
     inline NodeType type() override { return NodeType::SwitchCaseStatement; };
     std::string toStr() override;
 

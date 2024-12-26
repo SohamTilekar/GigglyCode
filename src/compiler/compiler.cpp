@@ -1,43 +1,14 @@
 // TODO: Add Meta Data to all of the Record.
 #include "compiler.hpp"
-#include <algorithm>
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <llvm/ADT/APInt.h>
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/DataLayout.h>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/InstrTypes.h>
-#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Value.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Linker/Linker.h>
-#include <llvm/Support/Alignment.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/raw_ostream.h>
-#include <memory>
-#include <regex.h>
-#include <string>
-#include <tuple>
-#include <unordered_map>
-#include <vector>
 
+#include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
 #include "enviornment/enviornment.hpp"
-#include "../errors/errors.hpp"
 
 using namespace compiler;
 using llConstInt = llvm::ConstantInt;
-using Json = AST::Json;
 
 Compiler::Compiler(const Str& source, const std::filesystem::path& file_path, const std::filesystem::path& ir_gc_map, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
     : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), ir_gc_map(std::move(ir_gc_map)), buildDir(std::move(buildDir)),
@@ -96,9 +67,7 @@ void Compiler::_initializeIRGCMap() {
     this->ir_gc_map_json = Json{{"functions", Json::object()}, {"structs", Json::object()}, {"GSinstance", Json::array()}, {"GFinstance", Json::array()}};
 }
 
-void Compiler::_initializeArrayType() {
-
-}
+void Compiler::_initializeArrayType() {}
 
 void Compiler::addBuiltinType(const Str& name, llvm::Type* type) {
     auto record = std::make_shared<RecordStructType>(name, type);
@@ -223,12 +192,7 @@ void Compiler::compile(AST::Node* node) {
             this->_visitImportStatement(node->castToImportStatement());
             break;
         default:
-            errors::CompletionError("Unknown node type",
-                                    this->source,
-                                    node->meta_data.st_line_no,
-                                    node->meta_data.end_line_no,
-                                    "Unknown node type: " + AST::nodeTypeToString(node->type()))
-                .raise();
+            errors::CompletionError("Unknown node type", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no, "Unknown node type: " + AST::nodeTypeToString(node->type())).raise();
     }
 }
 
@@ -294,8 +258,8 @@ void Compiler::_checkAndConvertCallType(FunctionPtr func_record, AST::CallExpres
     if (!mismatches.empty()) { errors::NoOverload(this->source, {mismatches}, func_call, "Cannot call the function with wrong type").raise(); }
 }
 
-Compiler::ResolvedValue Compiler::_CallGfunc(
-    const vector<GenericFunctionPtr>& gfuncs, AST::CallExpression* func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
+Compiler::ResolvedValue
+Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpression* func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
     // Attempt to find and call a matching function overload
     for (const auto& gfunc : gfuncs) {
         if (gfunc->env->isFunction(name, params_types, false, true)) {
@@ -680,8 +644,8 @@ Compiler::ResolvedValue Compiler::_callStruct(StructTypePtr struct_record, AST::
     return {alloca, alloca, struct_record, resolveType::StructInst};
 }
 
-Compiler::ResolvedValue Compiler::_CallGstruct(
-    const vector<GenericStructTypePtr>& gstructs, AST::CallExpression* func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
+Compiler::ResolvedValue
+Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallExpression* func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
     auto prev_env = this->env; // Save the current environment
 
     for (const auto& gstruct : gstructs) {
@@ -1021,13 +985,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                     idx++;
                 }
                 auto type = left_type->sub_types[right->castToIdentifierLiteral()->value];
-                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type,
-                                                                         left_alloca,
-                                                                         idx,
-                                                                         "accesed" + right->castToIdentifierLiteral()->value + "_from_" + left_type->name);
-                if (type->struct_type || type->name == "array") {
-                    return {gep, gep, type, resolveType::StructInst};
-                }
+                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx, "accesed" + right->castToIdentifierLiteral()->value + "_from_" + left_type->name);
+                if (type->struct_type || type->name == "array") { return {gep, gep, type, resolveType::StructInst}; }
                 llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->stand_alone_type, gep, "loded" + right->castToIdentifierLiteral()->value);
                 return {loaded, gep, type, resolveType::StructInst};
             } else {
@@ -1119,14 +1078,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
     exit(1);
 };
 
-Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
-                                                   const Str& op,
-                                                   StructTypePtr left_type,
-                                                   StructTypePtr right_type,
-                                                   AST::Expression* left,
-                                                   AST::Expression* right,
-                                                   llvm::Value* left_value,
-                                                   llvm::Value* right_value) {
+Compiler::ResolvedValue Compiler::_StructInfixCall(
+    const Str& op_method, const Str& op, StructTypePtr left_type, StructTypePtr right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* right_value) {
     vector<StructTypePtr> params_type1{left_type, right_type};
     vector<StructTypePtr> params_type2{right_type, left_type};
     if (left_type->is_method(op_method, params_type1)) {
@@ -1385,8 +1338,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(AST::IndexExpr
     return {index, __, index_generic, itt};
 }
 
-Compiler::ResolvedValue
-Compiler::_handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, llvm::Value* index, StructTypePtr index_generic, AST::IndexExpression* index_expression) {
+Compiler::ResolvedValue Compiler::_handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, llvm::Value* index, StructTypePtr index_generic, AST::IndexExpression* index_expression) {
     // Validate that the index is of type 'int'
     if (!_checkType(index_generic, this->env->getStruct("int"))) {
         errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
@@ -1400,14 +1352,12 @@ Compiler::_handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, ll
     // Calculate the element pointer
     auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left, index, "element");
     // Load the element value
-    llvm::Value* load = (element_type->struct_type || element_type->name == "array") ? element
-                                                                                     : this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
+    llvm::Value* load = (element_type->struct_type || element_type->name == "array") ? element : this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
 
     return {load, element, element_type, resolveType::StructInst};
 }
 
-Compiler::ResolvedValue
-Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, AST::IndexExpression* index_expression) {
+Compiler::ResolvedValue Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, AST::IndexExpression* index_expression) {
     if (left_generic->is_method("__index__", {left_generic, index_generic})) {
         auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
         auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
@@ -1551,19 +1501,13 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
         llvm_ir_builder.SetInsertPoint(case_blocks[i]);
         auto [case_expr, case_stmt] = switch_statement->cases[i];
         _visitBlockStatement(case_stmt->castToBlockStatement());
-        if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) {
-            llvm_ir_builder.CreateBr(end_block);
-        }
+        if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) { llvm_ir_builder.CreateBr(end_block); }
     }
 
     // Visit the default block
     llvm_ir_builder.SetInsertPoint(default_block);
-    if (switch_statement->other) {
-        _visitBlockStatement(switch_statement->other->castToBlockStatement());
-    }
-    if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) {
-        llvm_ir_builder.CreateBr(end_block);
-    }
+    if (switch_statement->other) { _visitBlockStatement(switch_statement->other->castToBlockStatement()); }
+    if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) { llvm_ir_builder.CreateBr(end_block); }
 
     // Set the insert point to the end block
     llvm_ir_builder.SetInsertPoint(end_block);
@@ -1654,7 +1598,13 @@ Compiler::ResolvedValue Compiler::_resolveValue(AST::Node* node) {
         case AST::NodeType::ArrayLiteral:
             return this->_resolveArrayLiteral(node->castToArrayLiteral());
         default:
-            errors::UnknownNodeTypeError("Unknown node type", this->source, node->meta_data.st_line_no, node->meta_data.st_col_no, node->meta_data.end_line_no, node->meta_data.end_col_no, "Unknown node type: " + AST::nodeTypeToString(node->type()))
+            errors::UnknownNodeTypeError("Unknown node type",
+                                         this->source,
+                                         node->meta_data.st_line_no,
+                                         node->meta_data.st_col_no,
+                                         node->meta_data.end_line_no,
+                                         node->meta_data.end_col_no,
+                                         "Unknown node type: " + AST::nodeTypeToString(node->type()))
                 .raise();
             std::exit(1);
     }
@@ -1934,7 +1884,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
     }
 
     if (this->env->isGenericFunc(name) ? this->env->isFunction(name, params_types, false, true) : this->env->isFunction(name, params_types)) {
-        auto func = this->env->isGenericFunc(name) ?  this->env->getFunction(name, params_types, false, true) : this->env->getFunction(name, params_types);
+        auto func = this->env->isGenericFunc(name) ? this->env->getFunction(name, params_types, false, true) : this->env->getFunction(name, params_types);
         unsigned short idx = 0;
         for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
             if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
@@ -1997,8 +1947,7 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
         this->compile(if_statement->consequence);
         this->llvm_ir_builder.CreateBr(continue_block);
     } catch (DoneRet) {
-    } catch (DoneBr) {
-    }
+    } catch (DoneBr) {}
 
     // If there is an else block, set insertion point to else block and compile the alternative
     if (else_block) {
@@ -2008,8 +1957,7 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
             this->compile(if_statement->alternative);
             this->llvm_ir_builder.CreateBr(continue_block);
         } catch (DoneRet) {
-        } catch (DoneBr) {
-        }
+        } catch (DoneBr) {}
     }
 
     // Restore the previous environment and set insertion point to continue block
@@ -2101,7 +2049,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
         try {
             // Compile the ifbreak statement
             this->compile(while_statement->ifbreak);
-                // After ifbreak, branch to the continuation block
+            // After ifbreak, branch to the continuation block
             this->llvm_ir_builder.CreateBr(continueBlock);
         } catch (DoneRet) {
             // Handle return statements within the ifbreak block
@@ -2119,7 +2067,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
         try {
             // Compile the notbreak statement
             this->compile(while_statement->notbreak);
-                // After notbreak, branch to the continuation block
+            // After notbreak, branch to the continuation block
             this->llvm_ir_builder.CreateBr(continueBlock);
         } catch (DoneRet) {
             // Handle return statements within the notbreak block
@@ -2249,7 +2197,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
         // Compile the body of the loop
         try {
             this->compile(for_statement->body);
-                // After body execution, branch back to the condition block
+            // After body execution, branch back to the condition block
             this->llvm_ir_builder.CreateBr(condition_block);
         } catch (DoneRet) {
             // Handle return statements within the loop body
@@ -2265,7 +2213,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
             try {
                 // Compile the ifbreak statement
                 this->compile(for_statement->ifbreak);
-                        // After ifbreak, branch to the continuation block
+                // After ifbreak, branch to the continuation block
                 this->llvm_ir_builder.CreateBr(continue_block);
             } catch (DoneRet) {
                 // Handle return statements within the ifbreak block
@@ -2282,7 +2230,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
             try {
                 // Compile the notbreak statement
                 this->compile(for_statement->notbreak);
-                        // After notbreak, branch to the continuation block
+                // After notbreak, branch to the continuation block
                 this->llvm_ir_builder.CreateBr(continue_block);
             } catch (DoneRet) {
                 // Handle return statements within the notbreak block

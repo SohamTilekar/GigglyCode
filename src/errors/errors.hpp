@@ -60,11 +60,7 @@ class NoOverload : public Error {
   public:
     std::vector<std::vector<unsigned short>> missmatches;
     AST::Expression* func_call;
-    NoOverload(const std::string& source,
-               std::vector<std::vector<unsigned short>> missmatches,
-               AST::Expression* func_call,
-               const std::string& message = "",
-               const std::string& suggestedFix = "")
+    NoOverload(const std::string& source, std::vector<std::vector<unsigned short>> missmatches, AST::Expression* func_call, const std::string& message = "", const std::string& suggestedFix = "")
         : Error("No Fucntion Overload", source, -1, -1, message, suggestedFix), missmatches(missmatches), func_call(func_call) {};
     [[noreturn]] void raise() override;
 };
@@ -73,8 +69,7 @@ class DosentContain : public Error {
   public:
     AST::IdentifierLiteral* member;
     AST::Expression* from;
-    DosentContain(
-        const std::string& source, AST::IdentifierLiteral* member, AST::Expression* from, const std::string& message = "", const std::string& suggestedFix = "")
+    DosentContain(const std::string& source, AST::IdentifierLiteral* member, AST::Expression* from, const std::string& message = "", const std::string& suggestedFix = "")
         : Error("Dosent Contain", source, -1, -1, message, suggestedFix), member(member), from(from) {};
     [[noreturn]] void raise() override;
 };
@@ -84,12 +79,7 @@ class WrongInfix : public Error {
     AST::Expression* left;
     AST::Expression* right;
     std::string op;
-    WrongInfix(const std::string& source,
-               AST::Expression* left,
-               AST::Expression* right,
-               const std::string& op,
-               const std::string& message = "",
-               const std::string& suggestedFix = "")
+    WrongInfix(const std::string& source, AST::Expression* left, AST::Expression* right, const std::string& op, const std::string& message = "", const std::string& suggestedFix = "")
         : Error("Wrong infix", source, left->meta_data.st_line_no, right->meta_data.end_line_no, message, suggestedFix), left(left), right(right), op(op) {};
     [[noreturn]] void raise() override;
 };
@@ -172,7 +162,7 @@ class ArrayTypeError : public Error {
 
     // Additional members if needed
   private:
-    AST::Node* element;       ///< The AST node that caused the error
+    AST::Node* element;                       ///< The AST node that caused the error
     enviornment::StructTypePtr expected_type; ///< The expected type for the array elements
 };
 
