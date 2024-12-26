@@ -46,12 +46,7 @@ class TryCatchStatement;
 class StructStatement;
 class SwitchCaseStatement;
 
-using std::shared_ptr;
-using NodePtr = shared_ptr<Node>;
-using ExpressionPtr = shared_ptr<Expression>;
-using StatementPtr = shared_ptr<Statement>;
 using Json = nlohmann::json;
-using JsonPtr = shared_ptr<Json>;
 using std::make_shared;
 
 enum class NodeType {
@@ -103,17 +98,9 @@ struct MetaData {
     int end_line_no = -1;
     int end_col_no = -1;
     std::unordered_map<std::string, std::variant<int, std::string, std::tuple<int, int>>> more_data = {};
-    virtual inline bool operator==(MetaData other) {
-        return (
-            this->st_col_no == other.st_col_no
-            && this->st_line_no == other.st_line_no
-            && this->end_col_no == other.end_col_no
-            && this->end_line_no == other.end_col_no
-        );
-    };
 };
 
-class Node : public std::enable_shared_from_this<Node> {
+class Node {
   public:
     MetaData meta_data;
     std::unordered_map<std::string, std::any> extra_info;
@@ -128,206 +115,232 @@ class Node : public std::enable_shared_from_this<Node> {
 
     virtual inline NodeType type() { return NodeType::Unknown; }
 
-    virtual inline JsonPtr toJSON() {
-        auto json = Json();
-        json["type"] = nodeTypeToString(this->type());
-        return make_shared<Json>(json);
+    virtual inline std::string toStr() {
+        std::string yaml = "type: " + nodeTypeToString(this->type()) + "\n";
+        return yaml;
     }
-    inline bool operator==(Node other) {
-        return (
-            this->meta_data == other.meta_data
-            && this->type() == other.type()
-        );
-    };
 
-    std::shared_ptr<Expression> castToExpression() { return std::static_pointer_cast<Expression>(shared_from_this()); }
-    std::shared_ptr<Statement> castToStatement() { return std::static_pointer_cast<Statement>(shared_from_this()); }
-    std::shared_ptr<Type> castToType() { return std::static_pointer_cast<Type>(shared_from_this()); }
-    std::shared_ptr<GenericType> castToGenericType() { return std::static_pointer_cast<GenericType>(shared_from_this()); }
-    std::shared_ptr<Program> castToProgram() { return std::static_pointer_cast<Program>(shared_from_this()); }
-    std::shared_ptr<FunctionParameter> castToFunctionParameter() { return std::static_pointer_cast<FunctionParameter>(shared_from_this()); }
-    // Statemnt Casts
-    std::shared_ptr<ExpressionStatement> castToExpressionStatement() { return std::static_pointer_cast<ExpressionStatement>(shared_from_this()); }
-    std::shared_ptr<BlockStatement> castToBlockStatement() { return std::static_pointer_cast<BlockStatement>(shared_from_this()); }
-    std::shared_ptr<ReturnStatement> castToReturnStatement() { return std::static_pointer_cast<ReturnStatement>(shared_from_this()); }
-    std::shared_ptr<RaiseStatement> castToRaiseStatement() { return std::static_pointer_cast<RaiseStatement>(shared_from_this()); }
-    std::shared_ptr<FunctionStatement> castToFunctionStatement() { return std::static_pointer_cast<FunctionStatement>(shared_from_this()); }
-    std::shared_ptr<IfElseStatement> castToIfElseStatement() { return std::static_pointer_cast<IfElseStatement>(shared_from_this()); }
-    std::shared_ptr<WhileStatement> castToWhileStatement() { return std::static_pointer_cast<WhileStatement>(shared_from_this()); }
-    std::shared_ptr<ForStatement> castToForStatement() { return std::static_pointer_cast<ForStatement>(shared_from_this()); }
-    std::shared_ptr<BreakStatement> castToBreakStatement() { return std::static_pointer_cast<BreakStatement>(shared_from_this()); }
-    std::shared_ptr<ContinueStatement> castToContinueStatement() { return std::static_pointer_cast<ContinueStatement>(shared_from_this()); }
-    std::shared_ptr<ImportStatement> castToImportStatement() { return std::static_pointer_cast<ImportStatement>(shared_from_this()); }
-    std::shared_ptr<VariableDeclarationStatement> castToVariableDeclarationStatement() { return std::static_pointer_cast<VariableDeclarationStatement>(shared_from_this()); }
-    std::shared_ptr<VariableAssignmentStatement> castToVariableAssignmentStatement() { return std::static_pointer_cast<VariableAssignmentStatement>(shared_from_this()); }
-    std::shared_ptr<TryCatchStatement> castToTryCatchStatement() { return std::static_pointer_cast<TryCatchStatement>(shared_from_this()); }
-    std::shared_ptr<StructStatement> castToStructStatement() { return std::static_pointer_cast<StructStatement>(shared_from_this()); }
-    std::shared_ptr<SwitchCaseStatement> castToSwitchCaseStatement() { return std::static_pointer_cast<SwitchCaseStatement>(shared_from_this()); }
+    Expression* castToExpression() { return (Expression*)(this); }
+    Statement* castToStatement() { return (Statement*)(this); }
+    Type* castToType() { return (Type*)(this); }
+    GenericType* castToGenericType() { return (GenericType*)(this); }
+    Program* castToProgram() { return (Program*)(this); }
+    FunctionParameter* castToFunctionParameter() { return (FunctionParameter*)(this); }
+    // Statement Casts
+    ExpressionStatement* castToExpressionStatement() { return (ExpressionStatement*)(this); }
+    BlockStatement* castToBlockStatement() { return (BlockStatement*)(this); }
+    ReturnStatement* castToReturnStatement() { return (ReturnStatement*)(this); }
+    RaiseStatement* castToRaiseStatement() { return (RaiseStatement*)(this); }
+    FunctionStatement* castToFunctionStatement() { return (FunctionStatement*)(this); }
+    IfElseStatement* castToIfElseStatement() { return (IfElseStatement*)(this); }
+    WhileStatement* castToWhileStatement() { return (WhileStatement*)(this); }
+    ForStatement* castToForStatement() { return (ForStatement*)(this); }
+    BreakStatement* castToBreakStatement() { return (BreakStatement*)(this); }
+    ContinueStatement* castToContinueStatement() { return (ContinueStatement*)(this); }
+    ImportStatement* castToImportStatement() { return (ImportStatement*)(this); }
+    VariableDeclarationStatement* castToVariableDeclarationStatement() { return (VariableDeclarationStatement*)(this); }
+    VariableAssignmentStatement* castToVariableAssignmentStatement() { return (VariableAssignmentStatement*)(this); }
+    TryCatchStatement* castToTryCatchStatement() { return (TryCatchStatement*)(this); }
+    StructStatement* castToStructStatement() { return (StructStatement*)(this); }
+    SwitchCaseStatement* castToSwitchCaseStatement() { return (SwitchCaseStatement*)(this); }
     // Expression Casts
-    std::shared_ptr<IdentifierLiteral> castToIdentifierLiteral() { return std::static_pointer_cast<IdentifierLiteral>(shared_from_this()); }
-    std::shared_ptr<IntegerLiteral> castToIntegerLiteral() { return std::static_pointer_cast<IntegerLiteral>(shared_from_this()); }
-    std::shared_ptr<FloatLiteral> castToFloatLiteral() { return std::static_pointer_cast<FloatLiteral>(shared_from_this()); }
-    std::shared_ptr<StringLiteral> castToStringLiteral() { return std::static_pointer_cast<StringLiteral>(shared_from_this()); }
-    std::shared_ptr<BooleanLiteral> castToBooleanLiteral() { return std::static_pointer_cast<BooleanLiteral>(shared_from_this()); }
-    std::shared_ptr<ArrayLiteral> castToArrayLiteral() { return std::static_pointer_cast<ArrayLiteral>(shared_from_this()); }
-    std::shared_ptr<InfixExpression> castToInfixExpression() { return std::static_pointer_cast<InfixExpression>(shared_from_this()); }
-    std::shared_ptr<IndexExpression> castToIndexExpression() { return std::static_pointer_cast<IndexExpression>(shared_from_this()); }
-    std::shared_ptr<CallExpression> castToCallExpression() { return std::static_pointer_cast<CallExpression>(shared_from_this()); }
+    IdentifierLiteral* castToIdentifierLiteral() { return (IdentifierLiteral*)(this); }
+    IntegerLiteral* castToIntegerLiteral() { return (IntegerLiteral*)(this); }
+    FloatLiteral* castToFloatLiteral() { return (FloatLiteral*)(this); }
+    StringLiteral* castToStringLiteral() { return (StringLiteral*)(this); }
+    BooleanLiteral* castToBooleanLiteral() { return (BooleanLiteral*)(this); }
+    ArrayLiteral* castToArrayLiteral() { return (ArrayLiteral*)(this); }
+    InfixExpression* castToInfixExpression() { return (InfixExpression*)(this); }
+    IndexExpression* castToIndexExpression() { return (IndexExpression*)(this); }
+    CallExpression* castToCallExpression() { return (CallExpression*)(this); }
+
+    // Destructor Declaration
+    virtual ~Node() = default;
 };
 
-class Statement : public Node {};
+class Statement : public Node {
+  public:
+    // Destructor Declaration
+    virtual ~Statement() = default;
+};
 
-class Expression : public Node {};
+class Expression : public Node {
+  public:
+    // Destructor Declaration
+    virtual ~Expression() = default;
+};
 
 class Type : public Node {
   public:
-    ExpressionPtr name;
-    std::vector<shared_ptr<Type>> generics;
+    Expression* name;
+    std::vector<Type*> generics;
     bool refrence;
-    inline Type(ExpressionPtr name, const std::vector<shared_ptr<Type>>& generics, bool refrence) : name(name), generics(generics), refrence(refrence) {}
+    inline Type(Expression* name, const std::vector<Type*>& generics, bool refrence) : name(name), generics(generics), refrence(refrence) {}
     NodeType type() override { return NodeType::Type; };
-    JsonPtr toJSON() override;
-    inline bool operator==(Type other) {
-        if (this->name != other.name) return false;
-        if (this->refrence != other.refrence) return false;
-        if(this->generics.size() != other.generics.size()) return false;
-        for (auto [sg, og] : llvm::zip(this->generics, other.generics)) {
-            if (sg != og) return false;
-        }
-        return true;
-    }
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~Type() override;
 };
 
 class GenericType : public Node {
   public:
-    ExpressionPtr name;
-    std::vector<shared_ptr<Type>> generic_union;
-    inline GenericType(ExpressionPtr name, const std::vector<shared_ptr<Type>>& generic_union) : name(name), generic_union(generic_union) {}
+    Expression* name;
+    std::vector<Type*> generic_union;
+    inline GenericType(Expression* name, const std::vector<Type*>& generic_union) : name(name), generic_union(generic_union) {}
     inline NodeType type() override { return NodeType::GenericType; };
-    JsonPtr toJSON() override;
-    virtual inline bool operator==(GenericType other) {
-        if (this->name != other.name) return false;
-        if(this->generic_union.size() != other.generic_union.size()) return false;
-        for (auto [sg, og] : llvm::zip(this->generic_union, other.generic_union)) {
-            if (sg != og) return false;
-        }
-        return true;
-    }
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~GenericType() override;
 };
 
 class Program : public Node {
   public:
-    std::vector<StatementPtr> statements;
+    std::vector<Statement*> statements;
     inline NodeType type() override { return NodeType::Program; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~Program() override;
 };
 
 class ExpressionStatement : public Statement {
   public:
-    ExpressionPtr expr;
-    inline ExpressionStatement(ExpressionPtr expr = nullptr) : expr(expr) {}
+    Expression* expr;
+    inline ExpressionStatement(Expression* expr = nullptr) : expr(expr) {}
     inline NodeType type() override { return NodeType::ExpressionStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~ExpressionStatement() override;
 };
 
 class BlockStatement : public Statement {
   public:
-    std::vector<StatementPtr> statements;
+    std::vector<Statement*> statements;
     inline NodeType type() override { return NodeType::BlockStatement; };
-    inline BlockStatement(const std::vector<StatementPtr>& statements = {}) : statements(statements) {}
-    JsonPtr toJSON() override;
+    inline BlockStatement(const std::vector<Statement*>& statements = {}) : statements(statements) {}
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~BlockStatement() override;
 };
 
 class ReturnStatement : public Statement {
   public:
-    ExpressionPtr value;
-    inline ReturnStatement(ExpressionPtr exp = nullptr) : value(exp) {}
+    Expression* value;
+    inline ReturnStatement(Expression* exp = nullptr) : value(exp) {}
     inline NodeType type() override { return NodeType::ReturnStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~ReturnStatement() override;
 };
 
 class RaiseStatement : public Statement {
   public:
-    ExpressionPtr value;
-    inline RaiseStatement(ExpressionPtr exp = nullptr) : value(exp) {}
+    Expression* value;
+    inline RaiseStatement(Expression* exp = nullptr) : value(exp) {}
     inline NodeType type() override { return NodeType::RaiseStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~RaiseStatement() override;
 };
 
 class FunctionParameter : public Node {
   public:
-    ExpressionPtr name;
-    shared_ptr<Type> value_type;
-    inline FunctionParameter(ExpressionPtr name, shared_ptr<Type> type) : name(name), value_type(type) {}
+    Expression* name;
+    Type* value_type;
+    inline FunctionParameter(Expression* name, Type* type) : name(name), value_type(type) {}
     inline NodeType type() override { return NodeType::FunctionParameter; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~FunctionParameter() override;
 };
 
 class FunctionStatement : public Statement {
   public:
-    ExpressionPtr name;
-    std::vector<shared_ptr<FunctionParameter>> parameters;
-    std::vector<shared_ptr<FunctionParameter>> closure_parameters;
-    shared_ptr<Type> return_type;
-    shared_ptr<BlockStatement> body;
-    std::vector<shared_ptr<GenericType>> generic;
-    inline FunctionStatement(ExpressionPtr name,
-                             std::vector<shared_ptr<FunctionParameter>> parameters,
-                             std::vector<shared_ptr<FunctionParameter>> closure_parameters,
-                             shared_ptr<Type> return_type,
-                             shared_ptr<BlockStatement> body,
-                             const std::vector<shared_ptr<GenericType>>& generic)
+    Expression* name;
+    std::vector<FunctionParameter*> parameters;
+    std::vector<FunctionParameter*> closure_parameters;
+    Type* return_type;
+    BlockStatement* body;
+    std::vector<GenericType*> generic;
+    inline FunctionStatement(Expression* name,
+                             std::vector<FunctionParameter*> parameters,
+                             std::vector<FunctionParameter*> closure_parameters,
+                             Type* return_type,
+                             BlockStatement* body,
+                             const std::vector<GenericType*>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
         this->extra_info["autocast"] = false;
     }
     inline NodeType type() override { return NodeType::FunctionStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~FunctionStatement() override;
 };
 
 class CallExpression : public Expression {
   public:
-    ExpressionPtr name;
-    std::vector<ExpressionPtr> arguments;
-    std::vector<ExpressionPtr> generics;
+    Expression* name;
+    std::vector<Expression*> arguments;
+    std::vector<Expression*> generics;
     bool _new;
-    inline CallExpression(ExpressionPtr name, const std::vector<ExpressionPtr>& arguments = {}) : name(name), arguments(arguments) {}
+    inline CallExpression(Expression* name, const std::vector<Expression*>& arguments = {}) : name(name), arguments(arguments), _new(false) {}
     inline NodeType type() override { return NodeType::CallExpression; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~CallExpression() override;
 };
 
 class IfElseStatement : public Statement {
   public:
-    ExpressionPtr condition;
-    StatementPtr consequence;
-    StatementPtr alternative;
-    inline IfElseStatement(ExpressionPtr condition, StatementPtr consequence, StatementPtr alternative = nullptr) : condition(condition), consequence(consequence), alternative(alternative) {}
+    Expression* condition;
+    Statement* consequence;
+    Statement* alternative;
+    inline IfElseStatement(Expression* condition, Statement* consequence, Statement* alternative = nullptr) : condition(condition), consequence(consequence), alternative(alternative) {}
     inline NodeType type() override { return NodeType::IfElseStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~IfElseStatement() override;
 };
 
 class WhileStatement : public Statement {
   public:
-    ExpressionPtr condition;
-    StatementPtr body;
-    StatementPtr ifbreak;
-    StatementPtr notbreak;
-    inline WhileStatement(ExpressionPtr condition, StatementPtr body, StatementPtr ifbreak = nullptr, StatementPtr notbreak = nullptr)
+    Expression* condition;
+    Statement* body;
+    Statement* ifbreak;
+    Statement* notbreak;
+    inline WhileStatement(Expression* condition, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
         : condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::WhileStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~WhileStatement() override;
 };
 
 class ForStatement : public Statement {
   public:
-    ExpressionPtr from;
-    shared_ptr<IdentifierLiteral> get;
-    StatementPtr body;
-    StatementPtr ifbreak;
-    StatementPtr notbreak;
-    inline ForStatement(shared_ptr<IdentifierLiteral> get, ExpressionPtr from, StatementPtr body, StatementPtr ifbreak = nullptr, StatementPtr notbreak = nullptr)
+    Expression* from;
+    IdentifierLiteral* get;
+    Statement* body;
+    Statement* ifbreak;
+    Statement* notbreak;
+    inline ForStatement(IdentifierLiteral* get, Expression* from, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
         : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::ForStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~ForStatement() override;
 };
 
 class BreakStatement : public Statement {
@@ -335,7 +348,7 @@ class BreakStatement : public Statement {
     unsigned short loopIdx = 0;
     inline NodeType type() override { return NodeType::BreakStatement; };
     BreakStatement(int loopNum) : loopIdx(loopNum) {};
-    JsonPtr toJSON() override;
+    std::string toStr() override;
 };
 
 class ContinueStatement : public Statement {
@@ -343,7 +356,7 @@ class ContinueStatement : public Statement {
     unsigned short loopIdx = 0;
     inline NodeType type() override { return NodeType::ContinueStatement; };
     ContinueStatement(int loopNum) : loopIdx(loopNum) {};
-    JsonPtr toJSON() override;
+    std::string toStr() override;
 };
 
 class ImportStatement : public Statement {
@@ -351,71 +364,89 @@ class ImportStatement : public Statement {
     std::string relativePath;
     inline NodeType type() override { return NodeType::ImportStatement; }
     ImportStatement(const std::string& relativePath) : relativePath(relativePath) {}
-    JsonPtr toJSON() override;
+    std::string toStr() override;
 };
 
 class VariableDeclarationStatement : public Statement {
   public:
-    ExpressionPtr name;
-    shared_ptr<Type> value_type;
-    ExpressionPtr value;
+    Expression* name;
+    Type* value_type;
+    Expression* value;
     bool is_volatile = false;
-    inline VariableDeclarationStatement(ExpressionPtr name, shared_ptr<Type> type, ExpressionPtr value = nullptr, bool is_volatile = true)
+    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = true)
         : name(name), value_type(type), value(value), is_volatile(is_volatile) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~VariableDeclarationStatement() override;
 };
 
 class VariableAssignmentStatement : public Statement {
   public:
-    ExpressionPtr name;
-    ExpressionPtr value;
-    inline VariableAssignmentStatement(ExpressionPtr name, ExpressionPtr value) : name(name), value(value) {}
+    Expression* name;
+    Expression* value;
+    inline VariableAssignmentStatement(Expression* name, Expression* value) : name(name), value(value) {}
     inline NodeType type() override { return NodeType::VariableAssignmentStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~VariableAssignmentStatement() override;
 };
 
 class TryCatchStatement : public Statement {
   public:
-    StatementPtr try_block;
-    std::vector<std::tuple<shared_ptr<Type>, shared_ptr<IdentifierLiteral>, StatementPtr>> catch_blocks;
-    inline TryCatchStatement(StatementPtr try_block, std::vector<std::tuple<shared_ptr<Type>, shared_ptr<IdentifierLiteral>, StatementPtr>> catch_blocks)
+    Statement* try_block;
+    std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks;
+    inline TryCatchStatement(Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks)
         : try_block(try_block), catch_blocks(catch_blocks) {}
     inline NodeType type() override { return NodeType::TryCatchStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~TryCatchStatement() override;
 };
 
 class SwitchCaseStatement : public Statement {
   public:
-    ExpressionPtr condition;
-    std::vector<std::tuple<ExpressionPtr, StatementPtr>> cases;
-    StatementPtr other;
-    inline SwitchCaseStatement(ExpressionPtr condition, std::vector<std::tuple<ExpressionPtr, StatementPtr>> cases, StatementPtr other = nullptr)
+    Expression* condition;
+    std::vector<std::tuple<Expression*, Statement*>> cases;
+    Statement* other;
+    inline SwitchCaseStatement(Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr)
         : condition(condition), cases(cases), other(other) {};
     inline NodeType type() override { return NodeType::SwitchCaseStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~SwitchCaseStatement() override;
 };
 
 class InfixExpression : public Expression {
   public:
-    ExpressionPtr left;
-    ExpressionPtr right;
+    Expression* left;
+    Expression* right;
     token::TokenType op;
-    inline InfixExpression(ExpressionPtr left, token::TokenType op, const std::string& literal, ExpressionPtr right = nullptr) : left(left), right(right), op(op) {
+    inline InfixExpression(Expression* left, token::TokenType op, const std::string& literal, Expression* right = nullptr) : left(left), right(right), op(op) {
         this->meta_data.more_data["operator_literal"] = literal;
     }
     inline NodeType type() override { return NodeType::InfixedExpression; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~InfixExpression() override;
 };
 
 class IndexExpression : public Expression {
   public:
-    ExpressionPtr left;
-    ExpressionPtr index;
-    inline IndexExpression(ExpressionPtr left, ExpressionPtr index) : left(left), index(index) {}
-    inline IndexExpression(ExpressionPtr left) : left(left), index(nullptr) {}
+    Expression* left;
+    Expression* index;
+    inline IndexExpression(Expression* left, Expression* index) : left(left), index(index) {}
+    inline IndexExpression(Expression* left) : left(left), index(nullptr) {}
     inline NodeType type() override { return NodeType::IndexExpression; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~IndexExpression() override;
 };
 
 class IntegerLiteral : public Expression {
@@ -423,7 +454,10 @@ class IntegerLiteral : public Expression {
     long long int value;
     inline IntegerLiteral(long long int value) : value(value) {}
     inline NodeType type() override { return NodeType::IntegerLiteral; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~IntegerLiteral() override;
 };
 
 class FloatLiteral : public Expression {
@@ -431,7 +465,10 @@ class FloatLiteral : public Expression {
     double value;
     inline FloatLiteral(double value) : value(value) {}
     inline NodeType type() override { return NodeType::FloatLiteral; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~FloatLiteral() override;
 };
 
 class StringLiteral : public Expression {
@@ -439,21 +476,27 @@ class StringLiteral : public Expression {
     std::string value;
     inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data["length"] = int(value.length()); }
     inline NodeType type() override { return NodeType::StringLiteral; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~StringLiteral() override;
 };
 
 class IdentifierLiteral : public Expression {
   public:
     std::string value;
-    inline IdentifierLiteral(shared_ptr<token::Token> value) {
-        this->value = value->literal;
-        this->meta_data.st_line_no = value->line_no;
-        this->meta_data.end_line_no = value->line_no;
-        this->meta_data.st_col_no = value->col_no;
-        this->meta_data.end_col_no = value->end_col_no;
+    inline IdentifierLiteral(token::Token value) {
+        this->value = value.literal;
+        this->meta_data.st_line_no = value.line_no;
+        this->meta_data.end_line_no = value.line_no;
+        this->meta_data.st_col_no = value.col_no;
+        this->meta_data.end_col_no = value.end_col_no;
     }
     inline NodeType type() override { return NodeType::IdentifierLiteral; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~IdentifierLiteral() override;
 };
 
 class BooleanLiteral : public Expression {
@@ -461,27 +504,37 @@ class BooleanLiteral : public Expression {
     bool value;
     inline BooleanLiteral(bool value) : value(value) {}
     inline NodeType type() override { return NodeType::BooleanLiteral; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~BooleanLiteral() override;
 };
 
 class StructStatement : public Statement {
   public:
-    ExpressionPtr name = nullptr;
-    std::vector<StatementPtr> fields = {};
-    std::vector<shared_ptr<GenericType>> generics = {};
-    inline StructStatement(ExpressionPtr name, const std::vector<StatementPtr>& fields) : name(name), fields(fields) {}
+    Expression* name = nullptr;
+    std::vector<Statement*> fields = {};
+    std::vector<GenericType*> generics = {};
+    inline StructStatement(Expression* name, const std::vector<Statement*>& fields) : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~StructStatement() override;
 };
 
 class ArrayLiteral : public Expression {
   public:
-    std::vector<ExpressionPtr> elements;
+    std::vector<Expression*> elements;
     bool _new;
-    inline ArrayLiteral(const std::vector<ExpressionPtr>& elements, bool _new = false) : elements(elements), _new(_new) {}
+    inline ArrayLiteral(const std::vector<Expression*>& elements, bool _new = false) : elements(elements), _new(_new) {}
     inline NodeType type() override { return NodeType::ArrayLiteral; };
-    JsonPtr toJSON() override;
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~ArrayLiteral() override;
 };
 
 } // namespace AST
+
 #endif // AST_HPP

@@ -75,7 +75,7 @@ class Lexer {
      *
      * @return The next token.
      */
-    std::shared_ptr<token::Token> nextToken();
+    token::Token nextToken();
 
   private:
     /**
@@ -84,7 +84,7 @@ class Lexer {
      * @param ident The identifier to lookup.
      * @return The token type of the identifier.
      */
-    token::TokenType _lookupIdent(std::shared_ptr<std::string> ident);
+    token::TokenType _lookupIdent(const std::string ident);
 
     /**
      * @brief Read the next character from the source code.
@@ -97,7 +97,7 @@ class Lexer {
      * @param offset The offset to peek at.
      * @return The character at the specified offset.
      */
-    std::shared_ptr<std::string> _peekChar(int offset = 1);
+    std::string _peekChar(int offset = 1);
 
     /**
      * @brief Skip whitespace characters in the source code.
@@ -111,14 +111,14 @@ class Lexer {
      * @param current_char The current character being processed.
      * @return The new token.
      */
-    std::shared_ptr<token::Token> _newToken(token::TokenType type, std::string current_char);
+    token::Token _newToken(token::TokenType type, std::string current_char);
 
     /**
      * @brief Read a number from the source code.
      *
      * @return The number token.
      */
-    std::shared_ptr<token::Token> _readNumber();
+    token::Token _readNumber();
 
     /**
      * @brief Check if the character is a digit.
@@ -141,14 +141,14 @@ class Lexer {
      *
      * @return The string if the current character is a string.
      */
-    std::shared_ptr<std::string> _isString();
+    std::string _isString();
 
     /**
      * @brief Read an identifier from the source code.
      *
      * @return The identifier.
      */
-    std::shared_ptr<std::string> _readIdentifier();
+    std::string _readIdentifier();
 
     /**
      * @brief Read a string from the source code.
@@ -156,6 +156,6 @@ class Lexer {
      * @param quote The quote character used to delimit the string.
      * @return The string.
      */
-    std::shared_ptr<std::string> _readString(const std::string& quote);
+    std::string _readString(const std::string& quote);
 };
 #endif

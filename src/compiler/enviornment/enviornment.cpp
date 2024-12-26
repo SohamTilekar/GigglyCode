@@ -248,7 +248,7 @@ std::vector<GenericStructTypePtr> RecordModule::getGenericStruct(const std::stri
 }
 
 // Adds a new record to the environment
-void Enviornment::addRecord(std::shared_ptr<Record> record) {
+void Enviornment::addRecord(shared_ptr<Record> record) {
     record_map.push_back({record->name, record});
 }
 
