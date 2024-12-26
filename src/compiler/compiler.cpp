@@ -552,7 +552,6 @@ void Compiler::_createFunctionRecord(ASTFunctionStatementPtr function_declaratio
 
     // Create the LLVM function and add it to the module
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, prefixed_name, this->llvm_module.get());
-
     // Assign names to the function arguments for readability
     size_t idx = 0;
     for (auto& arg : func->args()) { arg.setName(param_names[idx++]); }
@@ -577,6 +576,9 @@ void Compiler::_createFunctionRecord(ASTFunctionStatementPtr function_declaratio
         auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
         this->function_entry_block.push_back(bb);
         this->llvm_ir_builder.SetInsertPoint(bb);
+        if (this->fc_st_name_prefix == "main.gc..") {
+            func->setGC("statepoint-example");
+        }
 
         // Save the current environment and create a new one for the function
         auto prev_env = this->env;
