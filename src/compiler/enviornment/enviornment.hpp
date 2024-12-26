@@ -116,8 +116,6 @@ using GenericStructTypePtr = shared_ptr<RecordGenericStructType>;      ///< Shar
 using ModulePtr = shared_ptr<RecordModule>;                            ///< Shared pointer to RecordModule.
 using VariablePtr = shared_ptr<RecordVariable>;                        ///< Shared pointer to RecordVariable.
 using EnviornmentPtr = shared_ptr<Enviornment>;                        ///< Shared pointer to Enviornment.
-using ASTFunctionStatementPtr = shared_ptr<AST::FunctionStatement>;    ///< Shared pointer to AST FunctionStatement.
-using ASTStructStatementPtr = shared_ptr<AST::StructStatement>;        ///< Shared pointer to AST StructStatement.
 
 /**
  * @enum RecordType
@@ -306,7 +304,7 @@ class RecordFunction : public Record {
  */
 class RecordGenericFunction : public Record {
   public:
-    ASTFunctionStatementPtr func = nullptr; ///< Pointer to the AST FunctionStatement.
+    AST::FunctionStatement* func = nullptr; ///< Pointer to the AST FunctionStatement.
     EnviornmentPtr env = nullptr;           ///< Pointer to the environment.
 
     /**
@@ -315,14 +313,14 @@ class RecordGenericFunction : public Record {
      * @param func Pointer to the AST FunctionStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericFunction(const Str& name, ASTFunctionStatementPtr func, EnviornmentPtr env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
+    RecordGenericFunction(const Str& name, AST::FunctionStatement* func, EnviornmentPtr env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
 
     /**
      * @brief Sets the AST FunctionStatement pointer.
      * @param funcAST Pointer to the AST FunctionStatement.
      * @return Pointer to the current RecordGenericFunction instance.
      */
-    RecordGenericFunction* setFuncAST(ASTFunctionStatementPtr funcAST) {
+    RecordGenericFunction* setFuncAST(AST::FunctionStatement* funcAST) {
         func = funcAST;
         return this;
     }
@@ -336,6 +334,12 @@ class RecordGenericFunction : public Record {
         this->env = env;
         return this;
     }
+
+    ~RecordGenericFunction() {
+        if (this->func) {
+            delete func;
+        }
+    }
 };
 
 /**
@@ -347,7 +351,7 @@ class RecordGenericFunction : public Record {
  */
 class RecordGenericStructType : public Record {
   public:
-    ASTStructStatementPtr structAST = nullptr; ///< Pointer to the AST StructStatement.
+    AST::StructStatement* structAST = nullptr; ///< Pointer to the AST StructStatement.
     EnviornmentPtr env = nullptr;              ///< Pointer to the environment.
 
     /**
@@ -356,14 +360,14 @@ class RecordGenericStructType : public Record {
      * @param structAST Pointer to the AST StructStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericStructType(const Str& name, ASTStructStatementPtr structAST, EnviornmentPtr env) : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {}
+    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, EnviornmentPtr env) : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {}
 
     /**
      * @brief Sets the AST StructStatement pointer.
      * @param structAST Pointer to the AST StructStatement.
      * @return Pointer to the current RecordGenericStructType instance.
      */
-    RecordGenericStructType* setFuncAST(ASTStructStatementPtr structAST) {
+    RecordGenericStructType* setFuncAST(AST::StructStatement* structAST) {
         this->structAST = structAST;
         return this;
     }
@@ -376,6 +380,11 @@ class RecordGenericStructType : public Record {
     RecordGenericStructType* setEnv(EnviornmentPtr env) {
         this->env = env;
         return this;
+    }
+    ~RecordGenericStructType() {
+        if (structAST) {
+            delete structAST;
+        }
     }
 };
 

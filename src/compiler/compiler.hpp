@@ -175,7 +175,7 @@ class Compiler {
      * @brief Starts the compilation process for the given AST node.
      * @param node Shared pointer to the root AST node.
      */
-    void compile(shared_ptr<AST::Node> node);
+    void compile(AST::Node* node);
 
     /**
      * @brief Converts a type from one struct type to another.
@@ -290,105 +290,105 @@ class Compiler {
      * @brief Visits a Program node in the AST.
      * @param program Shared pointer to the Program node.
      */
-    void _visitProgram(shared_ptr<AST::Program> program);
+    void _visitProgram(AST::Program* program);
 
     /**
      * @brief Visits an ExpressionStatement node in the AST.
      * @param expression_statement Shared pointer to the ExpressionStatement node.
      */
-    void _visitExpressionStatement(shared_ptr<AST::ExpressionStatement> expression_statement);
+    void _visitExpressionStatement(AST::ExpressionStatement* expression_statement);
 
     /**
      * @brief Visits a VariableDeclarationStatement node in the AST.
      * @param variable_declaration_statement Shared pointer to the VariableDeclarationStatement node.
      */
-    void _visitVariableDeclarationStatement(const std::shared_ptr<AST::VariableDeclarationStatement>& variable_declaration_statement);
+    void _visitVariableDeclarationStatement(AST::VariableDeclarationStatement* variable_declaration_statement);
 
     /**
      * @brief Visits a VariableAssignmentStatement node in the AST.
      * @param variable_assignment_statement Shared pointer to the VariableAssignmentStatement node.
      */
-    void _visitVariableAssignmentStatement(const std::shared_ptr<AST::VariableAssignmentStatement>& variable_assignment_statement);
+    void _visitVariableAssignmentStatement(AST::VariableAssignmentStatement* variable_assignment_statement);
 
     /**
      * @brief Visits an IfElseStatement node in the AST.
      * @param if_statement Shared pointer to the IfElseStatement node.
      */
-    void _visitIfElseStatement(shared_ptr<AST::IfElseStatement> if_statement);
+    void _visitIfElseStatement(AST::IfElseStatement* if_statement);
 
     /**
      * @brief Visits a FunctionDeclarationStatement node in the AST.
      * @param function_declaration_statement Shared pointer to the FunctionDeclarationStatement node.
      * @param struct_ Optional struct type if the function is a method.
      */
-    void _visitFunctionDeclarationStatement(ASTFunctionStatementPtr function_declaration_statement, StructTypePtr struct_ = nullptr);
+    void _visitFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_ = nullptr);
 
     /**
      * @brief Visits a ReturnStatement node in the AST.
      * @param return_statement Shared pointer to the ReturnStatement node.
      */
-    void _visitReturnStatement(shared_ptr<AST::ReturnStatement> return_statement);
+    void _visitReturnStatement(AST::ReturnStatement* return_statement);
 
     /**
      * @brief Visits a RaiseStatement node in the AST.
      * @param raise_statement Shared pointer to the RaiseStatement node.
      */
-    void _visitRaiseStatement(shared_ptr<AST::RaiseStatement> raise_statement);
+    void _visitRaiseStatement(AST::RaiseStatement* raise_statement);
 
     /**
      * @brief Visits a BlockStatement node in the AST.
      * @param block_statement Shared pointer to the BlockStatement node.
      */
-    void _visitBlockStatement(shared_ptr<AST::BlockStatement> block_statement);
+    void _visitBlockStatement(AST::BlockStatement* block_statement);
 
     /**
      * @brief Visits a WhileStatement node in the AST.
      * @param while_statement Shared pointer to the WhileStatement node.
      */
-    void _visitWhileStatement(shared_ptr<AST::WhileStatement> while_statement);
+    void _visitWhileStatement(AST::WhileStatement* while_statement);
 
     /**
      * @brief Visits a ForStatement node in the AST.
      * @param for_statement Shared pointer to the ForStatement node.
      */
-    void _visitForStatement(shared_ptr<AST::ForStatement> for_statement);
+    void _visitForStatement(AST::ForStatement* for_statement);
 
     /**
      * @brief Visits a StructStatement node in the AST.
      * @param struct_statement Shared pointer to the StructStatement node.
      */
-    void _visitStructStatement(ASTStructStatementPtr struct_statement);
+    void _visitStructStatement(AST::StructStatement* struct_statement);
 
     /**
      * @brief Visits a SwitchCaseStatement node in the AST.
      * @param switch_statement Shared pointer to the SwitchCaseStatement node.
      */
-    void _visitSwitchCaseStatement(shared_ptr<AST::SwitchCaseStatement> switch_statement);
+    void _visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statement);
 
     /**
      * @brief Visits a TryCatchStatement node in the AST.
      * @param tc_statement Shared pointer to the TryCatchStatement node.
      */
-    void _visitTryCatchStatement(shared_ptr<AST::TryCatchStatement> tc_statement);
+    void _visitTryCatchStatement(AST::TryCatchStatement* tc_statement);
 
     /**
      * @brief Visits an ImportStatement node in the AST.
      * @param import_statement Shared pointer to the ImportStatement node.
      * @param module Optional module pointer if importing into a module.
      */
-    void _visitImportStatement(shared_ptr<AST::ImportStatement> import_statement, ModulePtr module = nullptr);
+    void _visitImportStatement(AST::ImportStatement* import_statement, ModulePtr module = nullptr);
 
     /**
      * @brief Visits a BreakStatement node in the AST.
      * @param node Shared pointer to the BreakStatement node.
      */
-    void _visitBreakStatement(shared_ptr<AST::BreakStatement> node);
+    void _visitBreakStatement(AST::BreakStatement* node);
 
     /**
      * @brief Visits a ContinueStatement node in the AST.
      * @param node Shared pointer to the ContinueStatement node.
      */
-    void _visitContinueStatement(shared_ptr<AST::ContinueStatement> node);
+    void _visitContinueStatement(AST::ContinueStatement* node);
 
     // --- Expression Visitor Methods ---
 
@@ -397,42 +397,42 @@ class Compiler {
      * @param infix_expression Shared pointer to the InfixExpression node.
      * @return The resolved value of the expression.
      */
-    ResolvedValue _visitInfixExpression(shared_ptr<AST::InfixExpression> infix_expression);
+    ResolvedValue _visitInfixExpression(AST::InfixExpression* infix_expression);
 
     /**
      * @brief Visits an IndexExpression node in the AST.
      * @param index_expression Shared pointer to the IndexExpression node.
      * @return The resolved value of the expression.
      */
-    ResolvedValue _visitIndexExpression(shared_ptr<AST::IndexExpression> index_expression);
+    ResolvedValue _visitIndexExpression(AST::IndexExpression* index_expression);
 
     /**
      * @brief Visits a CallExpression node in the AST.
      * @param call_expression Shared pointer to the CallExpression node.
      * @return The resolved value of the expression.
      */
-    ResolvedValue _visitCallExpression(shared_ptr<AST::CallExpression> call_expression);
+    ResolvedValue _visitCallExpression(AST::CallExpression* call_expression);
 
     /**
      * @brief Visits an ArrayLiteral node in the AST.
      * @param array_literal Shared pointer to the ArrayLiteral node.
      * @return The resolved value of the array literal.
      */
-    ResolvedValue _visitArrayLiteral(const shared_ptr<AST::ArrayLiteral>& array_literal);
+    ResolvedValue _visitArrayLiteral(AST::ArrayLiteral* array_literal);
 
     /**
      * @brief Resolves the value of a given AST node.
      * @param node Shared pointer to the AST node.
      * @return The resolved value of the node.
      */
-    ResolvedValue _resolveValue(shared_ptr<AST::Node> node);
+    ResolvedValue _resolveValue(AST::Node* node);
 
     /**
      * @brief Handles member access expressions in the AST.
      * @param infix_expression Shared pointer to the InfixExpression node representing member access.
      * @return The resolved value after member access.
      */
-    ResolvedValue _memberAccess(shared_ptr<AST::InfixExpression> infix_expression);
+    ResolvedValue _memberAccess(AST::InfixExpression* infix_expression);
 
     // --- Import Utilities ---
 
@@ -442,7 +442,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importFunctionDeclarationStatement(ASTFunctionStatementPtr function_declaration_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
+    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
 
     /**
      * @brief Imports a struct declaration into a module.
@@ -450,7 +450,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importStructStatement(ASTStructStatementPtr struct_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
+    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
 
     // --- Type Parsing and Conversion ---
 
@@ -459,7 +459,7 @@ class Compiler {
      * @param type Shared pointer to the Type node.
      * @return Pointer to the parsed StructType.
      */
-    StructTypePtr _parseType(shared_ptr<AST::Type> type);
+    StructTypePtr _parseType(AST::Type* type);
 
     /**
      * @brief Handles infix operations involving struct types.
@@ -477,8 +477,8 @@ class Compiler {
                                    const Str& op,
                                    StructTypePtr left_type,
                                    StructTypePtr right_type,
-                                   shared_ptr<AST::Expression> left,
-                                   shared_ptr<AST::Expression> right,
+                                   AST::Expression* left,
+                                   AST::Expression* right,
                                    llvm::Value* left_value,
                                    llvm::Value* right_value);
 
@@ -490,7 +490,7 @@ class Compiler {
      * @param params_types Vector of struct types representing parameter types.
      * @return The resolved value after the function call.
      */
-    ResolvedValue _manageFuncCall(FunctionPtr func_record, shared_ptr<AST::CallExpression> func_call, LLVMValueVector args, const StructTypeVector& params_types);
+    ResolvedValue _manageFuncCall(FunctionPtr func_record, AST::CallExpression* func_call, LLVMValueVector args, const StructTypeVector& params_types);
 
     /**
      * @brief Checks the types of arguments in a function call.
@@ -499,7 +499,7 @@ class Compiler {
      * @param args Reference to the vector of LLVM values representing the arguments.
      * @param params_types Vector of struct types representing parameter types.
      */
-    void _checkAndConvertCallType(FunctionPtr func_record, shared_ptr<AST::CallExpression> func_call, LLVMValueVector& args, const StructTypeVector& params_types);
+    void _checkAndConvertCallType(FunctionPtr func_record, AST::CallExpression* func_call, LLVMValueVector& args, const StructTypeVector& params_types);
 
     /**
      * @brief Calls a generic function.
@@ -510,7 +510,7 @@ class Compiler {
      * @param params_types Vector of struct types representing parameter types.
      * @return The resolved value after the function call.
      */
-    ResolvedValue _CallGfunc(const vector<GenericFunctionPtr>& gfuncs, const shared_ptr<AST::CallExpression> func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
+    ResolvedValue _CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpression* func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
 
     /**
      * @brief Calls a generic struct method.
@@ -522,7 +522,7 @@ class Compiler {
      * @return The resolved value after the struct method call.
      */
     ResolvedValue
-    _CallGstruct(const vector<GenericStructTypePtr>& gstructs, const shared_ptr<AST::CallExpression> func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
+    _CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallExpression* func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
 
     // --- Helper Methods ---
 
@@ -546,9 +546,9 @@ class Compiler {
      * @param module Optional pointer to the module where the function is declared.
      * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
      */
-    void _createFunctionRecord(ASTFunctionStatementPtr function_declaration_statement,
+    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement,
                                StructTypePtr struct_ = nullptr,
-                               std::shared_ptr<RecordModule> module = nullptr,
+                               shared_ptr<RecordModule> module = nullptr,
                                const nlohmann::json& ir_gc_map_json = nlohmann::json());
 
     /**
@@ -557,7 +557,7 @@ class Compiler {
      * @param module Pointer to the module where the struct is declared.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _createStructRecord(ASTStructStatementPtr struct_statement, std::shared_ptr<RecordModule> module, const nlohmann::json& ir_gc_map_json);
+    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module, const nlohmann::json& ir_gc_map_json);
 
     /**
      * @brief Handles calling a struct method.
@@ -567,7 +567,7 @@ class Compiler {
      * @param args Vector of LLVM values representing the arguments.
      * @return The resolved value after the struct method call.
      */
-    ResolvedValue _callStruct(StructTypePtr struct_record, shared_ptr<AST::CallExpression> call_expression, vector<StructTypePtr> params_types, LLVMValueVector args);
+    ResolvedValue _callStruct(StructTypePtr struct_record, AST::CallExpression* call_expression, vector<StructTypePtr> params_types, LLVMValueVector args);
 
     /**
      * @brief Processes a function declaration within a struct.
@@ -575,7 +575,7 @@ class Compiler {
      * @param struct_record The record for the struct.
      * @param ir_gc_map_json The JSON object for IR-GC mapping.
      */
-    void _processFieldFunction(AST::NodePtr field, std::shared_ptr<RecordStructType> struct_record, const nlohmann::json& ir_gc_map_json);
+    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record, const nlohmann::json& ir_gc_map_json);
 
     /**
      * @brief Handles generic subtypes for a field.
@@ -584,7 +584,7 @@ class Compiler {
      * @param struct_record The record for the struct.
      * @param field_type The parsed type of the field.
      */
-    void _handleGenericSubType(AST::NodePtr field, ASTStructStatementPtr struct_statement, std::shared_ptr<RecordStructType> struct_record, StructTypePtr field_type);
+    void _handleGenericSubType(AST::Node* field, AST::StructStatement* struct_statement, std::shared_ptr<RecordStructType> struct_record, StructTypePtr field_type);
 
     /**
      * @brief Processes a variable declaration within a struct.
@@ -593,7 +593,7 @@ class Compiler {
      * @param struct_record The record for the struct.
      * @param field_types The vector of LLVM field types being built.
      */
-    void _processFieldDeclaration(AST::NodePtr field, ASTStructStatementPtr struct_statement, std::shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types);
+    void _processFieldDeclaration(AST::Node* field, AST::StructStatement* struct_statement, std::shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types);
 
     /**
      * @brief Resolves and validates the left operand of the index expression.
@@ -601,7 +601,7 @@ class Compiler {
      * @return A tuple containing the loaded LLVM value, allocation LLVM value,
      *         the generic struct type pointer, and the resolve type.
      */
-    Compiler::ResolvedValue _resolveAndValidateLeftOperand(const std::shared_ptr<AST::IndexExpression>& index_expression);
+    Compiler::ResolvedValue _resolveAndValidateLeftOperand(AST::IndexExpression* index_expression);
 
     /**
      * @brief Resolves and validates the index operand of the index expression.
@@ -609,7 +609,7 @@ class Compiler {
      * @return A tuple containing the loaded LLVM value, allocation LLVM value,
      *         the generic struct type pointer, and the resolve type.
      */
-    Compiler::ResolvedValue _resolveAndValidateIndexOperand(const std::shared_ptr<AST::IndexExpression>& index_expression);
+    Compiler::ResolvedValue _resolveAndValidateIndexOperand(AST::IndexExpression* index_expression);
 
     /**
      * @brief Handles array indexing logic.
@@ -620,7 +620,7 @@ class Compiler {
      * @param index_expression Shared pointer to the IndexExpression node.
      * @return ResolvedValue containing the result of the indexing operation.
      */
-    ResolvedValue _handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, llvm::Value* index, StructTypePtr index_generic, const std::shared_ptr<AST::IndexExpression>& index_expression);
+    ResolvedValue _handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, llvm::Value* index, StructTypePtr index_generic, AST::IndexExpression* index_expression);
 
     /**
      * @brief Handles struct indexing logic by invoking the `__index__` method.
@@ -632,14 +632,14 @@ class Compiler {
      * @return ResolvedValue containing the result of the `__index__` method call.
      */
     ResolvedValue
-    _handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, const std::shared_ptr<AST::IndexExpression>& index_expression);
+    _handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, AST::IndexExpression* index_expression);
 
     /**
      * @brief Raises a NoOverload error indicating the absence of the `__index__` method.
      * @param left_generic StructTypePtr of the struct being indexed.
      * @param index_expression Shared pointer to the IndexExpression node.
      */
-    [[noreturn]] void _raiseNoIndexMethodError(StructTypePtr left_generic, const std::shared_ptr<AST::IndexExpression>& index_expression);
+    [[noreturn]] void _raiseNoIndexMethodError(StructTypePtr left_generic, AST::IndexExpression* index_expression);
 
     // --- Resolve Functions for AST Node Types ---
 
@@ -648,70 +648,70 @@ class Compiler {
      * @param integer_literal Shared pointer to the IntegerLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveIntegerLiteral(const std::shared_ptr<AST::IntegerLiteral>& integer_literal);
+    ResolvedValue _resolveIntegerLiteral(AST::IntegerLiteral* integer_literal);
 
     /**
      * @brief Resolves a FloatLiteral node.
      * @param float_literal Shared pointer to the FloatLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveFloatLiteral(const std::shared_ptr<AST::FloatLiteral>& float_literal);
+    ResolvedValue _resolveFloatLiteral(AST::FloatLiteral* float_literal);
 
     /**
      * @brief Resolves a StringLiteral node.
      * @param string_literal Shared pointer to the StringLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveStringLiteral(const std::shared_ptr<AST::StringLiteral>& string_literal);
+    ResolvedValue _resolveStringLiteral(AST::StringLiteral* string_literal);
 
     /**
      * @brief Resolves an IdentifierLiteral node.
      * @param identifier_literal Shared pointer to the IdentifierLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveIdentifierLiteral(const std::shared_ptr<AST::IdentifierLiteral>& identifier_literal);
+    ResolvedValue _resolveIdentifierLiteral(AST::IdentifierLiteral* identifier_literal);
 
     /**
      * @brief Resolves an InfixExpression node.
      * @param infix_expression Shared pointer to the InfixExpression node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveInfixExpression(const std::shared_ptr<AST::InfixExpression>& infix_expression);
+    ResolvedValue _resolveInfixExpression(AST::InfixExpression* infix_expression);
 
     /**
      * @brief Resolves an IndexExpression node.
      * @param index_expression Shared pointer to the IndexExpression node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveIndexExpression(const std::shared_ptr<AST::IndexExpression>& index_expression);
+    ResolvedValue _resolveIndexExpression(AST::IndexExpression* index_expression);
 
     /**
      * @brief Resolves a CallExpression node.
      * @param call_expression Shared pointer to the CallExpression node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveCallExpression(const std::shared_ptr<AST::CallExpression>& call_expression);
+    ResolvedValue _resolveCallExpression(AST::CallExpression* call_expression);
 
     /**
      * @brief Resolves a BooleanLiteral node.
      * @param boolean_literal Shared pointer to the BooleanLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveBooleanLiteral(const std::shared_ptr<AST::BooleanLiteral>& boolean_literal);
+    ResolvedValue _resolveBooleanLiteral(AST::BooleanLiteral* boolean_literal);
 
     /**
      * @brief Resolves an ArrayLiteral node.
      * @param array_literal Shared pointer to the ArrayLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveArrayLiteral(const std::shared_ptr<AST::ArrayLiteral>& array_literal);
+    ResolvedValue _resolveArrayLiteral(AST::ArrayLiteral* array_literal);
 
     /**
      * @brief Validates an array element's type.
      * @param element Shared pointer to the array element.
      * @param first_generic The expected struct type of the element.
      */
-    void _validateArrayElement(const std::shared_ptr<AST::Node>& element, const StructTypePtr& first_generic);
+    void _validateArrayElement(AST::Node* element, const StructTypePtr& first_generic);
 
     /**
      * @brief Handles type conversion for an array element.
@@ -719,7 +719,7 @@ class Compiler {
      * @param resolved_value Reference to the ResolvedValue to be updated.
      * @param first_generic The expected struct type of the element.
      */
-    void _handleTypeConversion(shared_ptr<AST::Expression> element, ResolvedValue& resolved_value, const StructTypePtr& first_generic);
+    void _handleTypeConversion(AST::Expression* element, ResolvedValue& resolved_value, const StructTypePtr& first_generic);
 
     // --- Return Statement Handlers ---
 
@@ -727,21 +727,21 @@ class Compiler {
      * @brief Handles the return statement when there is a return value.
      * @param return_statement Shared pointer to the ReturnStatement node.
      */
-    void _handleValueReturnStatement(const std::shared_ptr<AST::ReturnStatement>& return_statement);
+    void _handleValueReturnStatement(AST::ReturnStatement* return_statement);
 
     /**
      * @brief Resolves and validates the return value.
      * @param value Shared pointer to the expression representing the return value.
      * @return A tuple containing the LLVM return value, allocation, and the StructTypePtr.
      */
-    ResolvedValue _resolveAndValidateReturnValue(const std::shared_ptr<AST::Expression>& value);
+    ResolvedValue _resolveAndValidateReturnValue(AST::Expression* value);
 
     /**
      * @brief Checks and performs type conversion if necessary.
      * @param value Shared pointer to the expression representing the return value.
      * @param return_type Reference to the StructTypePtr of the return value.
      */
-    void _checkAndConvertReturnType(AST::ExpressionPtr value, StructTypePtr& return_type);
+    void _checkAndConvertReturnType(AST::Expression* value, StructTypePtr& return_type);
 
     /**
      * @brief Creates the appropriate LLVM return instruction based on types.
@@ -759,7 +759,7 @@ class Compiler {
      * @param field_types The vector of LLVM field types being built.
      * @param struct_name The name of the struct.
      */
-    void _handleFieldDeclaration(GenericStructTypePtr gstruct, AST::NodePtr field, std::shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types, const Str& struct_name);
+    void _handleFieldDeclaration(GenericStructTypePtr gstruct, AST::Node* field, std::shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types, const Str& struct_name);
     void addBuiltinType(const Str& name, llvm::Type* type);
     void addBuiltinFunction(const Str& name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType);
 };

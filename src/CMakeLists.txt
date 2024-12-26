@@ -4,7 +4,7 @@ project(GigglyCode LANGUAGES CXX)
 
 set(BUILD_ARCH "-m64")
 set(TARGET_64 ON)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(LLVM REQUIRED CONFIG)
@@ -14,6 +14,10 @@ add_definitions(${LLVM_DEFINITIONS})
 find_package(Clang REQUIRED CONFIG)
 include_directories(${CLANG_INCLUDE_DIRS})
 add_definitions(${CLANG_DEFINITIONS})
+
+find_package(yaml-cpp REQUIRED CONFIG)
+include_directories(${YAML_CPP_INCLUDE_DIR})
+add_definitions(${YAML_CPP_LIBRARY_DIR})
 
 add_subdirectory(lexer)
 add_subdirectory(parser)

@@ -225,13 +225,15 @@ def main() {
    ```
 
 2. **🛠️ Build the Compiler**
-
+    _Before this Make sure that You Have compiled & installed llvm & yaml_
    ```sh
    cd GigglyCode
    mkdir build
    cd build
    cmake ../src
-   make
+   cd ..
+   cmake --build ./build --config Release --target all -j 4 -- <!--or--> cmake --build ./build --config Debug --target all -j 4 --
+   # The  Cmake will Output the `./build/giggly` which is the main exec of the giggly code
    ```
 
 3. **📜 Write Your First Program** Create a `.gc` file and write your 🛠️ GigglyCode program.

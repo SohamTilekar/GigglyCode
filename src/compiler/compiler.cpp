@@ -33,6 +33,7 @@
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
 #include "enviornment/enviornment.hpp"
+#include "../errors/errors.hpp"
 
 using namespace compiler;
 using llConstInt = llvm::ConstantInt;
@@ -168,7 +169,7 @@ void Compiler::_initializeBuiltins() {
     addBuiltinFunction("free", llvm::FunctionType::get(this->ll_void, {this->ll_pointer}, true), {}, this->gc_void);
 }
 
-void Compiler::compile(shared_ptr<AST::Node> node) {
+void Compiler::compile(AST::Node* node) {
     // This Only Compiles Statements & expressions are compiled in `_resolveValue
     switch (node->type()) {
         case AST::NodeType::Program:
@@ -241,7 +242,7 @@ void Compiler::compile(shared_ptr<AST::Node> node) {
     }
 }
 
-void Compiler::_visitBreakStatement(shared_ptr<AST::BreakStatement> node) {
+void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
     if (this->env->loop_conti_block.empty()) {
         errors::NodeOutside("Break outside loop", this->source, *node, errors::outsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary").raise();
         exit(1);
@@ -257,7 +258,7 @@ void Compiler::_visitBreakStatement(shared_ptr<AST::BreakStatement> node) {
     throw DoneBr();
 }
 
-void Compiler::_visitContinueStatement(shared_ptr<AST::ContinueStatement> node) {
+void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
     if (this->env->loop_condition_block.empty()) {
         errors::NodeOutside("Continue outside loop",
                             this->source,
@@ -276,19 +277,19 @@ void Compiler::_visitContinueStatement(shared_ptr<AST::ContinueStatement> node) 
     throw DoneBr();
 }
 
-void Compiler::_visitProgram(shared_ptr<AST::Program> program) {
+void Compiler::_visitProgram(AST::Program* program) {
     for (const auto& stmt : program->statements) { this->compile(stmt); }
 }
 
-void Compiler::_visitExpressionStatement(shared_ptr<AST::ExpressionStatement> expression_statement) {
+void Compiler::_visitExpressionStatement(AST::ExpressionStatement* expression_statement) {
     this->compile(expression_statement->expr);
 }
 
-void Compiler::_visitBlockStatement(shared_ptr<AST::BlockStatement> block_statement) {
+void Compiler::_visitBlockStatement(AST::BlockStatement* block_statement) {
     for (const auto& stmt : block_statement->statements) { this->compile(stmt); }
 }
 
-void Compiler::_checkAndConvertCallType(FunctionPtr func_record, shared_ptr<AST::CallExpression> func_call, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
+void Compiler::_checkAndConvertCallType(FunctionPtr func_record, AST::CallExpression* func_call, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
     vector<unsigned short> mismatches;
     for (const auto& [idx, pt, pst] : llvm::enumerate(func_record->arguments, params_types)) {
         auto expected_type = std::get<1>(pt);
@@ -304,7 +305,7 @@ void Compiler::_checkAndConvertCallType(FunctionPtr func_record, shared_ptr<AST:
 }
 
 Compiler::ResolvedValue Compiler::_CallGfunc(
-    const vector<GenericFunctionPtr>& gfuncs, const shared_ptr<AST::CallExpression> func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
+    const vector<GenericFunctionPtr>& gfuncs, AST::CallExpression* func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
     // Attempt to find and call a matching function overload
     for (const auto& gfunc : gfuncs) {
         if (gfunc->env->isFunction(name, params_types, false, true)) {
@@ -493,7 +494,7 @@ Compiler::ResolvedValue Compiler::_CallGfunc(
     }
 };
 
-void Compiler::_createFunctionRecord(ASTFunctionStatementPtr function_declaration_statement, StructTypePtr struct_, std::shared_ptr<RecordModule> module, const Json& ir_gc_map_json) {
+void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_, shared_ptr<RecordModule> module, const Json& ir_gc_map_json) {
     // Extract the function name from the AST
     auto name = function_declaration_statement->name->castToIdentifierLiteral()->value;
 
@@ -640,7 +641,7 @@ void Compiler::_createFunctionRecord(ASTFunctionStatementPtr function_declaratio
     }
 }
 
-Compiler::ResolvedValue Compiler::_callStruct(StructTypePtr struct_record, shared_ptr<AST::CallExpression> call_expression, vector<StructTypePtr> params_types, LLVMValueVector args) {
+Compiler::ResolvedValue Compiler::_callStruct(StructTypePtr struct_record, AST::CallExpression* call_expression, vector<StructTypePtr> params_types, LLVMValueVector args) {
     auto name = struct_record->name;
     auto struct_type = struct_record->struct_type;
 
@@ -690,7 +691,7 @@ Compiler::ResolvedValue Compiler::_callStruct(StructTypePtr struct_record, share
 }
 
 Compiler::ResolvedValue Compiler::_CallGstruct(
-    const vector<GenericStructTypePtr>& gstructs, const shared_ptr<AST::CallExpression> func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
+    const vector<GenericStructTypePtr>& gstructs, AST::CallExpression* func_call, const Str& name, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
     auto prev_env = this->env; // Save the current environment
 
     for (const auto& gstruct : gstructs) {
@@ -782,7 +783,7 @@ Compiler::ResolvedValue Compiler::_CallGstruct(
     exit(1);
 };
 
-void Compiler::_createStructRecord(ASTStructStatementPtr struct_statement, std::shared_ptr<RecordModule> module, const Json& ir_gc_map_json) {
+void Compiler::_createStructRecord(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module, const Json& ir_gc_map_json) {
     // Extract the struct name
     Str struct_name = struct_statement->name->castToIdentifierLiteral()->value;
 
@@ -844,7 +845,7 @@ void Compiler::_createStructRecord(ASTStructStatementPtr struct_statement, std::
     }
 }
 
-void Compiler::_handleGenericSubType(AST::NodePtr field, ASTStructStatementPtr struct_statement, std::shared_ptr<RecordStructType> struct_record, StructTypePtr field_type) {
+void Compiler::_handleGenericSubType(AST::Node* field, AST::StructStatement* struct_statement, shared_ptr<RecordStructType> struct_record, StructTypePtr field_type) {
     auto value_type = field->castToVariableDeclarationStatement()->value_type;
 
     if (value_type->type() == AST::NodeType::IdentifierLiteral) {
@@ -864,7 +865,7 @@ void Compiler::_handleGenericSubType(AST::NodePtr field, ASTStructStatementPtr s
     }
 }
 
-void Compiler::_processFieldFunction(AST::NodePtr field, std::shared_ptr<RecordStructType> struct_record, const Json& ir_gc_map_json) {
+void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructType> struct_record, const Json& ir_gc_map_json) {
     auto func_dec = field->castToFunctionStatement();
 
     // Ensure the function is not generic
@@ -883,7 +884,7 @@ void Compiler::_processFieldFunction(AST::NodePtr field, std::shared_ptr<RecordS
     this->_createFunctionRecord(func_dec, struct_record, nullptr, ir_gc_map_json);
 }
 
-void Compiler::_visitStructStatement(ASTStructStatementPtr struct_statement) {
+void Compiler::_visitStructStatement(AST::StructStatement* struct_statement) {
     this->_createStructRecord(struct_statement, nullptr, this->ir_gc_map_json);
 }
 
@@ -998,7 +999,7 @@ bool Compiler::conversionPrecidence(StructTypePtr from, StructTypePtr to) {
 };
 
 
-Compiler::ResolvedValue Compiler::_memberAccess(shared_ptr<AST::InfixExpression> infixed_expression) {
+Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_expression) {
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
     auto [left_value, left_alloca, _left_type, ltt] = this->_resolveValue(left);
@@ -1132,8 +1133,8 @@ Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
                                                    const Str& op,
                                                    StructTypePtr left_type,
                                                    StructTypePtr right_type,
-                                                   shared_ptr<AST::Expression> left,
-                                                   shared_ptr<AST::Expression> right,
+                                                   AST::Expression* left,
+                                                   AST::Expression* right,
                                                    llvm::Value* left_value,
                                                    llvm::Value* right_value) {
     vector<StructTypePtr> params_type1{left_type, right_type};
@@ -1153,7 +1154,7 @@ Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
 };
 
 
-Compiler::ResolvedValue Compiler::_visitInfixExpression(shared_ptr<AST::InfixExpression> infixed_expression) {
+Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* infixed_expression) {
     auto op = infixed_expression->op;
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
@@ -1370,7 +1371,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(shared_ptr<AST::InfixExp
     }
 };
 
-Compiler::ResolvedValue Compiler::_resolveAndValidateLeftOperand(const std::shared_ptr<AST::IndexExpression>& index_expression) {
+Compiler::ResolvedValue Compiler::_resolveAndValidateLeftOperand(AST::IndexExpression* index_expression) {
     auto [left, left_alloca, _left_generic, ltt] = this->_resolveValue(index_expression->left);
 
     if (ltt != resolveType::StructInst) {
@@ -1382,7 +1383,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateLeftOperand(const std::shar
     return {left, left_alloca, left_generic, ltt};
 }
 
-Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(const std::shared_ptr<AST::IndexExpression>& index_expression) {
+Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(AST::IndexExpression* index_expression) {
     auto [index, __, _index_generic, itt] = this->_resolveValue(index_expression->index);
 
     if (itt != resolveType::StructInst) {
@@ -1395,7 +1396,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(const std::sha
 }
 
 Compiler::ResolvedValue
-Compiler::_handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, llvm::Value* index, StructTypePtr index_generic, const std::shared_ptr<AST::IndexExpression>& index_expression) {
+Compiler::_handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, llvm::Value* index, StructTypePtr index_generic, AST::IndexExpression* index_expression) {
     // Validate that the index is of type 'int'
     if (!_checkType(index_generic, this->env->getStruct("int"))) {
         errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
@@ -1416,7 +1417,7 @@ Compiler::_handleArrayIndexing(llvm::Value* left, StructTypePtr left_generic, ll
 }
 
 Compiler::ResolvedValue
-Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, const std::shared_ptr<AST::IndexExpression>& index_expression) {
+Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, AST::IndexExpression* index_expression) {
     if (left_generic->is_method("__index__", {left_generic, index_generic})) {
         auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
         auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
@@ -1426,12 +1427,12 @@ Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, St
     _raiseNoIndexMethodError(left_generic, index_expression);
 }
 
-[[noreturn]] void Compiler::_raiseNoIndexMethodError(StructTypePtr left_generic, const std::shared_ptr<AST::IndexExpression>& index_expression) {
+[[noreturn]] void Compiler::_raiseNoIndexMethodError(StructTypePtr left_generic, AST::IndexExpression* index_expression) {
     errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "Define the __index__ method.").raise();
     exit(1);
 }
 
-Compiler::ResolvedValue Compiler::_visitIndexExpression(const std::shared_ptr<AST::IndexExpression> index_expression) {
+Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* index_expression) {
     // Resolve and validate the left operand
     auto [left, left_alloca, _left_generic, ltt] = this->_resolveAndValidateLeftOperand(index_expression);
     auto left_generic = std::get<StructTypePtr>(_left_generic);
@@ -1448,7 +1449,7 @@ Compiler::ResolvedValue Compiler::_visitIndexExpression(const std::shared_ptr<AS
 
 
 // Refactored _visitVariableDeclarationStatement
-void Compiler::_visitVariableDeclarationStatement(const std::shared_ptr<AST::VariableDeclarationStatement>& variable_declaration_statement) {
+void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatement* variable_declaration_statement) {
     auto var_name = variable_declaration_statement->name->castToIdentifierLiteral();
 
     // Check if the variable is already declared
@@ -1495,7 +1496,7 @@ void Compiler::_visitVariableDeclarationStatement(const std::shared_ptr<AST::Var
 }
 
 // Refactored _visitVariableAssignmentStatement
-void Compiler::_visitVariableAssignmentStatement(const std::shared_ptr<AST::VariableAssignmentStatement>& variable_assignment_statement) {
+void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatement* variable_assignment_statement) {
     auto var_value = variable_assignment_statement->value;
     auto [value, value_alloca, _assignmentType, vtt] = this->_resolveValue(var_value);
     auto assignmentType = std::get<StructTypePtr>(_assignmentType);
@@ -1527,7 +1528,7 @@ void Compiler::_visitVariableAssignmentStatement(const std::shared_ptr<AST::Vari
     }
 }
 
-void Compiler::_visitSwitchCaseStatement(shared_ptr<AST::SwitchCaseStatement> switch_statement) {
+void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statement) {
     // Create a new basic block for the switch statement
     llvm::Function* function = llvm_ir_builder.GetInsertBlock()->getParent();
     llvm::BasicBlock* default_block = llvm::BasicBlock::Create(llvm_context, "default", function);
@@ -1578,26 +1579,26 @@ void Compiler::_visitSwitchCaseStatement(shared_ptr<AST::SwitchCaseStatement> sw
     llvm_ir_builder.SetInsertPoint(end_block);
 }
 
-Compiler::ResolvedValue Compiler::_resolveIntegerLiteral(const std::shared_ptr<AST::IntegerLiteral>& integer_literal) {
+Compiler::ResolvedValue Compiler::_resolveIntegerLiteral(AST::IntegerLiteral* integer_literal) {
     auto value = llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, integer_literal->value));
     auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("int")->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
     return {value, alloca, this->env->getStruct("int"), resolveType::StructInst};
 }
 
-Compiler::ResolvedValue Compiler::_resolveFloatLiteral(const std::shared_ptr<AST::FloatLiteral>& float_literal) {
+Compiler::ResolvedValue Compiler::_resolveFloatLiteral(AST::FloatLiteral* float_literal) {
     auto value = llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(float_literal->value));
     auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("float")->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
     return {value, alloca, this->env->getStruct("float"), resolveType::StructInst};
 }
 
-Compiler::ResolvedValue Compiler::_resolveStringLiteral(const std::shared_ptr<AST::StringLiteral>& string_literal) {
+Compiler::ResolvedValue Compiler::_resolveStringLiteral(AST::StringLiteral* string_literal) {
     auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
     return {value, value, this->env->getStruct("str"), resolveType::StructInst};
 }
 
-Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(const std::shared_ptr<AST::IdentifierLiteral>& identifier_literal) {
+Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiteral* identifier_literal) {
     if (this->env->isVariable(identifier_literal->value)) {
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
@@ -1619,30 +1620,30 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(const std::shared_pt
     std::exit(1);
 }
 
-Compiler::ResolvedValue Compiler::_resolveInfixExpression(const std::shared_ptr<AST::InfixExpression>& infix_expression) {
+Compiler::ResolvedValue Compiler::_resolveInfixExpression(AST::InfixExpression* infix_expression) {
     return this->_visitInfixExpression(infix_expression);
 }
 
-Compiler::ResolvedValue Compiler::_resolveIndexExpression(const std::shared_ptr<AST::IndexExpression>& index_expression) {
+Compiler::ResolvedValue Compiler::_resolveIndexExpression(AST::IndexExpression* index_expression) {
     return this->_visitIndexExpression(index_expression);
 }
 
-Compiler::ResolvedValue Compiler::_resolveCallExpression(const std::shared_ptr<AST::CallExpression>& call_expression) {
+Compiler::ResolvedValue Compiler::_resolveCallExpression(AST::CallExpression* call_expression) {
     return this->_visitCallExpression(call_expression);
 }
 
-Compiler::ResolvedValue Compiler::_resolveBooleanLiteral(const std::shared_ptr<AST::BooleanLiteral>& boolean_literal) {
+Compiler::ResolvedValue Compiler::_resolveBooleanLiteral(AST::BooleanLiteral* boolean_literal) {
     auto value = boolean_literal->value ? llvm::ConstantInt::getTrue(this->llvm_context) : llvm::ConstantInt::getFalse(this->llvm_context);
     auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("bool")->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
     return {value, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
 }
 
-Compiler::ResolvedValue Compiler::_resolveArrayLiteral(const std::shared_ptr<AST::ArrayLiteral>& array_literal) {
+Compiler::ResolvedValue Compiler::_resolveArrayLiteral(AST::ArrayLiteral* array_literal) {
     return this->_visitArrayLiteral(array_literal);
 }
 
-Compiler::ResolvedValue Compiler::_resolveValue(shared_ptr<AST::Node> node) {
+Compiler::ResolvedValue Compiler::_resolveValue(AST::Node* node) {
     switch (node->type()) {
         case AST::NodeType::IntegerLiteral:
             return this->_resolveIntegerLiteral(node->castToIntegerLiteral());
@@ -1669,7 +1670,7 @@ Compiler::ResolvedValue Compiler::_resolveValue(shared_ptr<AST::Node> node) {
     }
 }
 
-Compiler::ResolvedValue Compiler::_visitArrayLiteral(const std::shared_ptr<AST::ArrayLiteral>& array_literal) {
+Compiler::ResolvedValue Compiler::_visitArrayLiteral(AST::ArrayLiteral* array_literal) {
     std::vector<llvm::Value*> values;
     StructTypePtr struct_type = nullptr;
     StructTypePtr first_generic = nullptr;
@@ -1724,13 +1725,13 @@ Compiler::ResolvedValue Compiler::_visitArrayLiteral(const std::shared_ptr<AST::
 }
 
 // Implementation of _validateArrayElement
-void Compiler::_validateArrayElement(const std::shared_ptr<AST::Node>& element, const StructTypePtr& first_generic) {
+void Compiler::_validateArrayElement(AST::Node* element, const StructTypePtr& first_generic) {
     auto [value, value_alloca, _generic, vtt] = this->_resolveValue(element);
     if (vtt != resolveType::StructInst) { errors::ArrayTypeError(this->source, element, first_generic, "Cannot add Module or type in Array").raise(); }
 }
 
 // Implementation of _handleTypeConversion
-void Compiler::_handleTypeConversion(AST::ExpressionPtr element, ResolvedValue& resolved_value, const StructTypePtr& first_generic) {
+void Compiler::_handleTypeConversion(AST::Expression* element, ResolvedValue& resolved_value, const StructTypePtr& first_generic) {
     StructTypePtr generic = std::get<StructTypePtr>(resolved_value.variant);
 
     if (!_checkType(first_generic, generic)) {
@@ -1746,7 +1747,7 @@ void Compiler::_handleTypeConversion(AST::ExpressionPtr element, ResolvedValue& 
 }
 
 // Definition of _handleValueReturnStatement
-void Compiler::_handleValueReturnStatement(const std::shared_ptr<AST::ReturnStatement>& return_statement) {
+void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statement) {
     auto value = return_statement->value;
     auto [return_value, return_alloca, _return_type, _] = _resolveAndValidateReturnValue(value);
     auto return_type = std::get<StructTypePtr>(_return_type);
@@ -1763,7 +1764,7 @@ void Compiler::_handleValueReturnStatement(const std::shared_ptr<AST::ReturnStat
 }
 
 // Definition of _resolveAndValidateReturnValue
-Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(const std::shared_ptr<AST::Expression>& value) {
+Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression* value) {
     auto resolved_value = this->_resolveValue(value);
 
     if (resolved_value.type != resolveType::StructInst) {
@@ -1781,7 +1782,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(const std::shar
 }
 
 // Definition of _checkAndConvertReturnType
-void Compiler::_checkAndConvertReturnType(AST::ExpressionPtr value, StructTypePtr& return_type) {
+void Compiler::_checkAndConvertReturnType(AST::Expression* value, StructTypePtr& return_type) {
     llvm::Value* return_value = nullptr;
     llvm::Value* return_alloca = nullptr;
 
@@ -1820,7 +1821,7 @@ void Compiler::_createReturnInstruction(llvm::Value* return_value, llvm::Value* 
 }
 
 // Refactored _visitReturnStatement
-void Compiler::_visitReturnStatement(shared_ptr<AST::ReturnStatement> return_statement) {
+void Compiler::_visitReturnStatement(AST::ReturnStatement* return_statement) {
     if (!return_statement->value && this->env->current_function->return_type->name == "void") {
         this->llvm_ir_builder.CreateRetVoid();
         throw DoneRet(); // Indicates to stop parsing further statements in the current block
@@ -1829,7 +1830,7 @@ void Compiler::_visitReturnStatement(shared_ptr<AST::ReturnStatement> return_sta
     }
 }
 
-StructTypePtr Compiler::_parseType(shared_ptr<AST::Type> type) {
+StructTypePtr Compiler::_parseType(AST::Type* type) {
     vector<StructTypePtr> generics;
     for (auto gen : type->generics) { generics.push_back(this->_parseType(gen)); }
 
@@ -1889,7 +1890,7 @@ StructTypePtr Compiler::_parseType(shared_ptr<AST::Type> type) {
     return struct_;
 }
 
-void Compiler::_handleFieldDeclaration(GenericStructTypePtr gstruct, AST::NodePtr field, std::shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types, const Str& struct_name) {
+void Compiler::_handleFieldDeclaration(GenericStructTypePtr gstruct, AST::Node* field, shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types, const Str& struct_name) {
     auto field_decl = field->castToVariableDeclarationStatement();
     Str field_name = field_decl->name->castToIdentifierLiteral()->value;
     auto field_type = this->_parseType(field_decl->value_type);
@@ -1916,11 +1917,11 @@ void Compiler::_handleFieldDeclaration(GenericStructTypePtr gstruct, AST::NodePt
     struct_record->struct_type = struct_type;
 }
 
-void Compiler::_visitFunctionDeclarationStatement(ASTFunctionStatementPtr function_declaration_statement, StructTypePtr struct_) {
+void Compiler::_visitFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_) {
     this->_createFunctionRecord(function_declaration_statement, struct_, nullptr, this->ir_gc_map_json);
 }
 
-Compiler::ResolvedValue Compiler::_visitCallExpression(shared_ptr<AST::CallExpression> call_expression) {
+Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call_expression) {
     auto name = call_expression->name->castToIdentifierLiteral()->value;
     auto param = call_expression->arguments;
     vector<llvm::Value*> args;
@@ -1967,7 +1968,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(shared_ptr<AST::CallExpre
     exit(1);
 };
 
-void Compiler::_visitIfElseStatement(shared_ptr<AST::IfElseStatement> if_statement) {
+void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
     // Resolve the condition value
     auto resolved_cond = this->_resolveValue(if_statement->condition);
 
@@ -2026,7 +2027,7 @@ void Compiler::_visitIfElseStatement(shared_ptr<AST::IfElseStatement> if_stateme
     this->llvm_ir_builder.SetInsertPoint(continue_block);
 }
 
-void Compiler::_visitWhileStatement(shared_ptr<AST::WhileStatement> while_statement) {
+void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Extract condition and body from the while statement
     auto condition = while_statement->condition;
     auto body = while_statement->body;
@@ -2145,7 +2146,7 @@ void Compiler::_visitWhileStatement(shared_ptr<AST::WhileStatement> while_statem
     this->env->exitLoop();
 }
 
-void Compiler::_visitForStatement(shared_ptr<AST::ForStatement> for_statement) {
+void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
     // Resolve the iterable object from the 'from' expression
     auto [iterable_value, iterable_alloca, _iterable_type, resolve_type] = this->_resolveValue(for_statement->from);
 
@@ -2309,19 +2310,19 @@ void Compiler::_visitForStatement(shared_ptr<AST::ForStatement> for_statement) {
     }
 }
 
-void Compiler::_visitTryCatchStatement(shared_ptr<AST::TryCatchStatement> tc_statement) {
+void Compiler::_visitTryCatchStatement(AST::TryCatchStatement* tc_statement) {
     std::cerr << "TODO: Add Suport to Handel Exception" << std::endl;
     exit(1);
 }
 
-void Compiler::_visitRaiseStatement(shared_ptr<AST::RaiseStatement> raise_statement) {
+void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
     std::cerr << "TODO: Add Suport to raise Exception" << std::endl;
     exit(1);
 }
 
 const Str readFileToString(const Str& filePath); // Defined in main.cpp
 
-void Compiler::_visitImportStatement(shared_ptr<AST::ImportStatement> import_statement, shared_ptr<RecordModule> module) {
+void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, shared_ptr<RecordModule> module) {
     // Extract the relative path from the import statement
     Str relative_path = import_statement->relativePath;
 
@@ -2331,11 +2332,11 @@ void Compiler::_visitImportStatement(shared_ptr<AST::ImportStatement> import_sta
 
     // Determine the path for the imported source file
     std::filesystem::path gc_source_path = this->file_path.parent_path() / (relative_path + ".gc");
-    if (relative_path.starts_with("std/")) { gc_source_path = GC_STD_DIR / (relative_path.substr(4) + ".gc"); }
+    if (relative_path.starts_with("std/") && !GC_STD_DIR.empty()) { gc_source_path = GC_STD_DIR / (relative_path.substr(4) + ".gc"); }
 
     // Determine the path for the IR-GC map file
     std::filesystem::path ir_gc_map_path = this->ir_gc_map.parent_path() / (relative_path + ".gc.Json");
-    if (relative_path.starts_with("std/")) { ir_gc_map_path = GC_STD_IRGCMAP / (relative_path.substr(4) + ".gc.Json"); }
+    if (relative_path.starts_with("std/") && !GC_STD_DIR.empty()) { ir_gc_map_path = GC_STD_IRGCMAP / (relative_path.substr(4) + ".gc.Json"); }
 
     // Load the IR-GC map JSON
     Json ir_gc_map_json;
@@ -2359,8 +2360,8 @@ void Compiler::_visitImportStatement(shared_ptr<AST::ImportStatement> import_sta
     this->source = gc_source;
 
     // Parse the source code into an AST
-    Lexer lexer(gc_source);
-    parser::Parser parser(std::make_shared<Lexer>(lexer));
+    auto lexer = new Lexer(gc_source);
+    parser::Parser parser(lexer);
     auto program = parser.parseProgram();
 
     // Save the current environment and create a new one for the imported module
@@ -2368,7 +2369,7 @@ void Compiler::_visitImportStatement(shared_ptr<AST::ImportStatement> import_sta
     this->env = std::make_shared<Enviornment>(previous_env, StrRecordMap{}, module_name);
 
     // Create a new module record if not importing into an existing module
-    std::shared_ptr<RecordModule> import_module = module;
+    shared_ptr<RecordModule> import_module = module;
     if (!module) {
         import_module = std::make_shared<RecordModule>(module_name);
         this->env->addRecord(import_module);
@@ -2401,12 +2402,12 @@ void Compiler::_visitImportStatement(shared_ptr<AST::ImportStatement> import_sta
     this->source = previous_source;
 }
 
-void Compiler::_importFunctionDeclarationStatement(ASTFunctionStatementPtr function_declaration_statement, std::shared_ptr<RecordModule> module, Json& ir_gc_map_json) {
+void Compiler::_importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, shared_ptr<RecordModule> module, Json& ir_gc_map_json) {
     // Utilize the helper function with the module and ir_gc_map_json
     this->_createFunctionRecord(function_declaration_statement, nullptr, module, ir_gc_map_json);
 }
 
-void Compiler::_importStructStatement(ASTStructStatementPtr struct_statement, std::shared_ptr<RecordModule> module, Json& ir_gc_map_json) {
+void Compiler::_importStructStatement(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module, Json& ir_gc_map_json) {
     // Utilize the helper function with the module and ir_gc_map_json
     this->_createStructRecord(struct_statement, module, ir_gc_map_json);
 }

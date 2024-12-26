@@ -168,7 +168,7 @@ void errors::NoOverload::raise() {
     std::vector<std::tuple<int, std::string, std::string>> underlines;
     for (const auto& mismatch : this->missmatches) {
         for (int idx : mismatch) {
-            auto callExpr = std::dynamic_pointer_cast<AST::CallExpression>(func_call);
+            auto callExpr = func_call->castToCallExpression();
             if (!callExpr || idx >= static_cast<int>(callExpr->arguments.size())) continue;
             auto arg = callExpr->arguments[idx];
             int line_no = arg->meta_data.st_line_no;
@@ -255,7 +255,7 @@ void errors::Cantindex::raise() {
 
     std::vector<std::tuple<int, std::string, std::string>> underlines;
 
-    if (auto indexExpr = std::dynamic_pointer_cast<AST::IndexExpression>(exp)) {
+    if (auto indexExpr = exp->castToIndexExpression()) {
         // Underline the left expression
         std::string left_underline = std::string(indexExpr->left->meta_data.st_col_no, ' ') +
                                       std::string(indexExpr->left->meta_data.end_col_no - indexExpr->left->meta_data.st_col_no, '^');
@@ -348,7 +348,7 @@ void errors::GenericStructResolutionError::raise() {
     exit(EXIT_FAILURE);
 }
 
-void errors::raiseSyntaxError(const std::string& type, const std::string& source, const token::Token& token, const std::string& message, const std::string& suggestedFix) {
+void errors::raiseSyntaxError(const std::string& type, const std::string& source, token::Token token, const std::string& message, const std::string& suggestedFix) {
     errors::SyntaxError error(type, source, token, message, suggestedFix);
     error.raise();
 }
