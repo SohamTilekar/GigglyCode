@@ -10,7 +10,7 @@
 #define DEBUG_LEXER
 #define DEBUG_PARSER
 #define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
-#define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.json"
+#define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.yaml"
 
 using json = nlohmann::json;
 std::filesystem::path GC_STD_DIR;
@@ -79,15 +79,15 @@ void debugLexer(const std::string& fileContent) {
             return;
         }
         while (debug_lexer.current_char != "") {
-            std::shared_ptr<token::Token> token = debug_lexer.nextToken();
-            debugOutput << token->toString(false) << std::endl;
+            token::Token token = debug_lexer.nextToken();
+            debugOutput << token.toString(false) << std::endl;
         }
         debugOutput.close();
         std::cout << "Debug output written to " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
     } else {
         while (debug_lexer.current_char != "") {
-            std::shared_ptr<token::Token> token = debug_lexer.nextToken();
-            std::cout << token->toString(true) << std::endl;
+            token::Token token = debug_lexer.nextToken();
+            std::cout << token.toString(true) << std::endl;
         }
     }
 #endif
@@ -95,22 +95,23 @@ void debugLexer(const std::string& fileContent) {
 
 void debugParser(const std::string& fileContent) {
 #ifdef DEBUG_PARSER
-    parser::Parser debug_parser(std::make_shared<Lexer>(fileContent));
+    parser::Parser debug_parser(new Lexer(fileContent));
     auto debug_program = debug_parser.parseProgram();
     std::cout << "=========== Parser Debug ===========" << std::endl;
     if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) {
         std::ofstream file(DEBUG_PARSER_OUTPUT_PATH, std::ios::trunc); // Open file in append mode
         if (file.is_open()) {
-            file << debug_program->toJSON()->dump(4) << std::endl;
+            file << debug_program->toStr() << std::endl;
             file.close();
         } else {
             std::cerr << "Unable to open file";
             exit(1);
         }
     } else {
-        std::cout << debug_program->toJSON()->dump(4, ' ', true, nlohmann::json::error_handler_t::replace);
+        std::cout << debug_program->toStr();
     }
     if (!std::string(DEBUG_PARSER_OUTPUT_PATH).empty()) { std::cout << "Parser output dumped to " << DEBUG_PARSER_OUTPUT_PATH << std::endl; }
+    delete debug_program;
 #endif
 }
 
@@ -127,11 +128,12 @@ void compileGcFile(const std::string& filePath,
     debugLexer(fileContent);
     debugParser(fileContent);
 
-    Lexer lexer(fileContent);
-    parser::Parser parsr(std::make_shared<Lexer>(lexer));
+    auto lexer = new Lexer(fileContent);
+    parser::Parser parsr(lexer);
     auto program = parsr.parseProgram();
     auto comp = compiler::Compiler(fileContent, std::filesystem::absolute(filePath), std::filesystem::path(ir_gc_map), buildDir, relativePath);
     comp.compile(program);
+    delete program;
 
     std::error_code EC;
     llvm::raw_fd_ostream file(outputFilePath, EC, llvm::sys::fs::OF_None);
@@ -297,25 +299,25 @@ void compileDirectory(const std::string& srcDir, const std::string& buildDir, js
 }
 
 int checkAndSetEnvVars() {
-    const char* gcStdDir = std::getenv("GC_STD_DIR");
+    const char* gcStdDir = std::getenv("GC_STD_IRGCMAP");
     if (gcStdDir == nullptr) {
-        std::cerr << "Error: GC_STD_DIR environment variable is not set." << std::endl;
+        std::cerr << "Warning: GC_STD_DIR environment variable is not set." << std::endl;
         return 1;
     }
-    GC_STD_DIR = std::filesystem::path(gcStdDir);
+    GC_STD_DIR = std::filesystem::path(gcStdDir ? gcStdDir : "");
 
     const char* gc_Std_IrGcMap = std::getenv("GC_STD_IRGCMAP");
     if (gc_Std_IrGcMap == nullptr) {
-        std::cerr << "Error: GC_STD_IRGCMAP environment variable is not set." << std::endl;
+        std::cerr << "Warning: GC_STD_IRGCMAP environment variable is not set." << std::endl;
         return 1;
     }
-    GC_STD_IRGCMAP = gc_Std_IrGcMap;
+    GC_STD_IRGCMAP = std::filesystem::path(gc_Std_IrGcMap ? gc_Std_IrGcMap : "");
 
-    const char* gcStdObj = std::getenv("GC_STD_OBJ");
-    if (gcStdObj == nullptr) {
-        std::cerr << "Error: GC_STD_OBJ environment variable is not set." << std::endl;
-        return 1;
-    }
+    // const char* gcStdObj = std::getenv("GC_STD_OBJ");
+    // if (gcStdObj == nullptr) {
+    //     std::cerr << "Warning: GC_STD_OBJ environment variable is not set." << std::endl;
+    //     return 1;
+    // }
 
     return 0;
 }
@@ -357,7 +359,7 @@ int linkObjectFiles(const std::string& buildDir, const std::string& executablePa
         if (entry.is_regular_file() && entry.path().extension() == ".o") { objFiles += entry.path().string() + " "; }
     }
     std::cout << objFiles << std::endl;
-    std::string linkCommand = "clang -O3 " + objFiles + " -o " + executablePath;
+    std::string linkCommand = "clang " + objFiles + " -o " + executablePath;
     int linkResult = std::system(linkCommand.c_str());
     if (linkResult != 0) {
         std::cerr << "Error: Failed to link object files into executable " << executablePath << std::endl;

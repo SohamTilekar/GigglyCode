@@ -15,6 +15,10 @@ find_package(Clang REQUIRED CONFIG)
 include_directories(${CLANG_INCLUDE_DIRS})
 add_definitions(${CLANG_DEFINITIONS})
 
+find_package(yaml-cpp REQUIRED CONFIG)
+include_directories(${YAML_CPP_INCLUDE_DIR})
+add_definitions(${YAML_CPP_LIBRARY_DIR})
+
 add_subdirectory(lexer)
 add_subdirectory(parser)
 add_subdirectory(compiler)
