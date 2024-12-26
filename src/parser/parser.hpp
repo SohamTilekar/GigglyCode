@@ -11,7 +11,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
@@ -85,13 +84,7 @@ namespace parser {
  * @brief Namespace for the parser components.
  */
 
-using std::shared_ptr;
 using token::TokenType;
-using ExpressionPtr = shared_ptr<AST::Expression>;
-using StatementPtr = shared_ptr<AST::Statement>;
-using ErrorPtr = shared_ptr<errors::Error>;
-using TokenPtr = shared_ptr<token::Token>;
-using LexerPtr = shared_ptr<Lexer>;
 using std::make_shared;
 
 /**
@@ -181,12 +174,12 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
  */
 class Parser {
   public:
-    LexerPtr lexer;                   ///< The lexer used for tokenizing the input
-    TokenPtr current_token = nullptr; ///< The current token being parsed
-    TokenPtr peek_token = nullptr;    ///< The next token to be parsed
+    Lexer* lexer;                   ///< The lexer used for tokenizing the input
+    token::Token current_token; ///< The current token being parsed
+    token::Token peek_token;    ///< The next token to be parsed
 
     // Prefix parse functions
-    std::unordered_map<TokenType, std::function<ExpressionPtr()>> prefix_parse_fns = {
+    std::unordered_map<TokenType, std::function<AST::Expression*()>> prefix_parse_fns = {
         {TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},
         {TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
         {TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},
@@ -199,7 +192,7 @@ class Parser {
     };
 
     // Infix parse functions
-    std::unordered_map<TokenType, std::function<ExpressionPtr(ExpressionPtr)>> infix_parse_Fns = {
+    std::unordered_map<TokenType, std::function<AST::Expression*(AST::Expression*)>> infix_parse_fns = {
         {TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::And, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::Plus, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
@@ -225,24 +218,24 @@ class Parser {
      *
      * @param lexer The lexer to use for tokenizing the input
      */
-    Parser(LexerPtr lexer);
+    Parser(Lexer* lexer);
 
     /**
      * @brief Parse the entire program
      *
      * Iteratively parses statements until the EndOfFile token is encountered, constructing the AST.
      *
-     * @return shared_ptr<AST::Program> The parsed program
+     * @return AST::Program* The parsed program
      */
-    shared_ptr<AST::Program> parseProgram();
+    AST::Program* parseProgram();
 
   private:
     /**
      * @brief Struct to hold loop modifier statements.
      */
     struct LoopModifiers {
-        StatementPtr ifbreak;
-        StatementPtr notbreak;
+        AST::Statement* ifbreak;
+        AST::Statement* notbreak;
     };
 
     /**
@@ -344,9 +337,9 @@ class Parser {
      *
      * Dispatches to specific parsing functions for different statement types.
      *
-     * @return StatementPtr The parsed statement
+     * @return AST::Statement* The parsed statement
      */
-    StatementPtr _parseStatement();
+    AST::Statement* _parseStatement();
 
     /**
      * @brief Parse an expression statement, optionally starting with an identifier
@@ -356,9 +349,9 @@ class Parser {
      * @param identifier Optional identifier expression to start with
      * @param st_line_no Optional start line number for metadata
      * @param st_col_no Optional start column number for metadata
-     * @return StatementPtr The parsed expression statement
+     * @return AST::Statement* The parsed expression statement
      */
-    StatementPtr _parseExpressionStatement(ExpressionPtr identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Statement* _parseExpressionStatement(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
 
     /**
      * @brief Parse a variable declaration statement
@@ -369,9 +362,9 @@ class Parser {
      * @param st_line_no Optional start line number for metadata
      * @param st_col_no Optional start column number for metadata
      * @param is_volatile Optional flag indicating if the variable is volatile
-     * @return StatementPtr The parsed variable declaration statement
+     * @return AST::Statement* The parsed variable declaration statement
      */
-    StatementPtr _parseVariableDeclaration(ExpressionPtr identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false);
+    AST::Statement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false);
 
     /**
      * @brief Parse a variable assignment statement
@@ -381,147 +374,147 @@ class Parser {
      * @param identifier Optional identifier expression to assign to
      * @param st_line_no Optional start line number for metadata
      * @param st_col_no Optional start column number for metadata
-     * @return StatementPtr The parsed variable assignment statement
+     * @return AST::Statement* The parsed variable assignment statement
      */
-    StatementPtr _parseVariableAssignment(ExpressionPtr identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Statement* _parseVariableAssignment(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
 
     /**
      * @brief Parse a return statement
      *
      * Handles both bare returns and returns with expressions.
      *
-     * @return shared_ptr<AST::ReturnStatement> The parsed return statement
+     * @return AST::ReturnStatement* The parsed return statement
      */
-    shared_ptr<AST::ReturnStatement> _parseReturnStatement();
+    AST::ReturnStatement* _parseReturnStatement();
 
     /**
      * @brief Parse a raise statement
      *
      * Handles statements that raise exceptions or errors.
      *
-     * @return shared_ptr<AST::RaiseStatement> The parsed raise statement
+     * @return AST::RaiseStatement* The parsed raise statement
      */
-    shared_ptr<AST::RaiseStatement> _parseRaiseStatement();
+    AST::RaiseStatement* _parseRaiseStatement();
 
     /**
      * @brief Parse a function statement
      *
      * Handles the declaration of functions, including parameters, return types, and function bodies.
      *
-     * @return shared_ptr<AST::FunctionStatement> The parsed function statement
+     * @return AST::FunctionStatement* The parsed function statement
      */
-    shared_ptr<AST::FunctionStatement> _parseFunctionStatement();
+    AST::FunctionStatement* _parseFunctionStatement();
 
     /**
      * @brief Parse function parameters.
      *
-     * @return std::vector<shared_ptr<AST::FunctionParameter>> The list of parsed function parameters.
+     * @return std::vector<AST::FunctionParameter*> The list of parsed function parameters.
      */
-    std::vector<shared_ptr<AST::FunctionParameter>> _parseFunctionParameters();
+    std::vector<AST::FunctionParameter*> _parseFunctionParameters();
 
     /**
      * @brief Parse closure parameters in function definitions.
      *
-     * @return std::vector<shared_ptr<AST::FunctionParameter>> The list of parsed closure parameters.
+     * @return std::vector<AST::FunctionParameter*> The list of parsed closure parameters.
      */
-    std::vector<shared_ptr<AST::FunctionParameter>> _parseClosureParameters();
+    std::vector<AST::FunctionParameter*> _parseClosureParameters();
 
     /**
      * @brief Parse a decorator statement
      *
      * Handles decorators applied to functions or structs.
      *
-     * @return StatementPtr The parsed decorator statement
+     * @return AST::Statement* The parsed decorator statement
      */
-    StatementPtr _parseDeco();
+    AST::Statement* _parseDeco();
 
     /**
      * @brief Parse a block statement
      *
      * Handles a block of statements enclosed within braces `{}`.
      *
-     * @return shared_ptr<AST::BlockStatement> The parsed block statement
+     * @return AST::BlockStatement* The parsed block statement
      */
-    shared_ptr<AST::BlockStatement> _parseBlockStatement();
+    AST::BlockStatement* _parseBlockStatement();
 
     /**
      * @brief Parse an if-else statement
      *
      * Handles conditional statements with optional else blocks.
      *
-     * @return StatementPtr The parsed if-else statement
+     * @return AST::Statement* The parsed if-else statement
      */
-    StatementPtr _parseIfElseStatement();
+    AST::Statement* _parseIfElseStatement();
 
     /**
      * @brief Parse a while statement
      *
      * Handles loop constructs that execute based on a condition.
      *
-     * @return shared_ptr<AST::WhileStatement> The parsed while statement
+     * @return AST::WhileStatement* The parsed while statement
      */
-    shared_ptr<AST::WhileStatement> _parseWhileStatement();
+    AST::WhileStatement* _parseWhileStatement();
 
     /**
      * @brief Parse a for statement
      *
      * Handles loop constructs that iterate over a range or collection.
      *
-     * @return shared_ptr<AST::ForStatement> The parsed for statement
+     * @return AST::ForStatement* The parsed for statement
      */
-    shared_ptr<AST::ForStatement> _parseForStatement();
+    AST::ForStatement* _parseForStatement();
 
     /**
      * @brief Parse a break statement
      *
      * Handles statements that exit a loop prematurely.
      *
-     * @return shared_ptr<AST::BreakStatement> The parsed break statement
+     * @return AST::BreakStatement* The parsed break statement
      */
-    shared_ptr<AST::BreakStatement> _parseBreakStatement();
+    AST::BreakStatement* _parseBreakStatement();
 
     /**
      * @brief Parse a continue statement
      *
      * Handles statements that skip the current loop iteration.
      *
-     * @return shared_ptr<AST::ContinueStatement> The parsed continue statement
+     * @return AST::ContinueStatement* The parsed continue statement
      */
-    shared_ptr<AST::ContinueStatement> _parseContinueStatement();
+    AST::ContinueStatement* _parseContinueStatement();
 
     /**
      * @brief Parse an import statement
      *
      * Handles statements that import modules or libraries.
      *
-     * @return shared_ptr<AST::ImportStatement> The parsed import statement
+     * @return AST::ImportStatement* The parsed import statement
      */
-    shared_ptr<AST::ImportStatement> _parseImportStatement();
+    AST::ImportStatement* _parseImportStatement();
 
     /**
      * @brief Parse a struct statement
      *
      * Handles the declaration of structs, including their members and methods.
      *
-     * @return shared_ptr<AST::StructStatement> The parsed struct statement
+     * @return AST::StructStatement* The parsed struct statement
      */
-    shared_ptr<AST::StructStatement> _parseStructStatement();
+    AST::StructStatement* _parseStructStatement();
 
     /**
      * @brief Parse a try-catch statement
      *
      * Handles error handling constructs with try and catch blocks.
      *
-     * @return shared_ptr<AST::TryCatchStatement> The parsed try-catch statement
+     * @return AST::TryCatchStatement* The parsed try-catch statement
      */
-    shared_ptr<AST::TryCatchStatement> _parseTryCatchStatement();
+    AST::TryCatchStatement* _parseTryCatchStatement();
 
     /**
      * @brief Parse a switch-case statement
      *
-     * @return shared_ptr<AST::SwitchCaseStatement> The parsed switch-case statement
+     * @return AST::SwitchCaseStatement* The parsed switch-case statement
      */
-    shared_ptr<AST::SwitchCaseStatement> _parseSwitchCaseStatement();
+    AST::SwitchCaseStatement* _parseSwitchCaseStatement();
 
     /**
      * @brief Parse a function call expression
@@ -531,9 +524,9 @@ class Parser {
      * @param identifier Optional identifier expression representing the function name
      * @param st_line_no Optional start line number for metadata
      * @param st_col_no Optional start column number for metadata
-     * @return ExpressionPtr The parsed function call expression
+     * @return AST::Expression* The parsed function call expression
      */
-    ExpressionPtr _parseFunctionCall(ExpressionPtr identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Expression* _parseFunctionCall(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
 
     // Expression parsing methods
 
@@ -542,9 +535,9 @@ class Parser {
      *
      * Handles type declarations, including generic types and references.
      *
-     * @return shared_ptr<AST::Type> The parsed type
+     * @return AST::Type* The parsed type
      */
-    shared_ptr<AST::Type> _parseType();
+    AST::Type* _parseType();
 
     /**
      * @brief Parse an expression
@@ -555,129 +548,129 @@ class Parser {
      * @param parsed_expression Optional already parsed expression to extend
      * @param st_line_no Optional start line number for metadata
      * @param st_col_no Optional start column number for metadata
-     * @return ExpressionPtr The parsed expression
+     * @return AST::Expression* The parsed expression
      */
-    ExpressionPtr _parseExpression(PrecedenceType precedence, ExpressionPtr parsed_expression = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Expression* _parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression = nullptr, int st_line_no = -1, int st_col_no = -1);
 
     /**
      * @brief Parse an integer literal expression
      *
-     * @return ExpressionPtr The parsed integer literal
+     * @return AST::Expression* The parsed integer literal
      */
-    ExpressionPtr _parseIntegerLiteral();
+    AST::Expression* _parseIntegerLiteral();
 
     /**
      * @brief Parse a float literal expression
      *
-     * @return ExpressionPtr The parsed float literal
+     * @return AST::Expression* The parsed float literal
      */
-    ExpressionPtr _parseFloatLiteral();
+    AST::Expression* _parseFloatLiteral();
 
     /**
      * @brief Parse a boolean literal expression
      *
-     * @return ExpressionPtr The parsed boolean literal
+     * @return AST::Expression* The parsed boolean literal
      */
-    ExpressionPtr _parseBooleanLiteral();
+    AST::Expression* _parseBooleanLiteral();
 
     /**
      * @brief Parse a string literal expression
      *
-     * @return ExpressionPtr The parsed string literal
+     * @return AST::Expression* The parsed string literal
      */
-    ExpressionPtr _parseStringLiteral();
+    AST::Expression* _parseStringLiteral();
 
     /**
      * @brief Parse a grouped expression (expressions within parentheses)
      *
-     * @return ExpressionPtr The parsed grouped expression
+     * @return AST::Expression* The parsed grouped expression
      */
-    ExpressionPtr _parseGroupedExpression();
+    AST::Expression* _parseGroupedExpression();
 
     /**
      * @brief Parse an identifier expression
      *
-     * @return ExpressionPtr The parsed identifier
+     * @return AST::Expression* The parsed identifier
      */
-    ExpressionPtr _parseIdentifier();
+    AST::Expression* _parseIdentifier();
 
     /**
      * @brief Parse an array literal expression
      *
      * Handles array definitions with multiple elements.
      *
-     * @return ExpressionPtr The parsed array literal
+     * @return AST::Expression* The parsed array literal
      */
-    ExpressionPtr _parseArrayLiteral();
+    AST::Expression* _parseArrayLiteral();
 
     /**
      * @brief Parse a 'new' expression for object or array creation
      *
      * Identifies and handles 'new' object or array creation expressions.
      *
-     * @return ExpressionPtr The parsed 'new' expression
+     * @return AST::Expression* The parsed 'new' expression
      */
-    ExpressionPtr _parseNew();
+    AST::Expression* _parseNew();
 
     /**
      * @brief Parse a list of expressions separated by commas
      *
      * @param end The token type that signifies the end of the expression list
-     * @return std::vector<ExpressionPtr> The list of parsed expressions
+     * @return std::vector<AST::Expression*> The list of parsed expressions
      */
-    std::vector<ExpressionPtr> _parse_expression_list(TokenType end);
+    std::vector<AST::Expression*> _parse_expression_list(TokenType end);
 
     /**
      * @brief Parse an infix expression based on the left-hand side expression
      *
      * @param leftNode The left-hand side expression
-     * @return ExpressionPtr The parsed infix expression
+     * @return AST::Expression* The parsed infix expression
      */
-    ExpressionPtr _parseInfixExpression(ExpressionPtr leftNode);
+    AST::Expression* _parseInfixExpression(AST::Expression* leftNode);
 
     /**
      * @brief Parse an index expression (e.g., array[index])
      *
      * @param leftNode The array expression being indexed
-     * @return ExpressionPtr The parsed index expression
+     * @return AST::Expression* The parsed index expression
      */
-    ExpressionPtr _parseIndexExpression(ExpressionPtr leftNode);
+    AST::Expression* _parseIndexExpression(AST::Expression* leftNode);
 
     /**
      * @brief Parse an infix identifier recursively
      *
      * Handles chained member accesses like object.property.subproperty.
      *
-     * @return ExpressionPtr The parsed infix identifier expression
+     * @return AST::Expression* The parsed infix identifier expression
      */
-    ExpressionPtr _parseInfixIdenifier();
+    AST::Expression* _parseInfixIdenifier();
 
     // Helpers
 
     /**
      * @brief Parses an identifier and determines its context (declaration, assignment, function call, etc.)
      *
-     * @return StatementPtr The parsed statement based on the identifier context
+     * @return AST::Statement* The parsed statement based on the identifier context
      */
-    StatementPtr _interpretIdentifier();
+    AST::Statement* _interpretIdentifier();
 
     /**
      * @brief Parse a generic decorator
      *
      * Handles decorators that specify generic types.
      *
-     * @return StatementPtr The parsed generic decorator statement
+     * @return AST::Statement* The parsed generic decorator statement
      */
-    StatementPtr _parseGenericDeco();
+    AST::Statement* _parseGenericDeco();
 
     /**
      * @brief Parse an autocast decorator
      *
      * Handles decorators that enable autocasting functionality.
      *
-     * @return StatementPtr The parsed autocast decorator statement
+     * @return AST::Statement* The parsed autocast decorator statement
      */
-    StatementPtr _parseAutocastDeco();
+    AST::Statement* _parseAutocastDeco();
 }; // class Parser
 
 } // namespace parser

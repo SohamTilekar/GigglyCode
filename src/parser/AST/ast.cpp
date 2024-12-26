@@ -1,9 +1,333 @@
 #include "ast.hpp"
 #include "../../lexer/token.hpp"
-
-#include <memory>
+#include <yaml-cpp/yaml.h>
 
 using namespace AST;
+
+Type::~Type() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    for (auto gen : generics) {
+        if (gen) {
+            delete gen;
+        }
+    }
+    generics.clear();
+}
+
+GenericType::~GenericType() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    for (auto gen : generic_union) {
+        if (gen) {
+            delete gen;
+        }
+    }
+    generic_union.clear();
+}
+
+Program::~Program() {
+    for (auto stmt : statements) {
+        if (stmt) {
+            delete stmt;
+        }
+    }
+    statements.clear();
+}
+
+ExpressionStatement::~ExpressionStatement() {
+    if (expr) {
+        delete expr;
+        expr = nullptr;
+    }
+}
+
+BlockStatement::~BlockStatement() {
+    for (auto stmt : statements) {
+        if (stmt) {
+            delete stmt;
+        }
+    }
+    statements.clear();
+}
+
+ReturnStatement::~ReturnStatement() {
+    if (value) {
+        delete value;
+        value = nullptr;
+    }
+}
+
+RaiseStatement::~RaiseStatement() {
+    if (value) {
+        delete value;
+        value = nullptr;
+    }
+}
+
+FunctionParameter::~FunctionParameter() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    if (value_type) {
+        delete value_type;
+        value_type = nullptr;
+    }
+}
+
+FunctionStatement::~FunctionStatement() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    for (auto param : parameters) {
+        if (param) {
+            delete param;
+        }
+    }
+    parameters.clear();
+    for (auto param : closure_parameters) {
+        if (param) {
+            delete param;
+        }
+    }
+    closure_parameters.clear();
+    if (return_type) {
+        delete return_type;
+        return_type = nullptr;
+    }
+    if (body) {
+        delete body;
+        body = nullptr;
+    }
+    for (auto gen : generic) {
+        if (gen) {
+            delete gen;
+        }
+    }
+    generic.clear();
+}
+
+CallExpression::~CallExpression() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    for (auto arg : arguments) {
+        if (arg) {
+            delete arg;
+        }
+    }
+    arguments.clear();
+    for (auto gen : generics) {
+        if (gen) {
+            delete gen;
+        }
+    }
+    generics.clear();
+}
+
+IfElseStatement::~IfElseStatement() {
+    if (condition) {
+        delete condition;
+        condition = nullptr;
+    }
+    if (consequence) {
+        delete consequence;
+        consequence = nullptr;
+    }
+    if (alternative) {
+        delete alternative;
+        alternative = nullptr;
+    }
+}
+
+WhileStatement::~WhileStatement() {
+    if (condition) {
+        delete condition;
+        condition = nullptr;
+    }
+    if (body) {
+        delete body;
+        body = nullptr;
+    }
+    if (ifbreak) {
+        delete ifbreak;
+        ifbreak = nullptr;
+    }
+    if (notbreak) {
+        delete notbreak;
+        notbreak = nullptr;
+    }
+}
+
+ForStatement::~ForStatement() {
+    if (get) {
+        delete get;
+        get = nullptr;
+    }
+    if (from) {
+        delete from;
+        from = nullptr;
+    }
+    if (body) {
+        delete body;
+        body = nullptr;
+    }
+    if (ifbreak) {
+        delete ifbreak;
+        ifbreak = nullptr;
+    }
+    if (notbreak) {
+        delete notbreak;
+        notbreak = nullptr;
+    }
+}
+
+VariableDeclarationStatement::~VariableDeclarationStatement() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    if (value_type) {
+        delete value_type;
+        value_type = nullptr;
+    }
+    if (value) {
+        delete value;
+        value = nullptr;
+    }
+}
+
+VariableAssignmentStatement::~VariableAssignmentStatement() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    if (value) {
+        delete value;
+        value = nullptr;
+    }
+}
+
+TryCatchStatement::~TryCatchStatement() {
+    if (try_block) {
+        delete try_block;
+        try_block = nullptr;
+    }
+    for (auto& [type, var, block] : catch_blocks) {
+        if (type) {
+            delete type;
+            type = nullptr;
+        }
+        if (var) {
+            delete var;
+            var = nullptr;
+        }
+        if (block) {
+            delete block;
+            block = nullptr;
+        }
+    }
+    catch_blocks.clear();
+}
+
+SwitchCaseStatement::~SwitchCaseStatement() {
+    if (condition) {
+        delete condition;
+        condition = nullptr;
+    }
+    for (auto& [expr, stmt] : cases) {
+        if (expr) {
+            delete expr;
+            expr = nullptr;
+        }
+        if (stmt) {
+            delete stmt;
+            stmt = nullptr;
+        }
+    }
+    cases.clear();
+    if (other) {
+        delete other;
+        other = nullptr;
+    }
+}
+
+InfixExpression::~InfixExpression() {
+    if (left) {
+        delete left;
+        left = nullptr;
+    }
+    if (right) {
+        delete right;
+        right = nullptr;
+    }
+}
+
+IndexExpression::~IndexExpression() {
+    if (left) {
+        delete left;
+        left = nullptr;
+    }
+    if (index) {
+        delete index;
+        index = nullptr;
+    }
+}
+
+IntegerLiteral::~IntegerLiteral() {
+    // No dynamic memory to delete
+}
+
+FloatLiteral::~FloatLiteral() {
+    // No dynamic memory to delete
+}
+
+StringLiteral::~StringLiteral() {
+    // No dynamic memory to delete
+}
+
+IdentifierLiteral::~IdentifierLiteral() {
+    // No dynamic memory to delete
+}
+
+BooleanLiteral::~BooleanLiteral() {
+    // No dynamic memory to delete
+}
+
+StructStatement::~StructStatement() {
+    if (name) {
+        delete name;
+        name = nullptr;
+    }
+    for (auto stmt : fields) {
+        if (stmt) {
+            delete stmt;
+        }
+    }
+    fields.clear();
+    for (auto gen : generics) {
+        if (gen) {
+            delete gen;
+        }
+    }
+    generics.clear();
+}
+
+ArrayLiteral::~ArrayLiteral() {
+    for (auto elem : elements) {
+        if (elem) {
+            delete elem;
+        }
+    }
+    elements.clear();
+}
 
 std::string AST::nodeTypeToString(NodeType type) {
     switch (type) {
@@ -68,244 +392,462 @@ std::string AST::nodeTypeToString(NodeType type) {
     }
 };
 
-JsonPtr Type::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["generics"] = Json::array();
-    for (auto& gen : generics) { jsonAst["generics"].push_back(*gen->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
-};
 
-JsonPtr GenericType::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["generic_union"] = Json::array();
-    for (auto& gen : generic_union) { jsonAst["generic_union"].push_back(*gen->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
-};
-
-JsonPtr Program::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["statements"] = Json::array();
-    for (auto& stmt : statements) { jsonAst["statements"].push_back(*stmt->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
+std::string Type::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
+    for (auto& gen : generics) {
+        out << YAML::Load(gen->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr ExpressionStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["Expression"] = expr == nullptr ? nullptr : *expr->toJSON();
-    return std::make_shared<Json>(jsonAst);
+std::string GenericType::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "generic_union" << YAML::Value << YAML::BeginSeq;
+    for (auto& gen : generic_union) {
+        out << YAML::Load(gen->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr BlockStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["statements"] = Json::array();
-    for (auto& stmt : statements) { jsonAst["statements"].push_back(*stmt->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
+std::string Program::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "statements" << YAML::Value << YAML::BeginSeq;
+    for (auto& stmt : statements) {
+        out << YAML::Load(stmt->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr ReturnStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value == nullptr ? nullptr : *(value->toJSON());
-    return std::make_shared<Json>(jsonAst);
+std::string ExpressionStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "Expression";
+    if (expr == nullptr) {
+        out << YAML::Value << "null";
+    } else {
+        out << YAML::Value << YAML::Load(expr->toStr());
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr RaiseStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value == nullptr ? nullptr : *(value->toJSON());
-    return std::make_shared<Json>(jsonAst);
+std::string BlockStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "statements" << YAML::Value << YAML::BeginSeq;
+    for (auto& stmt : statements) {
+        out << YAML::Load(stmt->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr FunctionStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["parameters"] = Json::array();
-    for (auto& param : parameters) { jsonAst["parameters"].push_back(*param->toJSON()); }
-    jsonAst["return_type"] = return_type ? *return_type->toJSON() : nullptr;
-    jsonAst["body"] = body ? *body->toJSON() : nullptr;
-    jsonAst["generic"] = Json::array();
-    for (auto& gen : generic) { jsonAst["generic"].push_back(*gen->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
+std::string ReturnStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value";
+    if (value == nullptr) {
+        out << YAML::Value << "null";
+    } else {
+        out << YAML::Value << YAML::Load(value->toStr());
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr FunctionParameter::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["param_name"] = *name->toJSON();
-    jsonAst["param_type"] = *value_type->toJSON();
-    return std::make_shared<Json>(jsonAst);
+std::string RaiseStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value";
+    if (value == nullptr) {
+        out << YAML::Value << "null";
+    } else {
+        out << YAML::Value << YAML::Load(value->toStr());
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr CallExpression::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["arguments"] = Json::array();
-    for (auto& arg : arguments) { jsonAst["arguments"].push_back(*arg->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
+std::string FunctionStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "parameters" << YAML::Value << YAML::BeginSeq;
+    for (auto& param : parameters) {
+        out << YAML::Load(param->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::Key << "return_type";
+    if (return_type) {
+        out << YAML::Value << YAML::Load(return_type->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "body";
+    if (body) {
+        out << YAML::Value << YAML::Load(body->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "generic" << YAML::Value << YAML::BeginSeq;
+    for (auto& gen : generic) {
+        out << YAML::Load(gen->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr IfElseStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["condition"] = *condition->toJSON();
-    jsonAst["consequence"] = *consequence->toJSON();
-    jsonAst["alternative"] = alternative == nullptr ? nullptr : *alternative->toJSON();
-    return std::make_shared<Json>(jsonAst);
+std::string FunctionParameter::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "param_name" << YAML::Value << name->toStr();
+    out << YAML::Key << "param_type" << YAML::Value;
+    out << YAML::Load(value_type->toStr());
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr WhileStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["condition"] = *condition->toJSON();
-    jsonAst["body"] = *body->toJSON();
-    jsonAst["ifbreak"] = ifbreak ? *ifbreak->toJSON() : nullptr;
-    jsonAst["notbreak"] = notbreak ? *notbreak->toJSON() : nullptr;
-    return std::make_shared<Json>(jsonAst);
+std::string CallExpression::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "arguments" << YAML::Value << YAML::BeginSeq;
+    for (auto& arg : arguments) {
+        out << YAML::Load(arg->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr ForStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["body"] = *body->toJSON();
-    jsonAst["get"] = *get->toJSON();
-    jsonAst["from"] = *from->toJSON();
-    return std::make_shared<Json>(jsonAst);
+std::string IfElseStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "condition";
+    if (condition) {
+        out << YAML::Value << YAML::Load(condition->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "consequence";
+    if (consequence) {
+        out << YAML::Value << YAML::Load(consequence->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "alternative";
+    if (alternative == nullptr) {
+        out << YAML::Value << "null";
+    } else {
+        out << YAML::Value << YAML::Load(alternative->toStr());
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr BreakStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["loopNum"] = loopIdx;
-    return std::make_shared<Json>(jsonAst);
+std::string WhileStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "condition";
+    if (condition) {
+        out << YAML::Value << YAML::Load(condition->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "body";
+    if (body) {
+        out << YAML::Value << YAML::Load(body->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "ifbreak";
+    if (ifbreak) {
+        out << YAML::Value << YAML::Load(ifbreak->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "notbreak";
+    if (notbreak) {
+        out << YAML::Value << YAML::Load(notbreak->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr ContinueStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["loopNum"] = loopIdx;
-    return std::make_shared<Json>(jsonAst);
+std::string ForStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "body";
+    if (body) {
+        out << YAML::Value << YAML::Load(body->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "get";
+    if (get) {
+        out << YAML::Value << YAML::Load(get->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "from";
+    if (from) {
+        out << YAML::Value << YAML::Load(from->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr ImportStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["path"] = relativePath;
-    return std::make_shared<Json>(jsonAst);
+std::string BreakStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "loopNum" << YAML::Value << loopIdx;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr VariableDeclarationStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["value_type"] = *value_type->toJSON();
-    jsonAst["value"] = value == nullptr ? nullptr : *value->toJSON();
-    jsonAst["volatile"] = is_volatile;
-    return std::make_shared<Json>(jsonAst);
+std::string ContinueStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "loopNum" << YAML::Value << loopIdx;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr VariableAssignmentStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["value"] = *value->toJSON();
-    return std::make_shared<Json>(jsonAst);
+std::string ImportStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "path" << YAML::Value << relativePath;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr TryCatchStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["try"] = *try_block->toJSON();
-    jsonAst["catch"] = Json::array();
-    for (auto& [type, var, block] : catch_blocks) { jsonAst["catch"].push_back({*type->toJSON(), *var->toJSON(), *block->toJSON()}); }
-    return std::make_shared<Json>(jsonAst);
+std::string VariableDeclarationStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "value_type" << YAML::Value << YAML::Load(value_type->toStr());
+    out << YAML::Key << "value";
+    if (value == nullptr) {
+        out << YAML::Value << "null";
+    } else {
+        out << YAML::Value << YAML::Load(value->toStr());
+    }
+    out << YAML::Key << "volatile" << YAML::Value << (is_volatile ? "true" : "false");
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr SwitchCaseStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["condition"] = *condition->toJSON();
-    jsonAst["catch"] = Json::array();
-    for (auto& [_case, block] : cases) { jsonAst["case"].push_back({*_case->toJSON(), *block->toJSON()}); };
-    jsonAst["other"] = other ? *other->toJSON() : nullptr;
-    return std::make_shared<Json>(jsonAst);
+std::string VariableAssignmentStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "value" << YAML::Value << YAML::Load(value->toStr());
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr InfixExpression::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["operator"] = token::tokenTypeString(op);
-    jsonAst["left_node"] = *(left->toJSON());
-    jsonAst["right_node"] = right == nullptr ? nullptr : *right->toJSON();
-    return std::make_shared<Json>(jsonAst);
+std::string TryCatchStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "try";
+    if (try_block) {
+        out << YAML::Value << YAML::Load(try_block->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "catch" << YAML::Value << YAML::BeginSeq;
+    for (auto& [type, var, block] : catch_blocks) {
+        YAML::Node catchNode;
+        catchNode["type"] = YAML::Load(type->toStr());
+        catchNode["var"] = YAML::Load(var->toStr());
+        catchNode["block"] = YAML::Load(block->toStr());
+        out << catchNode;
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr IndexExpression::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["left_node"] = *(left->toJSON());
-    jsonAst["index"] = *(index->toJSON());
-    return std::make_shared<Json>(jsonAst);
+std::string SwitchCaseStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "condition";
+    if (condition) {
+        out << YAML::Value << YAML::Load(condition->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "case" << YAML::Value << YAML::BeginSeq;
+    for (auto& [_case, block] : cases) {
+        YAML::Node caseNode;
+        caseNode["case"] = YAML::Load(_case->toStr());
+        caseNode["block"] = YAML::Load(block->toStr());
+        out << caseNode;
+    }
+    out << YAML::EndSeq;
+    out << YAML::Key << "other";
+    if (other) {
+        out << YAML::Value << YAML::Load(other->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr IntegerLiteral::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value;
-    return std::make_shared<Json>(jsonAst);
+std::string InfixExpression::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "operator" << YAML::Value << token::tokenTypeString(op);
+    out << YAML::Key << "left_node";
+    if (left) {
+        out << YAML::Value << YAML::Load(left->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "right_node";
+    if (right == nullptr) {
+        out << YAML::Value << "null";
+    } else {
+        out << YAML::Value << YAML::Load(right->toStr());
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr FloatLiteral::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value;
-    return std::make_shared<Json>(jsonAst);
+std::string IndexExpression::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "left_node";
+    if (left) {
+        out << YAML::Value << YAML::Load(left->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "index";
+    if (index) {
+        out << YAML::Value << YAML::Load(index->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr StringLiteral::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value;
-    return std::make_shared<Json>(jsonAst);
+std::string IntegerLiteral::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value" << YAML::Value << value;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr IdentifierLiteral::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value;
-    return std::make_shared<Json>(jsonAst);
+std::string FloatLiteral::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value" << YAML::Value << value;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr BooleanLiteral::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["value"] = value;
-    return std::make_shared<Json>(jsonAst);
+std::string StringLiteral::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value" << YAML::Value << value;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr StructStatement::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["name"] = *name->toJSON();
-    jsonAst["fields"] = Json::array();
-    for (auto& field : fields) { jsonAst["fields"].push_back(*field->toJSON()); }
-    jsonAst["generics"] = Json::array();
-    for (auto& field : generics) { jsonAst["generics"].push_back(*field->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
+std::string IdentifierLiteral::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value" << YAML::Value << value;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
 
-JsonPtr ArrayLiteral::toJSON() {
-    auto jsonAst = Json();
-    jsonAst["type"] = nodeTypeToString(type());
-    jsonAst["elements"] = Json::array();
-    for (auto& element : elements) { jsonAst["elements"].push_back(*element->toJSON()); }
-    return std::make_shared<Json>(jsonAst);
+std::string BooleanLiteral::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "value" << YAML::Value << (value ? "true" : "false");
+    out << YAML::EndMap;
+    return std::string(out.c_str());
+}
+
+std::string StructStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "fields" << YAML::Value << YAML::BeginSeq;
+    for (auto& field : fields) {
+        out << YAML::Load(field->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
+    for (auto& gen : generics) {
+        out << YAML::Load(gen->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
+}
+
+std::string ArrayLiteral::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "elements" << YAML::Value << YAML::BeginSeq;
+    for (auto& element : elements) {
+        out << YAML::Load(element->toStr());
+    }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
 }
