@@ -11,28 +11,8 @@
  */
 
 // === LLVM Headers ===
-#include <llvm/IR/DataLayout.h>
-#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Metadata.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
-#include <llvm/MC/TargetRegistry.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/TargetSelect.h>
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Target/TargetMachine.h>
-#include <llvm/Target/TargetOptions.h>
-#include <llvm/TargetParser/Host.h>
-
-// === Standard Library Headers ===
-#include <filesystem>
-#include <memory>
-#include <variant>
-#include <vector>
 
 // === External Libraries ===
 #include "../include/json.hpp"
@@ -62,6 +42,7 @@ using LLVMValueVector = vector<llvm::Value*>;                                   
 using StructTypeVector = vector<StructTypePtr>;                                               ///< Vector of struct type pointers
 using GenericFunctionVector = vector<GenericFunctionPtr>;                                     ///< Vector of generic function pointers
 using llBB = llvm::BasicBlock;                                                                ///< Alias for LLVM BasicBlock
+using Json = nlohmann::json;
 
 /**
  * @enum resolveType
@@ -207,7 +188,7 @@ class Compiler {
     llvm::IRBuilder<> llvm_ir_builder;         ///< LLVM IR builder
 
     // --- IR-GC Mapping ---
-    nlohmann::json ir_gc_map_json; ///< JSON object for IR-GC mapping; For code output purposes it is public
+    Json ir_gc_map_json; ///< JSON object for IR-GC mapping; For code output purposes it is public
   private:
     // === Member Variables ===
 
@@ -229,18 +210,18 @@ class Compiler {
     vector<llBB*> function_entry_block; ///< Entry blocks for functions
 
     // --- LLVM Type Pointers ---
-    llvm::PointerType* ll_pointer = nullptr;   ///< LLVM pointer type
-    llvm::Type* ll_int = nullptr;              ///< LLVM integer type
-    llvm::Type* ll_int32 = nullptr;            ///< LLVM 32-bit integer type
-    llvm::Type* ll_void = nullptr;             ///< LLVM void type
-    llvm::Type* ll_uint = nullptr;             ///< LLVM unsigned integer type
-    llvm::Type* ll_uint32 = nullptr;           ///< LLVM 32-bit unsigned integer type
-    llvm::Type* ll_float = nullptr;            ///< LLVM float type
-    llvm::Type* ll_float32 = nullptr;          ///< LLVM 32-bit float type
-    llvm::Type* ll_char = nullptr;             ///< LLVM char type
-    llvm::Type* ll_str = nullptr;              ///< LLVM string type
-    llvm::Type* ll_bool = nullptr;             ///< LLVM boolean type
-    llvm::PointerType* ll_array = nullptr;     ///< LLVM array pointer type
+    llvm::PointerType* ll_pointer = nullptr; ///< LLVM pointer type
+    llvm::Type* ll_int = nullptr;            ///< LLVM integer type
+    llvm::Type* ll_int32 = nullptr;          ///< LLVM 32-bit integer type
+    llvm::Type* ll_void = nullptr;           ///< LLVM void type
+    llvm::Type* ll_uint = nullptr;           ///< LLVM unsigned integer type
+    llvm::Type* ll_uint32 = nullptr;         ///< LLVM 32-bit unsigned integer type
+    llvm::Type* ll_float = nullptr;          ///< LLVM float type
+    llvm::Type* ll_float32 = nullptr;        ///< LLVM 32-bit float type
+    llvm::Type* ll_char = nullptr;           ///< LLVM char type
+    llvm::Type* ll_str = nullptr;            ///< LLVM string type
+    llvm::Type* ll_bool = nullptr;           ///< LLVM boolean type
+    llvm::PointerType* ll_array = nullptr;   ///< LLVM array pointer type
 
     // --- Garbage-Collected Struct Types ---
     StructTypePtr gc_int = nullptr;     ///< GC wrapper for int
@@ -442,7 +423,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
+    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module, Json& ir_gc_map_json);
 
     /**
      * @brief Imports a struct declaration into a module.
@@ -450,7 +431,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module, nlohmann::json& ir_gc_map_json);
+    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module, Json& ir_gc_map_json);
 
     // --- Type Parsing and Conversion ---
 
@@ -473,14 +454,8 @@ class Compiler {
      * @param right_value LLVM value of the right operand.
      * @return The resolved value after the operation.
      */
-    ResolvedValue _StructInfixCall(const Str& op_method,
-                                   const Str& op,
-                                   StructTypePtr left_type,
-                                   StructTypePtr right_type,
-                                   AST::Expression* left,
-                                   AST::Expression* right,
-                                   llvm::Value* left_value,
-                                   llvm::Value* right_value);
+    ResolvedValue _StructInfixCall(
+        const Str& op_method, const Str& op, StructTypePtr left_type, StructTypePtr right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* right_value);
 
     /**
      * @brief Manages a function call within the compiler.
@@ -521,8 +496,7 @@ class Compiler {
      * @param params_types Vector of struct types representing parameter types.
      * @return The resolved value after the struct method call.
      */
-    ResolvedValue
-    _CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallExpression* func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
+    ResolvedValue _CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallExpression* func_call, const Str& name, LLVMValueVector& args, const StructTypeVector& params_types);
 
     // --- Helper Methods ---
 
@@ -546,10 +520,7 @@ class Compiler {
      * @param module Optional pointer to the module where the function is declared.
      * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
      */
-    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement,
-                               StructTypePtr struct_ = nullptr,
-                               shared_ptr<RecordModule> module = nullptr,
-                               const nlohmann::json& ir_gc_map_json = nlohmann::json());
+    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_ = nullptr, shared_ptr<RecordModule> module = nullptr, const Json& ir_gc_map_json = Json());
 
     /**
      * @brief Creates a struct record in the compiler environment.
@@ -557,7 +528,7 @@ class Compiler {
      * @param module Pointer to the module where the struct is declared.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module, const nlohmann::json& ir_gc_map_json);
+    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module, const Json& ir_gc_map_json);
 
     /**
      * @brief Handles calling a struct method.
@@ -575,7 +546,7 @@ class Compiler {
      * @param struct_record The record for the struct.
      * @param ir_gc_map_json The JSON object for IR-GC mapping.
      */
-    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record, const nlohmann::json& ir_gc_map_json);
+    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record, const Json& ir_gc_map_json);
 
     /**
      * @brief Handles generic subtypes for a field.
@@ -631,8 +602,7 @@ class Compiler {
      * @param index_expression Shared pointer to the IndexExpression node.
      * @return ResolvedValue containing the result of the `__index__` method call.
      */
-    ResolvedValue
-    _handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, AST::IndexExpression* index_expression);
+    ResolvedValue _handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, StructTypePtr index_generic, StructTypePtr left_generic, AST::IndexExpression* index_expression);
 
     /**
      * @brief Raises a NoOverload error indicating the absence of the `__index__` method.

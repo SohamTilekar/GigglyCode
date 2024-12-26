@@ -1,9 +1,8 @@
-#include <algorithm>
-#include <sstream>
-
-#include "../errors/errors.hpp"
 #include "lexer.hpp"
+#include "../errors/errors.hpp"
 #include "token.hpp"
+
+#include <sstream>
 
 Lexer::Lexer(const std::string& source) {
     this->source = source;

@@ -398,9 +398,7 @@ std::vector<GenericStructTypePtr> Enviornment::getGenericStruct(const std::strin
 std::vector<VariablePtr> Enviornment::getCurrentFuncVars() {
     std::vector<VariablePtr> vars;
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordVariable) {
-            vars.push_back(std::static_pointer_cast<RecordVariable>(record));
-        }
+        if (record->type == RecordType::RecordVariable) { vars.push_back(std::static_pointer_cast<RecordVariable>(record)); }
     }
     if (this->parent && this->parent->current_function) {
         auto parent_vars = this->parent->getCurrentFuncVars();

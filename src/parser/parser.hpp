@@ -6,10 +6,7 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
-#include <iostream>
-#include <memory>
-#include <unordered_map>
-#include <vector>
+#include <functional>
 
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
@@ -20,6 +17,7 @@
 
 #ifdef LOG
 #include <fstream>
+#include <iostream>
 #include <mutex>
 
 namespace parser {
@@ -28,42 +26,39 @@ namespace parser {
  * @class Logger
  * @brief Singleton Logger class for handling log messages.
  */
- class Logger {
- public:
-     /**
-      * @brief Get the singleton instance of the Logger.
-      *
-      * @param path The file path for the log file. Defaults to LOG_PATH.
-      * @return Logger& Reference to the singleton Logger instance.
-      */
-     static Logger& getInstance(const std::string& path = LOG_PATH) {
-         static Logger instance(path);
-         return instance;
-     }
+class Logger {
+  public:
+    /**
+     * @brief Get the singleton instance of the Logger.
+     *
+     * @param path The file path for the log file. Defaults to LOG_PATH.
+     * @return Logger& Reference to the singleton Logger instance.
+     */
+    static Logger& getInstance(const std::string& path = LOG_PATH) {
+        static Logger instance(path);
+        return instance;
+    }
 
-     /**
-      * @brief Log a message with detailed meta information.
-      *
-      * @param file_name The name of the source file.
-      * @param function_name The name of the function.
-      * @param line_no The line number in the source file.
-      * @param message The message to log.
-      */
-     void log(const std::string& file_name, const std::string& function_name, int line_no, const std::string& message) {
-         std::lock_guard<std::mutex> guard(mtx_);
-         if (log_stream_.is_open()) {
-             log_stream_ << "[" << file_name << ":" << function_name << ":" << line_no << "] " << message << std::endl;
-         }
-     }
-private:
+    /**
+     * @brief Log a message with detailed meta information.
+     *
+     * @param file_name The name of the source file.
+     * @param function_name The name of the function.
+     * @param line_no The line number in the source file.
+     * @param message The message to log.
+     */
+    void log(const std::string& file_name, const std::string& function_name, int line_no, const std::string& message) {
+        std::lock_guard<std::mutex> guard(mtx_);
+        if (log_stream_.is_open()) { log_stream_ << "[" << file_name << ":" << function_name << ":" << line_no << "] " << message << std::endl; }
+    }
+
+  private:
     std::ofstream log_stream_;
     std::mutex mtx_;
 
     // Private constructor to enforce singleton pattern
     Logger(const std::string& path) : log_stream_(path, std::ios::out | std::ios::app) {
-        if (!log_stream_) {
-            std::cerr << "Failed to open log file: " << path << std::endl;
-        }
+        if (!log_stream_) { std::cerr << "Failed to open log file: " << path << std::endl; }
     }
 
     // Delete copy constructor and assignment operator
@@ -85,7 +80,6 @@ namespace parser {
  */
 
 using token::TokenType;
-using std::make_shared;
 
 /**
  * @enum PrecedenceType
@@ -174,7 +168,7 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
  */
 class Parser {
   public:
-    Lexer* lexer;                   ///< The lexer used for tokenizing the input
+    Lexer* lexer;               ///< The lexer used for tokenizing the input
     token::Token current_token; ///< The current token being parsed
     token::Token peek_token;    ///< The next token to be parsed
 
