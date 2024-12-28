@@ -2255,8 +2255,9 @@ void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
     std::cerr << "TODO: Add Suport to raise Exception" << std::endl;
     exit(1);
 }
-
-const Str readFileToString(const Str& filePath); // Defined in main.cpp
+namespace Utils {
+    const Str readFileToString(const Str& filePath); // Defined in main.cpp
+}
 
 void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, shared_ptr<RecordModule> module) {
     // Extract the relative path from the import statement
@@ -2268,11 +2269,9 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
 
     // Determine the path for the imported source file
     std::filesystem::path gc_source_path = this->file_path.parent_path() / (relative_path + ".gc");
-    if (relative_path.starts_with("std/") && !GC_STD_DIR.empty()) { gc_source_path = GC_STD_DIR / (relative_path.substr(4) + ".gc"); }
 
     // Determine the path for the IR-GC map file
     std::filesystem::path ir_gc_map_path = this->ir_gc_map.parent_path() / (relative_path + ".gc.Json");
-    if (relative_path.starts_with("std/") && !GC_STD_DIR.empty()) { ir_gc_map_path = GC_STD_IRGCMAP / (relative_path.substr(4) + ".gc.Json"); }
 
     // Load the IR-GC map JSON
     Json ir_gc_map_json;
@@ -2291,7 +2290,7 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
     }
 
     // Read the source code from the file
-    Str gc_source = readFileToString(gc_source_path.string());
+    Str gc_source = Utils::readFileToString(gc_source_path.string());
     Str previous_source = this->source;
     this->source = gc_source;
 

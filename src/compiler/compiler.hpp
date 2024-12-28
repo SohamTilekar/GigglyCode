@@ -21,11 +21,6 @@
 #include "../parser/AST/ast.hpp"
 #include "./enviornment/enviornment.hpp"
 
-// === External Variables ===
-
-extern std::filesystem::path GC_STD_DIR;     ///< Path to standard directory
-extern std::filesystem::path GC_STD_IRGCMAP; ///< Path to IR-GC map file
-
 namespace compiler {
 
 /**
