@@ -57,29 +57,29 @@ def subtract(a: float, b: float) -> float {
 
 def main() -> int {
     rect: Rectangle = Rectangle(10, 20);
-    printf("Rectangle area: %i", rect.area());
-    printf("Rectangle perimeter: %i", rect.perimeter());
+    printf("Rectangle area: %i\n", rect.area());
+    printf("Rectangle perimeter: %i\n", rect.perimeter());
 
-#    intList: LinkedList[int] = LinkedList(int);
-#    intList.add(10);
-#    intList.add(20);
-#    intList.add(30);
-#    current: ListNode[int] = intList.head;
-#    while (current != nullptr) {
-#        printf("List node value: %i", current.value);
-#        current = current.next;
-#    }
+    intList: LinkedList[int] = LinkedList(int);
+    intList.add(10);
+    intList.add(20);
+    intList.add(30);
+    current: ListNode[int] = intList.head;
+    while (current != nullptr) {
+        printf("List node value: %i\n", current.value);
+        current = current.next;
+    }
 
-    printf("Subtract integers: %i", subtract(10, 5));
-    printf("Subtract floats: %f", subtract(10.5, 5.5));
+    printf("Subtract integers: %i\n", subtract(10, 5));
+    printf("Subtract floats: %f\n", subtract(10.5, 5.5));
 
 #    arr: int[] = new int[5];
 #    for (i in range(0, 5)) {
 #        arr[i] = i * 10;
 #    };
 #    for (i in range(0, 5)) {
-#        printf("Array element %i : %i", i, arr[i]);
+#        printf("Array element %i : %i\n", i, arr[i]);
 #    };
-    printf("fix `enviornment::_checkType` recersivly check the sub type, if the type contains itself as sub type then stop their");
+    printf("fix `enviornment::_checkType` recersivly check the sub type, if the type contains itself as sub type then stop their\n");
     return 1;
 }

@@ -29,17 +29,15 @@ struct LinkedList {
     };
 };
 
-def main() {
-    printf("fix `enviornment::_checkType` recersivly check the sub type, if the type contains itself as sub type then stop their");
-    return 1;
-#    intList: LinkedList[int] = LinkedList(int);
-#    intList.add(10);
-#    intList.add(20);
-#    intList.add(30);
-#    current: ListNode[int] = intList.head;
-#    while (current != nullptr) {
-#        printf("List node value: %i", current.value);
-#        current = current.next;
-#    }
+def main() -> int {
+    intList: LinkedList[int] = LinkedList(int);
+    intList.add(10);
+    intList.add(20);
+    intList.add(30);
+    current: ListNode[int] = intList.head;
+    while (current != nullptr) {
+        printf("List node value: %i", current.value);
+        current = current.next;
+    }
     return 0;
 }

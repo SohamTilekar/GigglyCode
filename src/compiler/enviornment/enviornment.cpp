@@ -6,15 +6,57 @@
 // Use the enviornment namespace to simplify code references
 using namespace enviornment;
 
-// Helper function to check if two StructTypePtr instances are of the same type
+#include <utility> // For std::pair
+#include <set>
+
 bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2) {
-    // Iterate over fields of both types simultaneously
-    for (const auto& [field_name1, field_name2] : llvm::zip(type1->getFields(), type2->getFields())) {
-        // If field names differ, types do not match
-        if (field_name1 != field_name2) { return false; }
-        // Recursively check subtypes for each field
-        if (!_checkType(type1->sub_types.at(field_name1), type2->sub_types.at(field_name2))) { return false; }
+    std::set<std::pair<RecordStructType*, RecordStructType*>> checked;
+    return _checkType(type1, type2, checked);
+}
+
+// Modify the _checkType function to handle checked pairs
+bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked) {
+    if (type1 == type2) return true; // Same memory address implies identical types
+
+    // Create a pair of the current types being compared
+    std::pair<RecordStructType*, RecordStructType*> currentPair = {type1.get(), type2.get()};
+
+    // Check if this pair has already been compared
+    if (checked.find(currentPair) != checked.end()) {
+        // If already checked, assume equality to prevent infinite recursion
+        return true;
     }
+
+    // Mark this pair as checked
+    checked.insert(currentPair);
+
+    // Iterate over fields of both types simultaneously
+    const auto& fields1 = type1->getFields();
+    const auto& fields2 = type2->getFields();
+
+    if (fields1.size() != fields2.size()) {
+        return false; // Different number of fields implies different types
+    }
+
+    for (size_t i = 0; i < fields1.size(); ++i) {
+        const std::string& field_name1 = fields1[i];
+        const std::string& field_name2 = fields2[i];
+
+        // If field names differ, types do not match
+        if (field_name1 != field_name2) {
+            return false;
+        }
+
+        // Retrieve subtypes
+        StructTypePtr subtype1 = type1->sub_types.at(field_name1);
+        StructTypePtr subtype2 = type2->sub_types.at(field_name2);
+
+        // Recursively check subtypes
+        if (!_checkType(subtype1, subtype2, checked)) {
+            return false;
+        }
+    }
+
     // Final check to ensure stand-alone types match
     return type1->stand_alone_type == type2->stand_alone_type;
 }

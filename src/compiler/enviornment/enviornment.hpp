@@ -11,6 +11,7 @@
  */
 
 #include <llvm/IR/Function.h>
+#include <set>
 
 #include "../../parser/AST/ast.hpp"
 
@@ -510,6 +511,14 @@ class RecordVariable : public Record {
  * @return True if both struct types are equivalent, false otherwise.
  */
 bool _checkType(StructTypePtr type1, StructTypePtr type2);
+
+/**
+ * @brief Checks if two struct types are equivalent.
+ * @param type1 Pointer to the first struct type.
+ * @param type2 Pointer to the second struct type.
+ * @return True if both struct types are equivalent, false otherwise.
+ */
+ bool _checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked);
 
 /**
  * @brief Checks if two generic struct types are equivalent.
