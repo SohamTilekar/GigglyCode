@@ -1,0 +1,24 @@
+struct Rectangle {
+    width: int;
+    height: int;
+
+    def __init__(self: Rectangle, width: int, height: int) {
+        self.width = width;
+        self.height = height;
+    };
+
+    def area(self: Rectangle) -> int {
+        return self.width * self.height;
+    };
+
+    def perimeter(self: Rectangle) -> int {
+        return 2 * (self.width + self.height);
+    };
+};
+
+def main() -> int {
+    rect: Rectangle = Rectangle(10, 20);
+    printf("Rectangle area: %i\n", rect.area());
+    printf("Rectangle perimeter: %i\n", rect.perimeter());
+    return 0;
+}

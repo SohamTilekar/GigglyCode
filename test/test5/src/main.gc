@@ -1,0 +1,10 @@
+def main() -> int {
+    arr: int[] = new int[5];
+    for (i in range(0, 5)) {
+        arr[i] = i * 10;
+    };
+    for (i in range(0, 5)) {
+        printf("Array element %i : %i", i, arr[i]);
+    };
+    return 0;
+}

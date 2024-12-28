@@ -1,0 +1,45 @@
+@generic(T: Any)
+struct ListNode {
+    value: T;
+    next: ListNode[T];
+
+    def __init__(self: ListNode[T], value: T, next: ListNode[T]) -> void {
+        self.value = value;
+        self.next = next;
+    };
+};
+
+@generic(T: Any)
+struct LinkedList {
+    head: ListNode[T];
+
+    def __init__(self: LinkedList[T]) -> void {};
+
+    def add(self: LinkedList[T], value: T) -> void {
+        newNode: ListNode[T] = new ListNode(value, nullptr);
+        if (self.head == nullptr) {
+            self.head = newNode;
+        } else {
+            current: ListNode[T] = self.head;
+            while (current.next != nullptr) {
+                current = current.next;
+            }
+            current.next = newNode;
+        };
+    };
+};
+
+def main() {
+    printf("fix `enviornment::_checkType` recersivly check the sub type, if the type contains itself as sub type then stop their");
+    return 1;
+#    intList: LinkedList[int] = LinkedList(int);
+#    intList.add(10);
+#    intList.add(20);
+#    intList.add(30);
+#    current: ListNode[int] = intList.head;
+#    while (current != nullptr) {
+#        printf("List node value: %i", current.value);
+#        current = current.next;
+#    }
+    return 0;
+}

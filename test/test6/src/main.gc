@@ -1,0 +1,85 @@
+struct Rectangle {
+    width: int;
+    height: int;
+
+    def __init__(self: Rectangle, width: int, height: int) {
+        self.width = width;
+        self.height = height;
+    };
+
+    def area(self: Rectangle) -> int {
+        return self.width * self.height;
+    };
+
+    def perimeter(self: Rectangle) -> int {
+        return 2 * (self.width + self.height);
+    };
+};
+
+@generic(T: Any)
+struct ListNode {
+    value: T;
+    next: ListNode[T];
+
+    def __init__(self: ListNode[T], value: T, next: ListNode[T]) {
+        self.value = value;
+        self.next = next;
+    };
+};
+
+@generic(T: Any)
+struct LinkedList {
+    head: ListNode[T];
+
+    def __init__(self: LinkedList[T]) -> void {};
+
+    def add(self: LinkedList[T], value: T) -> void {
+        newNode: ListNode[T] = new ListNode(value, nullptr);
+        if (self.head == nullptr) {
+            self.head = newNode;
+        } else {
+            current: ListNode[T] = self.head;
+            while (current.next != nullptr) {
+                current = current.next;
+            }
+            current.next = newNode;
+        };
+    };
+};
+
+def subtract(a: int, b: int) -> int {
+    return a - b;
+};
+
+def subtract(a: float, b: float) -> float {
+    return a - b;
+};
+
+def main() -> int {
+    rect: Rectangle = Rectangle(10, 20);
+    printf("Rectangle area: %i", rect.area());
+    printf("Rectangle perimeter: %i", rect.perimeter());
+
+#    intList: LinkedList[int] = LinkedList(int);
+#    intList.add(10);
+#    intList.add(20);
+#    intList.add(30);
+#    current: ListNode[int] = intList.head;
+#    while (current != nullptr) {
+#        printf("List node value: %i", current.value);
+#        current = current.next;
+#    }
+
+    printf("Subtract integers: %i", subtract(10, 5));
+    printf("Subtract floats: %f", subtract(10.5, 5.5));
+
+#    arr: int[] = new int[5];
+#    for (i in range(0, 5)) {
+#        arr[i] = i * 10;
+#    };
+#    for (i in range(0, 5)) {
+#        printf("Array element %i : %i", i, arr[i]);
+#    };
+    printf("fix `enviornment::_checkType` recersivly check the sub type, if the type contains itself as sub type then stop their");
+    return 1;
+}
