@@ -265,9 +265,9 @@ class Compiler {
 
     void _initilizeCSTDLib();
 
-    void addBuiltinFunctionToModule(std::shared_ptr<RecordModule> module, const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType);
+    void addBuiltinFunctionToModule(std::shared_ptr<RecordModule> module, const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType, bool isVarArg);
 
-    void addBuiltinFunction(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType);
+    void addBuiltinFunction(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType, bool isVarArg);
 
     // --- AST Visitor Methods ---
 

@@ -244,6 +244,8 @@ void Compiler::_visitBlockStatement(AST::BlockStatement* block_statement) {
 }
 
 void Compiler::_checkAndConvertCallType(FunctionPtr func_record, AST::CallExpression* func_call, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
+    if (func_record->is_var_arg)
+        return;
     vector<unsigned short> mismatches;
     for (const auto& [idx, pt, pst] : llvm::enumerate(func_record->arguments, params_types)) {
         auto expected_type = std::get<1>(pt);
@@ -485,10 +487,6 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
         llvm::Type* llvm_param_type = param_type->struct_type || param_type->name == "array"
             ? this->ll_pointer
             : (param->value_type->refrence ? llvm::PointerType::getUnqual(param_type->stand_alone_type) : param_type->stand_alone_type);
-        std::cout << "param_type->stand_alone_type: " << param_type->stand_alone_type << std::endl;
-        std::cout << "param_type->struct_type: " << param_type->struct_type << std::endl;
-        std::cout << "param_type->name: " << param_type->name << std::endl;
-        std::cout << "llvm_param_type: " << llvm_param_type << std::endl;
         param_types.push_back(llvm_param_type);
 
         // Store argument details for later use
