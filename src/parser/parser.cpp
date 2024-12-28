@@ -934,7 +934,10 @@ AST::Expression* Parser::_parseNew() {
     if (this->_currentTokenIs(TokenType::Identifier)) is_new_call = true;
     else if (this->_currentTokenIs(TokenType::LeftBracket)) is_new_arr = true;
     else { _currentTokenError(current_token.type, {TokenType::Identifier, TokenType::LeftBracket}, "Expected an identifier or a left bracket after 'new'."); }
-    return this->_parseExpression(PrecedenceType::LOWEST); // [new] -> [Expression]
+    auto x = this->_parseExpression(PrecedenceType::LOWEST); // [new] -> [Expression]
+    if (this->_currentTokenIs(TokenType::Identifier)) is_new_call = false;
+    else if (this->_currentTokenIs(TokenType::LeftBracket)) is_new_arr = false;
+    return x;
 }
 
 AST::Expression* Parser::_parseStringLiteral() {
@@ -996,14 +999,15 @@ PrecedenceType Parser::_peekPrecedence() {
 
 AST::Expression* Parser::_parseArrayLiteral() {
     auto elements = std::vector<AST::Expression*>();
+    bool is_new_arr_local = is_new_arr;
+    is_new_arr = false;
     for (_nextToken(); !_currentTokenIs(TokenType::RightBracket); _nextToken()) { // [LeftBracket] -> [Element]
         LOG_TOK()
         if (_currentTokenIs(TokenType::Comma)) { continue; }  // Skip commas
         auto expr = _parseExpression(PrecedenceType::LOWEST); // [Element] remains unchanged
         if (expr) { elements.push_back(expr); }
     }
-    auto array = new AST::ArrayLiteral(elements, is_new_arr);
-    is_new_arr = false;
+    auto array = new AST::ArrayLiteral(elements, is_new_arr_local);
     array->set_meta_data(current_token.line_no, current_token.col_no, current_token.line_no, current_token.end_col_no);
     return array;
 }
