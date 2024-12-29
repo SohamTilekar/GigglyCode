@@ -16,7 +16,7 @@ struct LinkedList {
     def __init__(self: LinkedList[T]) -> void {};
 
     def add(self: LinkedList[T], value: T) -> void {
-        newNode: ListNode[T] = new ListNode(value, nullptr);
+        newNode: ListNode[T] = new ListNode(T, value, nullptr);
         if (self.head == nullptr) {
             self.head = newNode;
         } else {
