@@ -518,7 +518,7 @@ bool _checkType(StructTypePtr type1, StructTypePtr type2);
  * @param type2 Pointer to the second struct type.
  * @return True if both struct types are equivalent, false otherwise.
  */
- bool _checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked);
+bool _checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked);
 
 /**
  * @brief Checks if two generic struct types are equivalent.

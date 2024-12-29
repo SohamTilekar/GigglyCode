@@ -6,8 +6,8 @@
 // Use the enviornment namespace to simplify code references
 using namespace enviornment;
 
-#include <utility> // For std::pair
 #include <set>
+#include <utility> // For std::pair
 
 bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2) {
     std::set<std::pair<RecordStructType*, RecordStructType*>> checked;
@@ -17,6 +17,7 @@ bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2) {
 // Modify the _checkType function to handle checked pairs
 bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked) {
     if (type1 == type2) return true; // Same memory address implies identical types
+    if (type2->name == "nullptr" || type1->name == "nullptr") return true;
 
     // Create a pair of the current types being compared
     std::pair<RecordStructType*, RecordStructType*> currentPair = {type1.get(), type2.get()};
@@ -43,18 +44,14 @@ bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<
         const std::string& field_name2 = fields2[i];
 
         // If field names differ, types do not match
-        if (field_name1 != field_name2) {
-            return false;
-        }
+        if (field_name1 != field_name2) { return false; }
 
         // Retrieve subtypes
         StructTypePtr subtype1 = type1->sub_types.at(field_name1);
         StructTypePtr subtype2 = type2->sub_types.at(field_name2);
 
         // Recursively check subtypes
-        if (!_checkType(subtype1, subtype2, checked)) {
-            return false;
-        }
+        if (!_checkType(subtype1, subtype2, checked)) { return false; }
     }
 
     // Final check to ensure stand-alone types match
@@ -69,8 +66,6 @@ bool _checkFunctionParameterType(FunctionPtr func_record, std::vector<StructType
         bool types_match = _checkType(accept_instance, pass_instance);
         // Allow type conversion if exact matching is not required
         bool can_convert = !exact && compiler::Compiler::canConvertType(accept_instance, pass_instance);
-
-        // If neither types match nor can be converted, return false
         if (!(types_match || can_convert)) { return false; }
     }
 

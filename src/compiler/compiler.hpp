@@ -217,7 +217,6 @@ class Compiler {
     llvm::Type* ll_str = nullptr;            ///< LLVM string type
     llvm::Type* ll_bool = nullptr;           ///< LLVM boolean type
     llvm::PointerType* ll_array = nullptr;   ///< LLVM array pointer type
-
     // --- Garbage-Collected Struct Types ---
     StructTypePtr gc_int = nullptr;     ///< GC wrapper for int
     StructTypePtr gc_int32 = nullptr;   ///< GC wrapper for int32
@@ -260,7 +259,13 @@ class Compiler {
 
     void _initilizeCSTDLib();
 
-    void addBuiltinFunctionToModule(std::shared_ptr<RecordModule> module, const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType, bool isVarArg);
+    void addBuiltinFunctionToModule(std::shared_ptr<RecordModule> module,
+                                    const Str& name,
+                                    const Str& llvm_name,
+                                    llvm::FunctionType* funcType,
+                                    const vector<std::tuple<Str, StructTypePtr, bool>>& params,
+                                    StructTypePtr returnType,
+                                    bool isVarArg);
 
     void addBuiltinFunction(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, const vector<std::tuple<Str, StructTypePtr, bool>>& params, StructTypePtr returnType, bool isVarArg);
 

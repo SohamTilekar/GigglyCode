@@ -1,6 +1,8 @@
 // TODO: Add Meta Data to all of the Record.
 #include "compiler.hpp"
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Value.h>
 
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
@@ -121,6 +123,8 @@ void Compiler::_initializeBuiltins() {
     addBuiltinType("array", this->ll_pointer);
     this->gc_array = env->parent->getStruct("array");
     this->ll_array = this->ll_pointer;
+
+    addBuiltinType("nullptr", this->ll_pointer);
 
     auto _Any = std::make_shared<RecordModule>("Any");
     env->parent->addRecord(_Any);
@@ -244,8 +248,7 @@ void Compiler::_visitBlockStatement(AST::BlockStatement* block_statement) {
 }
 
 void Compiler::_checkAndConvertCallType(FunctionPtr func_record, AST::CallExpression* func_call, vector<llvm::Value*>& args, const vector<StructTypePtr>& params_types) {
-    if (func_record->is_var_arg)
-        return;
+    if (func_record->is_var_arg) return;
     vector<unsigned short> mismatches;
     for (const auto& [idx, pt, pst] : llvm::enumerate(func_record->arguments, params_types)) {
         auto expected_type = std::get<1>(pt);
@@ -529,9 +532,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
         auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
         this->function_entry_block.push_back(bb);
         this->llvm_ir_builder.SetInsertPoint(bb);
-        if (this->fc_st_name_prefix == "main.gc.." && name == "main") {
-            func->setGC("statepoint-example");
-        }
+        if (this->fc_st_name_prefix == "main.gc.." && name == "main") { func->setGC("statepoint-example"); }
 
         // Save the current environment and create a new one for the function
         auto prev_env = this->env;
@@ -726,7 +727,7 @@ Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallEx
         this->env = prev_env;
 
         // Perform the struct call and return the resolved value
-        return _callStruct(struct_record, func_call, params_types, args);
+        return _callStruct(struct_record, func_call, remaining_params_types, remaining_args);
     }
 
     // If no matching struct overload is found, raise an error and exit
@@ -901,8 +902,14 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, StructT
         auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval, this->env->getStruct("float32")->stand_alone_type, "bool_to_float32");
         return {float32_type, fromalloca, to, resolveType::StructInst};
     } else if ((fromtype->name == "int" || fromtype->name == "float" || fromtype->name == "str") && to->name == "bool") {
-        auto bool_type = this->llvm_ir_builder.CreateICmpNE(fromloadedval, llvm::Constant::getNullValue(fromloadedval->getType()), "to_bool");
-        return {bool_type, fromalloca, to, resolveType::StructInst};
+        errors::CompletionError("TODO Error",
+                                this->source,
+                                fromtype->meta_data.st_line_no,
+                                fromtype->meta_data.end_line_no,
+                                "Conversion from int, float, or str to bool is not yet implemented",
+                                "Fix the conversion logic for int, float, or str to bool.")
+            .raise();
+        exit(1);
     } else if (fromtype->struct_type) { // If struct & it is mark as auto cast
         if (fromtype->is_method("", {fromtype}, {{"autocast", true}}, to)) {
             auto method = fromtype->get_method("", {fromtype}, {{"autocast", true}}, to);
@@ -1009,7 +1016,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             if (ptt == resolveType::Module) {
                 errors::WrongType(this->source, arg, {}, "Cant pass Module to the Function").raise();
                 exit(1);
-            } else if (ptt == resolveType::StructType || ptt == resolveType::GStructType) {
+            } else if ((ptt == resolveType::StructType && std::get<shared_ptr<RecordStructType>>(param_type)->name != "nullptr" && !(ltt == resolveType::Module && std::get<shared_ptr<RecordModule>>(_left_type)->isGenericStruct(name))) || ptt == resolveType::GStructType) {
                 errors::WrongType(this->source, arg, {}, "Cant pass type to the Function").raise();
                 exit(1);
             }
@@ -1058,7 +1065,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
                 }
-                auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args, name + "_reuturn_value");
+                auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args, method->return_type->stand_alone_type != this->ll_void ? name + "_reuturn_value" : "");
                 return {returnValue, nullptr, method->return_type, resolveType::StructInst};
             } else {
                 errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + left_type->name + ".", "Check the initialization method name or define the method.")
@@ -1102,7 +1109,8 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto [left_value, left_alloca, _left_type, ltt] = this->_resolveValue(left);
     if (op == token::TokenType::Dot) { return this->_memberAccess(infixed_expression); }
     auto [right_value, right_alloca, _right_type, rtt] = this->_resolveValue(right);
-    if (ltt != resolveType::StructInst || rtt != resolveType::StructInst) {
+    if (ltt != resolveType::StructInst && !(ltt == resolveType::StructType && std::get<StructTypePtr>(_left_type)->name == "nullptr") ||
+        (rtt != resolveType::StructInst && !(rtt == resolveType::StructType && std::get<StructTypePtr>(_right_type)->name == "nullptr"))) {
         errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules").raise();
         exit(1);
     }
@@ -1145,9 +1153,17 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return this->_StructInfixCall("__mod__", "%", left_type, right_type, left, right, left_value, right_value);
             }
             case token::TokenType::EqualEqual: {
+                if (left_type->name == "nullptr" || right_type->name == "nullptr") {
+                    auto inst = this->llvm_ir_builder.CreateICmpEQ(left_value, llvm::Constant::getNullValue(this->ll_pointer));
+                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                }
                 return this->_StructInfixCall("__eq__", "compare equals", left_type, right_type, left, right, left_value, right_value);
             }
             case token::TokenType::NotEquals: {
+                if (left_type->name == "nullptr" || right_type->name == "nullptr") {
+                    auto inst = this->llvm_ir_builder.CreateICmpNE(left_value, llvm::Constant::getNullValue(this->ll_pointer));
+                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                }
                 return this->_StructInfixCall("__neq__", "compare not equals", left_type, right_type, left, right, left_value, right_value);
             }
             case token::TokenType::LessThan: {
@@ -1386,7 +1402,6 @@ Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* in
 }
 
 
-// Refactored _visitVariableDeclarationStatement
 void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatement* variable_declaration_statement) {
     auto var_name = variable_declaration_statement->name->castToIdentifierLiteral();
 
@@ -1405,10 +1420,11 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     }
 
     auto [var_value_resolved, var_value_alloca, _var_generic, vartt] = this->_resolveValue(var_value);
-
-    if (vartt != resolveType::StructInst) { errors::WrongType(this->source, var_value, {var_type}, "Cannot assign module or type to variable").raise(); }
-
     auto var_generic = std::get<StructTypePtr>(_var_generic);
+
+    if (vartt != resolveType::StructInst && !(vartt == resolveType::StructType && var_generic->name == "nullptr")) {
+        errors::WrongType(this->source, var_value, {var_type}, "Cannot assign module or type to variable").raise();
+    }
 
     if (!_checkType(var_generic, var_type)) {
         if (this->canConvertType(var_generic, var_type)) {
@@ -1427,24 +1443,23 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
         this->env->addRecord(var);
     } else {
         auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
+        if (var_generic->name == "nullptr") { var_value_resolved = llvm::Constant::getNullValue(this->ll_pointer); }
         this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
         auto var = std::make_shared<RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
         this->env->addRecord(var);
     }
 }
 
-// Refactored _visitVariableAssignmentStatement
 void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatement* variable_assignment_statement) {
     auto var_value = variable_assignment_statement->value;
     auto [value, value_alloca, _assignmentType, vtt] = this->_resolveValue(var_value);
     auto assignmentType = std::get<StructTypePtr>(_assignmentType);
 
-    if (vtt != resolveType::StructInst) { errors::WrongType(this->source, var_value, {assignmentType}, "Cannot assign module or type to variable").raise(); }
+    if (vtt != resolveType::StructInst && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
+        errors::WrongType(this->source, var_value, {assignmentType}, "Cannot assign module or type to variable").raise();
+    }
 
     auto [_, alloca, _var_type, att] = this->_resolveValue(variable_assignment_statement->name);
-
-    if (att != resolveType::StructInst) { errors::WrongType(this->source, variable_assignment_statement->name, {std::get<StructTypePtr>(_var_type)}, "Cannot assign to ltype").raise(); }
-
     auto var_type = std::get<StructTypePtr>(_var_type);
 
     if (!_checkType(var_type, assignmentType)) {
@@ -1459,7 +1474,12 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
     }
 
     if (assignmentType->struct_type) {
-        auto load = this->llvm_ir_builder.CreateLoad(var_type->struct_type, value);
+        llvm::Value* load;
+        if (assignmentType->name == "nullptr") {
+            load = llvm::Constant::getNullValue(this->ll_pointer);
+        } else {
+            load = this->llvm_ir_builder.CreateLoad(var_type->struct_type, value);
+        }
         this->llvm_ir_builder.CreateStore(load, alloca);
     } else {
         this->llvm_ir_builder.CreateStore(value, alloca);
@@ -1531,6 +1551,7 @@ Compiler::ResolvedValue Compiler::_resolveStringLiteral(AST::StringLiteral* stri
 }
 
 Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiteral* identifier_literal) {
+    if (identifier_literal->value == "nullptr") { return {llvm::Constant::getNullValue(this->ll_pointer), llvm::Constant::getNullValue(this->ll_pointer), this->env->getStruct("nullptr"), resolveType::StructType}; }
     if (this->env->isVariable(identifier_literal->value)) {
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
@@ -1758,7 +1779,6 @@ void Compiler::_createReturnInstruction(llvm::Value* return_value, llvm::Value* 
     }
 }
 
-// Refactored _visitReturnStatement
 void Compiler::_visitReturnStatement(AST::ReturnStatement* return_statement) {
     if (!return_statement->value && this->env->current_function->return_type->name == "void") {
         this->llvm_ir_builder.CreateRetVoid();
@@ -1872,7 +1892,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         if (ptt == resolveType::Module) {
             errors::WrongType(this->source, arg, {}, "Cant pass Module to the Function").raise();
             exit(1);
-        } else if (ptt == resolveType::StructType || ptt == resolveType::GStructType) {
+        } else if ((ptt == resolveType::StructType && param_type->name != "nullptr") && !this->env->isGenericStruct(name)) {
             errors::WrongType(this->source, arg, {}, "Cant pass type to the Function").raise();
             exit(1);
         }
@@ -1995,7 +2015,6 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Check if the condition type is bool, possibly converting if necessary
     if (!_checkType(conditionType, this->env->getStruct("bool"))) {
         if (this->canConvertType(conditionType, this->env->getStruct("bool"))) {
-            std::cout << "Converting condition to bool." << std::endl;
             auto converted = this->convertType({condition_val, condition_alloca, conditionType}, this->env->getStruct("bool"));
             condition_val = converted.value;
         } else {
@@ -2255,9 +2274,11 @@ void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
     std::cerr << "TODO: Add Suport to raise Exception" << std::endl;
     exit(1);
 }
+// namespace GigglyCode {
 namespace Utils {
-    const Str readFileToString(const Str& filePath); // Defined in main.cpp
+const Str readFileToString(const std::filesystem::path& filePath); // Defined in main.cpp
 }
+// }
 
 void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, shared_ptr<RecordModule> module) {
     // Extract the relative path from the import statement
