@@ -1,261 +1,168 @@
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/FileSystem.h>
 #include <memory>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <system_error>
-#include <vector>
-#include <tuple>
-#include <cstdlib>
-#include <functional>
-#include <thread>
 #include <mutex>
 #include <queue>
-#include <condition_variable>
+#include <sstream>
+#include <stdexcept>
+#include <system_error>
+#include <thread>
+#include <vector>
 
+// Include necessary headers
 #include "compiler/compiler.hpp"
 #include "include/cli11.hpp"
 #include "include/json.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 
+// Uncomment to enable debugging
 // #define DEBUG_LEXER
 // #define DEBUG_PARSER
-#define DEBUG_LEXER_OUTPUT_PATH "./dump/lexer_output.log"
-#define DEBUG_PARSER_OUTPUT_PATH "./dump/parser_output.yaml"
+
+constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
+constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
 
 using json = nlohmann::json;
-namespace fs = std::filesystem;
 
 // =======================================
 // Custom Exception Classes
 // =======================================
-class CompilerException : public std::runtime_error {
-public:
-    explicit CompilerException(const std::string& message)
-        : std::runtime_error(message) {}
+
+/**
+ * @brief Exception thrown when a required file is not found.
+ */
+class FileNotFoundException : public std::runtime_error {
+  public:
+    /**
+     * @brief Construct a new File Not Found Exception object
+     *
+     * @param message Detailed error message.
+     */
+    explicit FileNotFoundException(const std::string& message) : std::runtime_error(message) {}
 };
 
-class FileNotFoundException : public CompilerException {
-public:
-    explicit FileNotFoundException(const std::string& message)
-        : CompilerException(message) {}
-};
-
-class CompilationException : public CompilerException {
-public:
-    explicit CompilationException(const std::string& message)
-        : CompilerException(message) {}
-};
-
-// =======================================
-// Logging System
-// =======================================
-enum class LogLevel {
-    DEBUG,
-    INFO,
-    WARNING,
-    ERROR,
-    CRITICAL
-};
-
-class Logger {
-public:
-    Logger(LogLevel level = LogLevel::INFO)
-        : current_level(level) {}
-
-    void setLevel(LogLevel level) {
-        current_level = level;
-    }
-
-    void log(LogLevel level, const std::string& message) {
-        if (level >= current_level) {
-            std::lock_guard<std::mutex> lock(log_mutex);
-            std::cout << "[" << levelToString(level) << "] " << message << std::endl;
-        }
-    }
-
-    void debug(const std::string& message) {
-        log(LogLevel::DEBUG, message);
-    }
-
-    void info(const std::string& message) {
-        log(LogLevel::INFO, message);
-    }
-
-    void warning(const std::string& message) {
-        log(LogLevel::WARNING, message);
-    }
-
-    void error(const std::string& message) {
-        log(LogLevel::ERROR, message);
-    }
-
-    void critical(const std::string& message) {
-        log(LogLevel::CRITICAL, message);
-    }
-
-private:
-    LogLevel current_level;
-    std::mutex log_mutex;
-
-    std::string levelToString(LogLevel level) const {
-        switch (level) {
-            case LogLevel::DEBUG:    return "DEBUG";
-            case LogLevel::INFO:     return "INFO";
-            case LogLevel::WARNING:  return "WARNING";
-            case LogLevel::ERROR:    return "ERROR";
-            case LogLevel::CRITICAL: return "CRITICAL";
-            default:                 return "UNKNOWN";
-        }
-    }
+/**
+ * @brief Exception thrown during compilation failures.
+ */
+class CompilationException : public std::runtime_error {
+  public:
+    /**
+     * @brief Construct a new Compilation Exception object
+     *
+     * @param message Detailed error message.
+     */
+    explicit CompilationException(const std::string& message) : std::runtime_error(message) {}
 };
 
 // =======================================
-// Thread Pool Implementation
+// Helper Function to Run External Commands
 // =======================================
-class ThreadPool {
-public:
-    ThreadPool(size_t num_threads)
-        : stop(false) {
-        for (size_t i = 0; i < num_threads; ++i)
-            workers.emplace_back([this]() { this->worker(); });
+
+/**
+ * @brief Executes a system command and captures its output.
+ *
+ * @param command The command to execute.
+ * @param exit_code Reference to store the exit code of the command.
+ * @return std::string The combined stdout and stderr output of the command.
+ * @throws std::runtime_error If the command could not be executed.
+ */
+std::string runCommand(const std::string& command, int& exit_code) {
+    std::array<char, 128> buffer;
+    std::string result;
+
+    // Open pipe to file
+    FILE* pipe = popen(command.c_str(), "r");
+    if (!pipe) { throw std::runtime_error("popen() failed while executing command: " + command); }
+
+    try {
+        // Read till end of process
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) { result += buffer.data(); }
+    } catch (...) {
+        pclose(pipe);
+        throw;
     }
 
-    ~ThreadPool() {
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex);
-            stop = true;
-        }
-        condition.notify_all();
-        for (std::thread &worker : workers)
-            worker.join();
-    }
-
-    // Enqueue a task
-    template<class F, class... Args>
-    void enqueue(F&& f, Args&&... args) {
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex);
-            tasks.emplace(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
-        }
-        condition.notify_one();
-    }
-
-private:
-    // Workers
-    std::vector<std::thread> workers;
-    // Task queue
-    std::queue<std::function<void()>> tasks;
-    // Synchronization
-    std::mutex queue_mutex;
-    std::condition_variable condition;
-    bool stop;
-
-    // Worker thread function
-    void worker() {
-        while (true) {
-            std::function<void()> task;
-            {
-                std::unique_lock<std::mutex> lock(this->queue_mutex);
-                this->condition.wait(lock,
-                    [this]() { return this->stop || !this->tasks.empty(); });
-                if (this->stop && this->tasks.empty())
-                    return;
-                task = std::move(this->tasks.front());
-                this->tasks.pop();
-            }
-            task();
-        }
-    }
-};
+    // Get the exit code
+    exit_code = pclose(pipe);
+    return result;
+}
 
 // =======================================
 // Utility Namespace
 // =======================================
 namespace Utils {
 
-    // Function to read file content into a string
-    std::string readFileToString(const fs::path& filePath) {
-        std::ifstream file(filePath, std::ios::in | std::ios::binary);
-        if (!file) {
-            throw FileNotFoundException("Error: Could not open file " + filePath.string());
-        }
-        std::ostringstream ss;
-        ss << file.rdbuf();
-        return ss.str();
-    }
+/**
+ * @brief Reads the entire content of a file into a string.
+ *
+ * @param filePath The path to the file.
+ * @return std::string The content of the file.
+ * @throws FileNotFoundException If the file cannot be opened.
+ */
+std::string readFileToString(const std::filesystem::path& filePath) {
+    std::ifstream file(filePath, std::ios::in | std::ios::binary);
+    if (!file) { throw FileNotFoundException("Error: Could not open file " + filePath.string()); }
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
 
-    // Function to compute hash of a string
-    size_t computeHash(const std::string& content) {
-        return std::hash<std::string>{}(content);
-    }
+/**
+ * @brief Computes the hash of a string.
+ *
+ * @param content The string to hash.
+ * @return size_t The computed hash.
+ */
+size_t computeHash(const std::string& content) {
+    return std::hash<std::string>{}(content);
+}
 
-    // Function to create directories safely
-    void createDirectories(const fs::path& path) {
-        std::error_code ec;
-        if (!fs::exists(path)) {
-            if (!fs::create_directories(path, ec)) {
-                throw CompilerException("Error: Could not create directory " + path.string() + ". " + ec.message());
-            }
-        }
-    }
+/**
+ * @brief Creates directories if they do not exist.
+ *
+ * @param path The path to create.
+ * @throws std::runtime_error If the directories cannot be created.
+ */
+void createDirectories(const std::filesystem::path& path) {
+    std::error_code ec;
+    if (!std::filesystem::create_directories(path, ec) && ec) { throw std::runtime_error("Error: Could not create directories " + path.string() + ": " + ec.message()); }
+}
 
-    // Function to load JSON configuration
-    json loadConfig(const fs::path& configPath) {
-        if (!fs::exists(configPath)) {
-            throw FileNotFoundException("Configuration file not found: " + configPath.string());
-        }
-        std::ifstream configFile(configPath);
-        if (!configFile.is_open()) {
-            throw CompilerException("Failed to open configuration file: " + configPath.string());
-        }
-        json config;
-        configFile >> config;
-        return config;
-    }
+/**
+ * @brief Writes JSON data to a file.
+ *
+ * @param filePath The path to the file.
+ * @param data The JSON data to write.
+ * @throws std::runtime_error If the file cannot be written.
+ */
+void writeJsonToFile(const std::filesystem::path& filePath, const json& data) {
+    std::ofstream outFile(filePath, std::ios::trunc);
+    if (!outFile) { throw std::runtime_error("Failed to write to JSON file: " + filePath.string()); }
+    outFile << data.dump(4);
+}
 
-    // Function to save JSON data atomically
-    void writeJson(const fs::path& filePath, const json& data) {
-        fs::path tempPath = filePath;
-        tempPath += ".tmp";
-        std::ofstream outFile(tempPath, std::ios::trunc);
-        if (!outFile.is_open()) {
-            throw CompilerException("Failed to open file for writing: " + tempPath.string());
-        }
-        outFile << data.dump(4);
-        outFile.close();
-        fs::rename(tempPath, filePath);
-    }
-
-    // Function to read JSON data
-    json readJson(const fs::path& filePath) {
-        if (!fs::exists(filePath)) {
-            throw FileNotFoundException("Record file not found: " + filePath.string());
-        }
-        std::ifstream inFile(filePath);
-        if (!inFile.is_open()) {
-            throw CompilerException("Failed to open record file: " + filePath.string());
-        }
-        json data;
-        inFile >> data;
-        return data;
-    }
-
-    // Function to escape shell arguments
-    std::string escapeArg(const std::string& arg) {
-        std::string escaped = "\"";
-        for (char c : arg) {
-            if (c == '\\' || c == '\"') {
-                escaped += '\\';
-            }
-            escaped += c;
-        }
-        escaped += '"';
-        return escaped;
-    }
+/**
+ * @brief Reads JSON data from a file.
+ *
+ * @param filePath The path to the file.
+ * @return json The JSON data read from the file.
+ * @throws FileNotFoundException If the file cannot be opened.
+ */
+json readJsonFromFile(const std::filesystem::path& filePath) {
+    std::ifstream inFile(filePath);
+    if (!inFile) { throw FileNotFoundException("Failed to open JSON file: " + filePath.string()); }
+    json data;
+    inFile >> data;
+    return data;
+}
 
 } // namespace Utils
 
@@ -263,45 +170,38 @@ namespace Utils {
 // Environment Setup Class
 // =======================================
 class EnvManager {
-public:
-    EnvManager(Logger& logger)
-        : valid(true), logger(logger) {
-        loadEnvVars();
-    }
+  public:
+    EnvManager() { loadEnvVars(); }
 
-    bool isValid() const {
-        return valid;
-    }
+    bool isValid() const { return valid; }
 
-    fs::path getStdDir() const {
-        return GC_STD_DIR;
-    }
+    const std::filesystem::path& getStdDir() const { return GC_STD_DIR; }
 
-    fs::path getStdIrGcMap() const {
-        return GC_STD_IRGCMAP;
-    }
+    const std::filesystem::path& getStdIrGcMap() const { return GC_STD_IRGCMAP; }
 
-private:
-    fs::path GC_STD_DIR;
-    fs::path GC_STD_IRGCMAP;
-    bool valid;
-    Logger& logger;
+  private:
+    std::filesystem::path GC_STD_DIR;
+    std::filesystem::path GC_STD_IRGCMAP;
+    bool valid = true;
 
+    /**
+     * @brief Loads and validates required environment variables.
+     */
     void loadEnvVars() {
         const char* gcStdDir = std::getenv("GC_STD_DIR");
-        if (gcStdDir == nullptr) {
-            logger.warning("GC_STD_DIR environment variable is not set.");
+        if (!gcStdDir) {
+            std::cerr << "Warning: GC_STD_DIR environment variable is not set." << std::endl;
             valid = false;
         } else {
-            GC_STD_DIR = fs::path(gcStdDir);
+            GC_STD_DIR = std::filesystem::path(gcStdDir);
         }
 
         const char* gc_Std_IrGcMap = std::getenv("GC_STD_IRGCMAP");
-        if (gc_Std_IrGcMap == nullptr) {
-            logger.warning("GC_STD_IRGCMAP environment variable is not set.");
+        if (!gc_Std_IrGcMap) {
+            std::cerr << "Warning: GC_STD_IRGCMAP environment variable is not set." << std::endl;
             valid = false;
         } else {
-            GC_STD_IRGCMAP = fs::path(gc_Std_IrGcMap);
+            GC_STD_IRGCMAP = std::filesystem::path(gc_Std_IrGcMap);
         }
     }
 };
@@ -310,122 +210,157 @@ private:
 // Compiler Class
 // =======================================
 class Compiler {
-public:
-    Compiler(const fs::path& srcDir, const fs::path& buildDir,
-             const std::string& optimizationLevel, Logger& logger)
-        : srcDir(srcDir), buildDir(buildDir),
-          optimizationLevel(optimizationLevel), logger(logger),
-          threadPool(std::thread::hardware_concurrency()) {
-
-        irDir = buildDir / "ir";
-        irGcMapDir = buildDir / "ir_gc_map";
-        objDir = buildDir / "obj";
-        recordFilePath = buildDir / "compiled_files_record.json";
-
+  public:
+    Compiler(const std::filesystem::path& srcDir, const std::filesystem::path& buildDir, const std::string& optimizationLevel, bool verbose)
+        : srcDir(srcDir), buildDir(buildDir), optimizationLevel(optimizationLevel), verbose(verbose), irDir(buildDir / "ir"), irGcMapDir(buildDir / "ir_gc_map"), objDir(buildDir / "obj"),
+          recordFilePath(buildDir / "compiled_files_record.json") {
         Utils::createDirectories(irDir);
         Utils::createDirectories(irGcMapDir);
         Utils::createDirectories(objDir);
 
-        logger.info("Compiler initialized with:");
-        logger.info(" Source Directory: " + srcDir.string());
-        logger.info(" Build Directory: " + buildDir.string());
-        logger.info(" Optimization Level: " + (optimizationLevel.empty() ? "None" : optimizationLevel));
+        if (verbose) {
+            std::cout << "Compiler initialized with:\n"
+                      << " Source Directory: " << srcDir << "\n"
+                      << " Build Directory: " << buildDir << "\n"
+                      << " Optimization Level: " << (optimizationLevel.empty() ? "None" : optimizationLevel) << "\n";
+        }
     }
 
+    /**
+     * @brief Compiles all supported files in the source directory.
+     *
+     * @param compiledFilesRecord JSON object to track compiled files.
+     */
     void compileAll(json& compiledFilesRecord) {
         // Update the ir_gc_map files
         updateIrGcMaps(compiledFilesRecord);
 
         // Collect all relevant files
-        std::vector<fs::path> files;
-        for (const auto& entry : fs::recursive_directory_iterator(srcDir)) {
-            if (entry.is_regular_file() && isSupportedFile(entry.path())) {
-                files.emplace_back(entry.path());
-            }
+        std::vector<std::filesystem::path> files;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
+            if (entry.is_regular_file() && isSupportedFile(entry.path())) { files.emplace_back(entry.path()); }
         }
 
-        const size_t totalFiles = files.size();
-        logger.info("Starting compilation of " + std::to_string(totalFiles) + " files...");
+        if (verbose) { std::cout << "Found " << files.size() << " file(s) to compile." << std::endl; }
 
-        std::mutex record_mutex;
+        // Multithreading setup
+        const unsigned int numThreads = std::thread::hardware_concurrency();
+        if (verbose) { std::cout << "Starting compilation with " << numThreads << " threads..." << std::endl; }
 
-        for (const auto& file : files) {
-            threadPool.enqueue([this, &file, &compiledFilesRecord, &record_mutex]() {
-                try {
-                    compileFile(file, compiledFilesRecord, record_mutex);
-                } catch (const std::exception& e) {
-                    logger.error(e.what());
+        std::mutex queueMutex;
+        std::queue<std::filesystem::path> fileQueue;
+        for (const auto& file : files) { fileQueue.push(file); }
+
+        std::vector<std::thread> workers;
+        for (unsigned int i = 0; i < numThreads; ++i) {
+            workers.emplace_back([&]() {
+                while (true) {
+                    std::filesystem::path file;
+                    {
+                        std::lock_guard<std::mutex> lock(queueMutex);
+                        if (fileQueue.empty()) return;
+                        file = fileQueue.front();
+                        fileQueue.pop();
+                    }
+                    try {
+                        compileFile(file, compiledFilesRecord);
+                    } catch (const std::exception& e) { std::cerr << "Error compiling " << file << ": " << e.what() << std::endl; }
                 }
             });
         }
-        // Destructor of ThreadPool will wait for all tasks to finish
+
+        for (auto& worker : workers) {
+            if (worker.joinable()) { worker.join(); }
+        }
+
+        if (verbose) { std::cout << "Compilation phase completed." << std::endl; }
     }
 
-    int linkAll(const fs::path& executablePath) {
-        std::vector<std::string> objFiles;
-        for (const auto& entry : fs::recursive_directory_iterator(objDir)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".o") {
-                objFiles.emplace_back(entry.path().string());
-            }
+    /**
+     * @brief Links all object files into the final executable.
+     *
+     * @param executablePath The path to the output executable.
+     * @return int Exit status code.
+     * @throws CompilationException If linking fails.
+     */
+    int linkAll(const std::filesystem::path& executablePath) const {
+        std::string objFiles;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(objDir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".o") { objFiles += "\"" + entry.path().string() + "\" "; }
         }
 
         if (objFiles.empty()) {
-            logger.error("No object files found to link.");
+            std::cerr << "Error: No object files found to link." << std::endl;
             return 1;
         }
 
-        logger.info("Linking object files into executable...");
-
-        // Construct the clang command safely
-        std::string cmd = "clang";
-        for (const auto& obj : objFiles) {
-            cmd += " " + Utils::escapeArg(obj);
-        }
-        cmd += " -o " + Utils::escapeArg(executablePath.string());
-
-        int linkResult = std::system(cmd.c_str());
-        if (linkResult != 0) {
-            logger.error("Failed to link object files into executable " + executablePath.string());
-            return 1;
+        std::string linkCommand = "clang " + objFiles + "-o \"" + executablePath.string() + "\"";
+        if (verbose) {
+            std::cout << "Linking object files into executable..." << std::endl;
+            std::cout << "Link Command: " << linkCommand << std::endl;
         }
 
-        logger.info("Successfully linked object files into executable: " + executablePath.string());
+        int exit_code;
+        std::string linkOutput = runCommand(linkCommand, exit_code);
+        if (exit_code != 0) { throw CompilationException("Failed to link object files into executable " + executablePath.string() + "\nCommand: " + linkCommand + "\nOutput: " + linkOutput); }
+
+        if (verbose) { std::cout << "Successfully linked object files into executable: " << executablePath << std::endl; }
         return 0;
     }
 
-private:
-    fs::path srcDir;
-    fs::path buildDir;
+  private:
+    std::filesystem::path srcDir;
+    std::filesystem::path buildDir;
     std::string optimizationLevel;
-    fs::path irDir;
-    fs::path irGcMapDir;
-    fs::path objDir;
-    fs::path recordFilePath;
-    Logger& logger;
-    ThreadPool threadPool;
+    bool verbose;
 
-    // Helper to check supported file extensions
-    bool isSupportedFile(const fs::path& path) const {
-        return path.extension() == ".gc" || path.extension() == ".c" || path.extension() == ".rs";
+    std::filesystem::path irDir;
+    std::filesystem::path irGcMapDir;
+    std::filesystem::path objDir;
+    std::filesystem::path recordFilePath;
+
+    std::mutex recordMutex; // Mutex to protect compiledFilesRecord
+
+    /**
+     * @brief Checks if a file has a supported extension.
+     *
+     * @param path The path to the file.
+     * @return true If the file is supported.
+     * @return false Otherwise.
+     */
+    bool isSupportedFile(const std::filesystem::path& path) const {
+        static const std::vector<std::filesystem::path> supportedExtensions = {".gc", ".c", ".rs"};
+        return std::find(supportedExtensions.begin(), supportedExtensions.end(), path.extension()) != supportedExtensions.end();
     }
 
-    // Update ir_gc_map files before compilation
-    void updateIrGcMaps(json& compiledFilesRecord) {
-        for (const auto& entry : fs::recursive_directory_iterator(srcDir)) {
+    /**
+     * @brief Updates IR GC Map files before compilation.
+     *
+     * @param compiledFilesRecord JSON object tracking compiled files.
+     */
+    void updateIrGcMaps(const json& compiledFilesRecord) const {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
             if (entry.is_regular_file() && isSupportedFile(entry.path())) {
-                fs::path irGcMapPath = irGcMapDir / (fs::relative(entry.path(), srcDir).string() + ".json");
+                auto relative = std::filesystem::relative(entry.path(), srcDir);
+                std::filesystem::path irGcMapPath = irGcMapDir / (relative.string() + ".json");
                 setIrGcMap(entry.path(), irGcMapPath, compiledFilesRecord);
             }
         }
     }
 
-    // Function to set/update the IR GC Map
-    void setIrGcMap(const fs::path& filePath, const fs::path& irGcMapPath, json& compiledFilesRecord) {
+    /**
+     * @brief Sets or updates the IR GC Map for a specific file.
+     *
+     * @param filePath The path to the source file.
+     * @param irGcMapPath The path to the IR GC Map file.
+     * @param compiledFilesRecord JSON object tracking compiled files.
+     */
+    void setIrGcMap(const std::filesystem::path& filePath, const std::filesystem::path& irGcMapPath, const json& compiledFilesRecord) const {
         std::string fileContent = Utils::readFileToString(filePath);
         size_t currentHash = Utils::computeHash(fileContent);
 
         json irGcMapJson;
-        if (!fs::exists(irGcMapPath)) {
+        if (!std::filesystem::exists(irGcMapPath)) {
             irGcMapJson["uptodate"] = false;
             irGcMapJson["functions"] = json::object();
             irGcMapJson["structs"] = json::object();
@@ -433,10 +368,9 @@ private:
             irGcMapJson["GFinstance"] = json::object();
             Utils::createDirectories(irGcMapPath.parent_path());
 
-            Utils::writeJson(irGcMapPath, irGcMapJson);
-            logger.debug("Created new IR GC Map file: " + irGcMapPath.string());
+            Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
         } else {
-            irGcMapJson = Utils::readJson(irGcMapPath);
+            irGcMapJson = Utils::readJsonFromFile(irGcMapPath);
         }
 
         if (compiledFilesRecord.contains(filePath.string()) && compiledFilesRecord[filePath.string()] == currentHash) {
@@ -445,20 +379,27 @@ private:
             irGcMapJson["uptodate"] = false;
         }
 
-        Utils::writeJson(irGcMapPath, irGcMapJson);
+        Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
     }
 
-    // Function to compile individual files
-    void compileFile(const fs::path& filePath, json& compiledFilesRecord, std::mutex& record_mutex) {
-        std::string relativePathStr = fs::relative(filePath, srcDir).string();
-        fs::path outputIRPath = irDir / (relativePathStr + ".ll");
-        fs::path irGcMapPath = irGcMapDir / (relativePathStr + ".json");
-        fs::path objFilePath = objDir / (relativePathStr + ".o");
+    /**
+     * @brief Compiles an individual file depending on its extension.
+     *
+     * @param filePath The path to the source file.
+     * @param compiledFilesRecord JSON object tracking compiled files.
+     */
+    void compileFile(const std::filesystem::path& filePath, json& compiledFilesRecord) {
+        auto relative = std::filesystem::relative(filePath, srcDir);
+        std::filesystem::path outputIRPath = irDir / (relative.string() + ".ll");
+        std::filesystem::path irGcMapPath = irGcMapDir / (relative.string() + ".json");
+        std::filesystem::path objFilePath = objDir / (relative.string() + ".o");
 
-        logger.debug("Compiling file: " + filePath.string());
-        logger.debug(" Output IR Path: " + outputIRPath.string());
-        logger.debug(" IR GC Map Path: " + irGcMapPath.string());
-        logger.debug(" Object File Path: " + objFilePath.string());
+        if (verbose) {
+            std::cout << "Compiling file: " << filePath << "\n"
+                      << " Output IR Path: " << outputIRPath << "\n"
+                      << " IR GC Map Path: " << irGcMapPath << "\n"
+                      << " Object File Path: " << objFilePath << "\n";
+        }
 
         Utils::createDirectories(outputIRPath.parent_path());
 
@@ -467,202 +408,221 @@ private:
 
         // Check if the file needs recompilation
         {
-            std::lock_guard<std::mutex> lock(record_mutex);
+            std::lock_guard<std::mutex> lock(recordMutex);
             if (compiledFilesRecord.contains(filePath.string()) && compiledFilesRecord[filePath.string()] == currentHash) {
-                logger.info("Skipping up-to-date file: " + filePath.string());
+                if (verbose) { std::cout << "Skipping up-to-date file: " << filePath << std::endl; }
                 return;
             }
         }
 
         // Compile based on file extension
-        if (filePath.extension() == ".gc") {
-            compileGcFile(filePath, outputIRPath, irGcMapPath, objFilePath, relativePathStr, compiledFilesRecord, record_mutex);
-        } else if (filePath.extension() == ".c") {
-            compileCFile(filePath, outputIRPath, irGcMapPath, objFilePath, relativePathStr, compiledFilesRecord, record_mutex);
-        } else if (filePath.extension() == ".rs") {
-            compileRustFile(filePath, outputIRPath, objFilePath, relativePathStr, compiledFilesRecord, currentHash, record_mutex);
+        std::string extension = filePath.extension().string();
+        if (extension == ".gc") {
+            compileGcFile(fileContent, filePath, outputIRPath, irGcMapPath, objFilePath, compiledFilesRecord, currentHash);
+        } else if (extension == ".c") {
+            compileCFile(filePath, outputIRPath, irGcMapPath, objFilePath, compiledFilesRecord, currentHash);
+        } else if (extension == ".rs") {
+            compileRustFile(filePath, outputIRPath, objFilePath, compiledFilesRecord, currentHash);
         } else {
-            throw CompilationException("Unsupported file type: " + filePath.string());
+            throw std::runtime_error("Unsupported file type: " + filePath.string());
         }
     }
 
-    // Compile .gc files
-    void compileGcFile(const fs::path& filePath,
-                       const fs::path& outputIRPath,
-                       const fs::path& irGcMapPath,
-                       const fs::path& objFilePath,
-                       const std::string& relativePathStr,
+    /**
+     * @brief Compiles a .gc source file.
+     *
+     * @param filePath The path to the .gc file.
+     * @param outputIRPath The path to the output LLVM IR file.
+     * @param irGcMapPath The path to the IR GC Map file.
+     * @param objFilePath The path to the output object file.
+     * @param compiledFilesRecord JSON object tracking compiled files.
+     * @param currentHash The current hash of the source file.
+     */
+    void compileGcFile(std::string fileContent,
+                       const std::filesystem::path& filePath,
+                       const std::filesystem::path& outputIRPath,
+                       const std::filesystem::path& irGcMapPath,
+                       const std::filesystem::path& objFilePath,
                        json& compiledFilesRecord,
-                       std::mutex& record_mutex) {
-        std::string fileContent = Utils::readFileToString(filePath);
-
+                       size_t currentHash) {
+// Debugging Lexer
 #ifdef DEBUG_LEXER
-        debugLexer(fileContent);
+        debugLexer(Utils::readFileToString(filePath));
 #endif
 
+// Debugging Parser
 #ifdef DEBUG_PARSER
-        debugParser(fileContent);
+        debugParser(Utils::readFileToString(filePath));
 #endif
 
         Lexer lexer(fileContent);
         parser::Parser parser(&lexer);
         auto program = parser.parseProgram();
 
-        compiler::Compiler comp(fileContent, fs::absolute(filePath),
-                                irGcMapPath, buildDir, relativePathStr);
+        compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), irGcMapPath, buildDir, std::filesystem::relative(filePath, srcDir).string());
         comp.compile(program);
         delete program;
 
         // Write LLVM IR to file
         std::error_code EC;
         llvm::raw_fd_ostream irFile(outputIRPath.string(), EC, llvm::sys::fs::OF_None);
-        if (EC) {
-            throw CompilerException("Could not open IR file " + outputIRPath.string() + ": " + EC.message());
-        }
+        if (EC) { throw CompilationException("Could not open IR file " + outputIRPath.string() + ": " + EC.message()); }
         comp.llvm_module->print(irFile, nullptr);
         irFile.close();
 
         // Compile IR to object file
         Utils::createDirectories(objFilePath.parent_path());
         std::string optFlag = optimizationLevel.empty() ? "" : " -O" + optimizationLevel;
-        std::string clangCommand = "clang -c " + Utils::escapeArg(outputIRPath.string()) +
-                                   " -o " + Utils::escapeArg(objFilePath.string()) + optFlag;
-        int clangResult = std::system(clangCommand.c_str());
-        if (clangResult != 0) {
-            throw CompilationException("Failed to convert " + outputIRPath.string() +
-                                       " to " + objFilePath.string());
-        }
+        std::string clangCommand = "clang -c \"" + outputIRPath.string() + "\" -o \"" + objFilePath.string() + "\" -Woverride-module" + optFlag;
+
+        int clangResult;
+        std::string clangOutput = runCommand(clangCommand, clangResult);
+        if (clangResult != 0) { throw CompilationException("Failed to convert " + outputIRPath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
 
         // Update compiled files record and IR GC Map
         {
-            std::lock_guard<std::mutex> lock(record_mutex);
-            compiledFilesRecord[filePath.string()] = Utils::computeHash(fileContent);
-        }
-
-        json irGcMapJson = Utils::readJson(irGcMapPath);
-        irGcMapJson["uptodate"] = true;
-        Utils::writeJson(irGcMapPath, irGcMapJson);
-
-        logger.info("Compiled .gc file: " + filePath.string());
-    }
-
-    // Compile .c files
-    void compileCFile(const fs::path& filePath,
-                      const fs::path& outputIRPath,
-                      const fs::path& irGcMapPath,
-                      const fs::path& objFilePath,
-                      const std::string& relativePathStr,
-                      json& compiledFilesRecord,
-                      std::mutex& record_mutex) {
-        // Compile to LLVM IR
-        std::string optFlag = optimizationLevel.empty() ? "" : " -O" + optimizationLevel;
-        std::string clangCommandIR = "clang -emit-llvm -S " + optFlag + " " +
-                                     Utils::escapeArg(filePath.string()) + " -o " +
-                                     Utils::escapeArg(outputIRPath.string());
-        int clangResultIR = std::system(clangCommandIR.c_str());
-        if (clangResultIR != 0) {
-            throw CompilationException("Failed to compile " + filePath.string() + " to LLVM IR");
-        }
-
-        // Compile to object file
-        Utils::createDirectories(objFilePath.parent_path());
-        std::string clangCommandObj = "clang -c " + Utils::escapeArg(filePath.string()) +
-                                      " -o " + Utils::escapeArg(objFilePath.string()) + optFlag;
-        int clangResultObj = std::system(clangCommandObj.c_str());
-        if (clangResultObj != 0) {
-            throw CompilationException("Failed to compile " + filePath.string() + " to object file");
-        }
-
-        // Update compiled files record and IR GC Map
-        std::string fileContent = Utils::readFileToString(filePath);
-        size_t currentHash = Utils::computeHash(fileContent);
-        {
-            std::lock_guard<std::mutex> lock(record_mutex);
+            std::lock_guard<std::mutex> lock(recordMutex);
             compiledFilesRecord[filePath.string()] = currentHash;
         }
 
-        json irGcMapJson = Utils::readJson(irGcMapPath);
+        json irGcMapJson = Utils::readJsonFromFile(irGcMapPath);
         irGcMapJson["uptodate"] = true;
-        Utils::writeJson(irGcMapPath, irGcMapJson);
+        Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
 
-        logger.info("Compiled .c file: " + filePath.string());
+        if (verbose) { std::cout << "Compiled .gc file: " << filePath << std::endl; }
     }
 
-    // Compile .rs files
-    void compileRustFile(const fs::path& filePath,
-                         const fs::path& outputIRPath,
-                         const fs::path& objFilePath,
-                         const std::string& relativePathStr,
-                         json& compiledFilesRecord,
-                         size_t currentHash,
-                         std::mutex& record_mutex) {
-        fs::path irFilePath = outputIRPath;
-        irFilePath += ".ll";
+    /**
+     * @brief Compiles a .c source file.
+     *
+     * @param filePath The path to the .c file.
+     * @param outputIRPath The path to the output LLVM IR file.
+     * @param irGcMapPath The path to the IR GC Map file.
+     * @param objFilePath The path to the output object file.
+     * @param compiledFilesRecord JSON object tracking compiled files.
+     * @param currentHash The current hash of the source file.
+     */
+    void compileCFile(const std::filesystem::path& filePath,
+                      const std::filesystem::path& outputIRPath,
+                      const std::filesystem::path& irGcMapPath,
+                      const std::filesystem::path& objFilePath,
+                      json& compiledFilesRecord,
+                      size_t currentHash) {
+        // Compile to LLVM IR
+        std::string optFlag = optimizationLevel.empty() ? "" : " -O" + optimizationLevel;
+        std::string clangCommandIR = "clang -emit-llvm -S " + optFlag + " \"" + filePath.string() + "\" -o \"" + outputIRPath.string() + "\"";
+
+        int clangResultIR;
+        std::string clangOutputIR = runCommand(clangCommandIR, clangResultIR);
+        if (clangResultIR != 0) { throw CompilationException("Failed to compile " + filePath.string() + " to LLVM IR" + "\nCommand: " + clangCommandIR + "\nOutput: " + clangOutputIR); }
+
+        // Compile to object file
+        std::string clangCommandObj = "clang -c \"" + filePath.string() + "\" -o \"" + objFilePath.string() + "\" " + optFlag;
+
+        int clangResultObj;
+        std::string clangOutputObj = runCommand(clangCommandObj, clangResultObj);
+        if (clangResultObj != 0) { throw CompilationException("Failed to compile " + filePath.string() + " to object file" + "\nCommand: " + clangCommandObj + "\nOutput: " + clangOutputObj); }
+
+        // Update compiled files record and IR GC Map
+        {
+            std::lock_guard<std::mutex> lock(recordMutex);
+            compiledFilesRecord[filePath.string()] = currentHash;
+        }
+
+        json irGcMapJson = Utils::readJsonFromFile(irGcMapPath);
+        irGcMapJson["uptodate"] = true;
+        Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
+
+        if (verbose) { std::cout << "Compiled .c file: " << filePath << std::endl; }
+    }
+
+    /**
+     * @brief Compiles a .rs source file.
+     *
+     * @param filePath The path to the .rs file.
+     * @param outputIRPath The path to the output LLVM IR file.
+     * @param objFilePath The path to the output object file.
+     * @param compiledFilesRecord JSON object tracking compiled files.
+     * @param currentHash The current hash of the source file.
+     */
+    void compileRustFile(const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, json& compiledFilesRecord, size_t currentHash) {
+        std::filesystem::path irFilePath = outputIRPath.string() + ".ll";
         Utils::createDirectories(irFilePath.parent_path());
 
         // Compile Rust to LLVM IR
-        std::string rustcCommand = "rustc -emit=llvm-ir " + Utils::escapeArg(filePath.string()) +
-                                    " -o " + Utils::escapeArg(irFilePath.string()) +
-                                    (optimizationLevel.empty() ? "" : " -C opt-level=" + optimizationLevel);
-        int rustcResult = std::system(rustcCommand.c_str());
-        if (rustcResult != 0) {
-            throw CompilationException("Failed to compile Rust file " + filePath.string() + " to LLVM IR");
-        }
+        std::string rustcCommand = "rustc -emit=llvm-ir \"" + filePath.string() + "\" -o \"" + irFilePath.string() + "\"" + (optimizationLevel.empty() ? "" : " -C opt-level=" + optimizationLevel);
+
+        int rustcResult;
+        std::string rustcOutput = runCommand(rustcCommand, rustcResult);
+        if (rustcResult != 0) { throw CompilationException("Failed to compile Rust file " + filePath.string() + " to LLVM IR" + "\nCommand: " + rustcCommand + "\nOutput: " + rustcOutput); }
 
         // Compile LLVM IR to object file
-        Utils::createDirectories(objFilePath.parent_path());
-        std::string clangCommand = "clang -c " + Utils::escapeArg(irFilePath.string()) +
-                                   " -o " + Utils::escapeArg(objFilePath.string()) +
-                                   (optimizationLevel.empty() ? "" : " -O" + optimizationLevel);
-        int clangResult = std::system(clangCommand.c_str());
-        if (clangResult != 0) {
-            throw CompilationException("Failed to convert " + irFilePath.string() + " to " + objFilePath.string());
-        }
+        std::string clangCommand = "clang -c \"" + irFilePath.string() + "\" -o \"" + objFilePath.string() + "\"" + (optimizationLevel.empty() ? "" : " -O" + optimizationLevel);
+
+        int clangResult;
+        std::string clangOutput = runCommand(clangCommand, clangResult);
+        if (clangResult != 0) { throw CompilationException("Failed to convert " + irFilePath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
 
         // Update compiled files record
         {
-            std::lock_guard<std::mutex> lock(record_mutex);
+            std::lock_guard<std::mutex> lock(recordMutex);
             compiledFilesRecord[filePath.string()] = currentHash;
         }
 
-        logger.info("Compiled Rust file: " + filePath.string());
+        if (verbose) { std::cout << "Compiled Rust file: " << filePath << std::endl; }
     }
 
-    // Function to handle lexer debugging
-    void debugLexer(const std::string& fileContent) {
+    /**
+     * @brief Handles lexer debugging.
+     *
+     * @param fileContent The content of the source file.
+     */
+    void debugLexer(const std::string& fileContent) const {
 #ifdef DEBUG_LEXER
-        std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
-        if (!debugOutput.is_open()) {
-            logger.error("Could not open debug output file " + std::string(DEBUG_LEXER_OUTPUT_PATH));
-            return;
-        }
-
+        std::cout << "=========== Lexer Debug ===========" << std::endl;
         Lexer debugLexer(fileContent);
-        while (debugLexer.current_char != "") {
-            token::Token token = debugLexer.nextToken();
-            debugOutput << token.toString(false) << std::endl;
+        if (std::filesystem::path(DEBUG_LEXER_OUTPUT_PATH).string().empty()) {
+            while (debugLexer.current_char != "") {
+                token::Token token = debugLexer.nextToken();
+                std::cout << token.toString(true) << std::endl;
+            }
+        } else {
+            std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
+            if (!debugOutput) {
+                std::cerr << "Error: Could not open debug output file " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
+                return;
+            }
+            while (debugLexer.current_char != "") {
+                token::Token token = debugLexer.nextToken();
+                debugOutput << token.toString(false) << std::endl;
+            }
+            std::cout << "Lexer debug output written to " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
         }
-        debugOutput.close();
-        logger.debug("Lexer debug output written to " + std::string(DEBUG_LEXER_OUTPUT_PATH));
 #endif
     }
 
-    // Function to handle parser debugging
-    void debugParser(const std::string& fileContent) {
+    /**
+     * @brief Handles parser debugging.
+     *
+     * @param fileContent The content of the source file.
+     */
+    void debugParser(const std::string& fileContent) const {
 #ifdef DEBUG_PARSER
         parser::Parser debugParser(new Lexer(fileContent));
         auto program = debugParser.parseProgram();
-
-        std::ofstream file(DEBUG_PARSER_OUTPUT_PATH, std::ios::trunc);
-        if (file.is_open()) {
-            file << program->toStr() << std::endl;
-            file.close();
-            logger.debug("Parser debug output written to " + std::string(DEBUG_PARSER_OUTPUT_PATH));
+        std::cout << "=========== Parser Debug ===========" << std::endl;
+        if (!std::filesystem::path(DEBUG_PARSER_OUTPUT_PATH).string().empty()) {
+            std::ofstream file(DEBUG_PARSER_OUTPUT_PATH, std::ios::trunc);
+            if (file) {
+                file << program->toStr() << std::endl;
+                std::cout << "Parser debug output written to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
+            } else {
+                std::cerr << "Unable to open parser debug output file." << std::endl;
+                exit(1);
+            }
         } else {
-            logger.error("Unable to open parser debug output file.");
-            exit(1);
+            std::cout << program->toStr();
         }
-
         delete program;
 #endif
     }
@@ -671,11 +631,9 @@ private:
 // =======================================
 // CLI Setup Function
 // =======================================
-void setupCLI(CLI::App& app, std::string& inputFolderPath, std::string& optimizationLevel,
-             std::string& executablePath, bool& verbose) {
-    app.add_option("input_folder", inputFolderPath, "Input folder path")->required();
-    app.add_option("-O,--optimization", optimizationLevel, "Optimization level (O1, O2, O3, Os, Ofast)")
-       ->default_val("");
+void setupCLI(CLI::App& app, std::filesystem::path& inputFolderPath, std::string& optimizationLevel, std::filesystem::path& executablePath, bool& verbose) {
+    app.add_option("input_folder", inputFolderPath, "Input folder path")->required()->check(CLI::ExistingDirectory);
+    app.add_option("-O,--optimization", optimizationLevel, "Optimization level (O1, O2, O3, Os, Ofast)")->default_val("");
     app.add_option("-o,--output", executablePath, "Output executable path")->required();
     app.add_flag("-v,--verbose", verbose, "Enable verbose output");
 }
@@ -684,50 +642,46 @@ void setupCLI(CLI::App& app, std::string& inputFolderPath, std::string& optimiza
 // Main Function
 // =======================================
 int main(int argc, char* argv[]) {
-    // Initialize Logger with default level INFO
-    Logger logger(LogLevel::INFO);
-
     try {
         // Initialize CLI
         CLI::App app{"Folder Compiler"};
-        std::string inputFolderPath;
+        std::filesystem::path inputFolderPath;
         std::string optimizationLevel;
-        std::string executablePath;
+        std::filesystem::path executablePath;
         bool verbose = false;
         setupCLI(app, inputFolderPath, optimizationLevel, executablePath, verbose);
         CLI11_PARSE(app, argc, argv);
 
-        if (verbose) {
-            logger.setLevel(LogLevel::DEBUG);
-            logger.debug("Verbose mode enabled.");
-        }
+        if (verbose) { std::cout << "Verbose mode enabled." << std::endl; }
 
         // Environment Variable Management
-        EnvManager envManager(logger);
+        EnvManager envManager;
         if (!envManager.isValid()) {
-            logger.critical("Required environment variables are missing. Exiting.");
+            std::cerr << "Environment variables are missing. Exiting." << std::endl;
             return 1;
         }
 
         // Define Source and Build Directories
-        fs::path srcDir = fs::path(inputFolderPath) / "src";
-        fs::path buildDir = fs::path(inputFolderPath) / "build";
+        std::filesystem::path srcDir = inputFolderPath / "src";
+        std::filesystem::path buildDir = inputFolderPath / "build";
+
+        if (!std::filesystem::exists(srcDir)) {
+            std::cerr << "Error: Source directory " << srcDir << " does not exist." << std::endl;
+            return 1;
+        }
 
         // Initialize Compiler with verbose flag
-        Compiler compiler(srcDir, buildDir, optimizationLevel, logger);
+        Compiler compiler(srcDir, buildDir, optimizationLevel, verbose);
 
         // Load Compiled Files Record
-        fs::path recordFilePath = buildDir / "compiled_files_record.json";
+        std::filesystem::path recordFilePath = buildDir / "compiled_files_record.json";
         json compiledFilesRecord;
-        if (fs::exists(recordFilePath)) {
+        if (std::filesystem::exists(recordFilePath)) {
             try {
-                compiledFilesRecord = Utils::readJson(recordFilePath);
-                logger.info("Loaded compiled files record.");
-            } catch (const FileNotFoundException& e) {
-                logger.warning(e.what() + std::string(" Proceeding without it."));
-            } catch (const CompilerException& e) {
-                logger.warning(e.what() + std::string(" Proceeding without it."));
-            }
+                compiledFilesRecord = Utils::readJsonFromFile(recordFilePath);
+            } catch (const FileNotFoundException& e) { std::cerr << "Warning: " << e.what() << " Proceeding without it." << std::endl; }
+        } else {
+            if (verbose) { std::cout << "Compiled files record does not exist. A new one will be created." << std::endl; }
         }
 
         // Compile All Files
@@ -735,34 +689,20 @@ int main(int argc, char* argv[]) {
 
         // Save Compiled Files Record
         try {
-            Utils::writeJson(recordFilePath, compiledFilesRecord);
-            logger.info("Saved compiled files record.");
-        } catch (const CompilerException& e) {
-            logger.warning(e.what());
-        }
+            Utils::writeJsonToFile(recordFilePath, compiledFilesRecord);
+            if (verbose) { std::cout << "Compiled files record updated at " << recordFilePath << std::endl; }
+        } catch (const std::exception& e) { std::cerr << "Warning: Could not save compiled files record. " << e.what() << std::endl; }
 
         // Link Object Files into Executable
-        int linkResult = compiler.linkAll(fs::path(executablePath));
-        if (linkResult != 0) {
-            logger.critical("Linking failed with exit code " + std::to_string(linkResult));
-            return linkResult;
-        }
-
-        logger.info("Compilation and linking completed successfully.");
-        return 0;
-    } catch (const CLI::ParseError& e) {
-        return CLI::App().exit(e);
-    } catch (const FileNotFoundException& e) {
-        logger.error(e.what());
+        return compiler.linkAll(executablePath);
+    } catch (const CLI::ParseError& e) { return CLI::App().exit(e); } catch (const FileNotFoundException& e) {
+        std::cerr << "File error: " << e.what() << std::endl;
         return 1;
     } catch (const CompilationException& e) {
-        logger.error(e.what());
-        return 1;
-    } catch (const CompilerException& e) {
-        logger.error(e.what());
+        std::cerr << "Compilation error: " << e.what() << std::endl;
         return 1;
     } catch (const std::exception& e) {
-        logger.critical("Unexpected error: " + std::string(e.what()));
+        std::cerr << "Compilation failed: " << e.what() << std::endl;
         return 1;
     }
 }
