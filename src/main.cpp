@@ -23,7 +23,6 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 
-// Uncomment to enable debugging
 // #define DEBUG_LEXER
 // #define DEBUG_PARSER
 

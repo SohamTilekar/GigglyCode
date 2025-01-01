@@ -1495,7 +1495,7 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     if (this->env->isVariable(var_name->value)) { errors::DuplicateVariableError(this->source, var_name->value, "Variable is already declared").raise(); }
 
     auto var_value = variable_declaration_statement->value;
-    auto var_type = this->_parseType(variable_declaration_statement->value_type);
+    StructTypePtr var_type = variable_declaration_statement->value_type ? this->_parseType(variable_declaration_statement->value_type) : nullptr;
 
     if (var_value == nullptr) {
         llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type || var_type->name == "array" ? this->ll_pointer : var_type->stand_alone_type);
@@ -1511,7 +1511,7 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
         errors::WrongType(this->source, var_value, {var_type}, "Cannot assign module or type to variable").raise();
     }
 
-    if (!_checkType(var_generic, var_type)) {
+    if (variable_declaration_statement->value_type && !_checkType(var_generic, var_type)) {
         if (this->canConvertType(var_generic, var_type)) {
             auto converted = this->convertType({var_value_resolved, var_value_alloca, var_generic}, var_type);
             var_value_resolved = converted.value;
@@ -1521,8 +1521,8 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
             errors::WrongType(this->source, var_value, {var_type}, "Cannot assign mismatched type").raise();
         }
     }
-    llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type || var_type->name == "array" ? this->ll_pointer : var_type->stand_alone_type);
-    if (var_type->struct_type || var_type->name == "array") {
+    llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_generic->struct_type || var_generic->name == "array" ? this->ll_pointer : var_generic->stand_alone_type);
+    if (var_generic->struct_type || var_generic->name == "array") {
         this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(this->ll_pointer, var_value_alloca), alloca, variable_declaration_statement->is_volatile);
         auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
@@ -2274,11 +2274,10 @@ void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
     std::cerr << "TODO: Add Suport to raise Exception" << std::endl;
     exit(1);
 }
-// namespace GigglyCode {
+
 namespace Utils {
 const Str readFileToString(const std::filesystem::path& filePath); // Defined in main.cpp
 }
-// }
 
 void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, shared_ptr<RecordModule> module) {
     // Extract the relative path from the import statement

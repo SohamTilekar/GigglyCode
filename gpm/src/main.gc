@@ -8,7 +8,7 @@ struct Point {
 }
 
 def main() -> int {
-    X: int = 0;
+    X: auto = 0;
     X = 1;
     return X;
 }
