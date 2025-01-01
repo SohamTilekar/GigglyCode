@@ -8,6 +8,7 @@ struct Point {
 }
 
 def main() -> int {
-    X: Point = new Point(0, 1);
-    return X.y;
+    X: int = 0;
+    X = 1;
+    return X;
 }

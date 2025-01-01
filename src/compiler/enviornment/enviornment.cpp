@@ -60,6 +60,7 @@ bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<
 
 // Helper function to verify if function parameters match
 bool _checkFunctionParameterType(FunctionPtr func_record, std::vector<StructTypePtr> params, bool exact = false) {
+    if (!exact && func_record->is_var_arg) return true;
     // Compare each argument type with the corresponding parameter type
     for (const auto& [arg, pass_instance] : llvm::zip(func_record->arguments, params)) {
         const auto& [arg_name, accept_instance, _] = arg;
