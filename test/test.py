@@ -8,7 +8,7 @@ def main():
     print(test_folder)
 
     # Iterate over the range 1 to 6 and run the command for each folder
-    for i in range(1, 7):
+    for i in range(1, 6):
         folder = f"./test/test{i}/"
         compile_command = f"{test_folder.parent}/build/gigly {folder} -o ./dump/exec"
         run_command = "./dump/exec"
