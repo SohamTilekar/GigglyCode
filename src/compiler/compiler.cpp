@@ -550,17 +550,13 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
             llvm::Value* alloca = &arg;
             // Allocate space for the argument if it's not a pointer type or if it's an array
-            if (!arg.getType()->isPointerTy() || _checkType(param_type_record, this->env->getStruct("array"))) {
+            if (!std::get<2>(argument)) {
                 alloca = this->llvm_ir_builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
                 this->llvm_ir_builder.CreateStore(&arg, alloca);
             }
 
-            // Load the argument value if it's passed by reference
-            llvm::Value* arg_value = &arg;
-            if (is_reference) { arg_value = this->llvm_ir_builder.CreateLoad(param_type_record->stand_alone_type ? param_type_record->stand_alone_type : param_type_record->struct_type, &arg); }
-
             // Create a variable record for the argument and add it to the environment
-            auto record = std::make_shared<RecordVariable>(Str(arg.getName()), arg_value, alloca, param_type_record);
+            auto record = std::make_shared<RecordVariable>(Str(arg.getName()), nullptr, alloca, param_type_record);
             this->env->addRecord(record);
         }
 
@@ -616,7 +612,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             exit(1);
         }
         params_types.push_back(param_type);
-        args.push_back(param_type->struct_type || param_type->name == "array" ? alloca : value);
+        args.push_back(value ? value : alloca);
         arg_allocas.push_back(alloca);
     }
 
@@ -961,7 +957,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                     idx++;
                 }
                 auto type = left_type->sub_types[right->castToIdentifierLiteral()->value];
-                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_alloca, idx, "accesed" + right->castToIdentifierLiteral()->value + "_from_" + left_type->name);
+                llvm::Value* gep = this->llvm_ir_builder.CreateStructGEP(left_type->struct_type, left_value, idx, "accesed" + right->castToIdentifierLiteral()->value + "_from_" + left_type->name);
                 if (type->struct_type || type->name == "array") { return {gep, gep, type, resolveType::StructInst}; }
                 llvm::Value* loaded = this->llvm_ir_builder.CreateLoad(type->stand_alone_type, gep, "loded" + right->castToIdentifierLiteral()->value);
                 return {loaded, gep, type, resolveType::StructInst};
@@ -1488,8 +1484,7 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     auto var_type = this->_parseType(variable_declaration_statement->value_type);
 
     if (var_value == nullptr) {
-        llvm::Value* alloca = var_type->struct_type ? this->llvm_ir_builder.CreateAlloca(var_type->struct_type) : this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
-
+        llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type || var_type->name == "array" ? this->ll_pointer : var_type->stand_alone_type);
         auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_type);
         this->env->addRecord(var);
         return;
@@ -1512,16 +1507,14 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
             errors::WrongType(this->source, var_value, {var_type}, "Cannot assign mismatched type").raise();
         }
     }
-
+    llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type || var_type->name == "array" ? this->ll_pointer : var_type->stand_alone_type);
     if (var_type->struct_type || var_type->name == "array") {
-        auto var = std::make_shared<RecordVariable>(var_name->value, var_value_resolved, var_value_resolved, var_generic);
-        var->variable_type = var_generic;
+        this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
+        auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
     } else {
-        auto alloca = this->llvm_ir_builder.CreateAlloca(var_type->stand_alone_type);
-        if (var_generic->name == "nullptr") { var_value_resolved = llvm::Constant::getNullValue(this->ll_pointer); }
         this->llvm_ir_builder.CreateStore(var_value_resolved, alloca, variable_declaration_statement->is_volatile);
-        auto var = std::make_shared<RecordVariable>(var_name->value, var_value_resolved, alloca, var_generic);
+        auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
     }
 }
@@ -1607,21 +1600,17 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
 
 Compiler::ResolvedValue Compiler::_resolveIntegerLiteral(AST::IntegerLiteral* integer_literal) {
     auto value = llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, integer_literal->value));
-    auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("int")->stand_alone_type);
-    this->llvm_ir_builder.CreateStore(value, alloca);
-    return {value, alloca, this->env->getStruct("int"), resolveType::StructInst};
+    return {value, nullptr, this->env->getStruct("int"), resolveType::StructInst};
 }
 
 Compiler::ResolvedValue Compiler::_resolveFloatLiteral(AST::FloatLiteral* float_literal) {
     auto value = llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(float_literal->value));
-    auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("float")->stand_alone_type);
-    this->llvm_ir_builder.CreateStore(value, alloca);
-    return {value, alloca, this->env->getStruct("float"), resolveType::StructInst};
+    return {value, nullptr, this->env->getStruct("float"), resolveType::StructInst};
 }
 
 Compiler::ResolvedValue Compiler::_resolveStringLiteral(AST::StringLiteral* string_literal) {
     auto value = this->llvm_ir_builder.CreateGlobalStringPtr(string_literal->value);
-    return {value, value, this->env->getStruct("str"), resolveType::StructInst};
+    return {value, nullptr, this->env->getStruct("str"), resolveType::StructInst};
 }
 
 Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiteral* identifier_literal) {
@@ -1630,11 +1619,12 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
         currentStructType->meta_data = identifier_literal->meta_data;
-        if (currentStructType->stand_alone_type) {
-            auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, variable->allocainst);
+        if (currentStructType->struct_type || currentStructType->name == "array") {
+            auto loadInst = this->llvm_ir_builder.CreateLoad(this->ll_pointer, variable->allocainst);
             return {loadInst, variable->allocainst, currentStructType, resolveType::StructInst};
         } else {
-            return {variable->allocainst, variable->allocainst, currentStructType, resolveType::StructInst};
+            auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, variable->allocainst);
+            return {loadInst, variable->allocainst, currentStructType, resolveType::StructInst};
         }
     } else if (this->env->isModule(identifier_literal->value)) {
         return {nullptr, nullptr, this->env->getModule(identifier_literal->value), resolveType::Module};

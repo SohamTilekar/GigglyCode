@@ -409,10 +409,10 @@ class Compiler {
         // Check if the file needs recompilation
         {
             std::lock_guard<std::mutex> lock(recordMutex);
-            if (compiledFilesRecord.contains(filePath.string()) && compiledFilesRecord[filePath.string()] == currentHash) {
-                if (verbose) { std::cout << "Skipping up-to-date file: " << filePath << std::endl; }
-                return;
-            }
+            // if (compiledFilesRecord.contains(filePath.string()) && compiledFilesRecord[filePath.string()] == currentHash) {
+            //     if (verbose) { std::cout << "Skipping up-to-date file: " << filePath << std::endl; }
+            //     return;
+            // }
         }
 
         // Compile based on file extension
