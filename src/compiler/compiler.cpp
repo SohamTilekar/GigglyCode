@@ -2234,8 +2234,12 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
     Str relative_path = import_statement->relativePath;
 
     // Derive the module name by taking the substring after the last '/' and replacing '.' with '_'
-    auto module_name = relative_path.substr(relative_path.find_last_of('/') + 1);
-    std::replace(module_name.begin(), module_name.end(), '.', '_');
+    Str module_name;
+    if (import_statement->as == "") {
+        module_name = relative_path.substr(relative_path.find_last_of('/') + 1);
+        std::replace(module_name.begin(), module_name.end(), '.', '_');
+    } else
+        module_name = import_statement->as;
 
     // Determine the path for the imported source file
     std::filesystem::path gc_source_path = this->file_path.parent_path() / (relative_path + ".gc");

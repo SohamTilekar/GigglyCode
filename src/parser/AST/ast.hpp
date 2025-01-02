@@ -354,8 +354,9 @@ class ContinueStatement : public Statement {
 class ImportStatement : public Statement {
   public:
     std::string relativePath;
+    std::string as;
     inline NodeType type() override { return NodeType::ImportStatement; }
-    ImportStatement(const std::string& relativePath) : relativePath(relativePath) {}
+    ImportStatement(const std::string& relativePath, const std::string& as) : relativePath(relativePath), as(as) {}
     std::string toStr() override;
 };
 

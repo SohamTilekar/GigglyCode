@@ -465,8 +465,15 @@ AST::ImportStatement* Parser::_parseImportStatement() {
     int st_line_no = current_token.line_no;
     int st_col_no = current_token.col_no;
     this->_expectPeek(TokenType::String); // [importFT] -> [String]
-    auto import_statement = new AST::ImportStatement(this->current_token.literal);
+    auto path = this->current_token.literal;
+    std::string as = "";
+    if (this->_peekTokenIs(TokenType::As)) {
+        this->_nextToken(); // [String] -> [As]
+        this->_expectPeek({TokenType::String, TokenType::Identifier}); // [As] -> [String]
+        as = this->current_token.literal;
+    }
     this->_expectPeek(TokenType::Semicolon); // [String] -> [;]
+    auto import_statement = new AST::ImportStatement(path, as);
     int end_line_no = current_token.line_no;
     int end_col_no = current_token.col_no;
     import_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
@@ -601,11 +608,14 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         identifier = new AST::IdentifierLiteral(this->current_token);
     }
     this->_expectPeek(TokenType::Colon); // [Identifier] -> [:]
-    this->_nextToken();                  // [:] -> [Type]
-    LOG_TOK()
-    auto type = this->_parseType(); // [Type] remains unchanged
-    if (type->name->type() == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto")
-        type = nullptr;
+    AST::Type* type = nullptr;
+    if (!this->_peekTokenIs(TokenType::Equals)) {
+        this->_nextToken();                  // [:] -> [Type]
+        LOG_TOK()
+        type = this->_parseType(); // [Type] remains unchanged
+        if (type->name->type() == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto")
+            type = nullptr;
+    }
     if (this->_peekTokenIs(TokenType::Semicolon)) {
         this->_nextToken(); // [Type] -> [;]
         LOG_TOK()

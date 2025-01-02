@@ -53,6 +53,8 @@ token::TokenType Lexer::_lookupIdent(const std::string ident) {
         return token::TokenType::Use;
     } else if (ident == "import") {
         return token::TokenType::Import;
+    } else if (ident == "as") {
+        return token::TokenType::As;
     } else if (ident == "True") {
         return token::TokenType::True;
     } else if (ident == "False") {

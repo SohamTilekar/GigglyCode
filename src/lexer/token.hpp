@@ -106,6 +106,7 @@ enum class TokenType {
     Volatile, // Volatile keyword 'volatile'
     Use,      // Use keyword 'use'
     Import,   // Import keyword 'import'
+    As,       // As keyword 'as'
     True,     // Boolean true 'true'
     False,    // Boolean false 'false'
     None,     // None type 'none'
