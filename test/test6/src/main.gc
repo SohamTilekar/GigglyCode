@@ -1,0 +1,43 @@
+struct Point {
+    X: int;
+    Y: int;
+    def __init__(self: Point, X: int, Y: int) {
+        self.X = X;
+        self.Y = Y;
+    };
+    def __init__(self: Point) {}; # Garbage Initilizer
+    def __sub__(self: Point, _other: Point) -> float {
+        deltaX: int = self.X - _other.X;
+        deltaY: int = self.Y - _other.Y;
+        printf("Delta X: %d\n", deltaX);
+        printf("Delta Y: %d\n", deltaY);
+        deltaX_squared: int = deltaX * deltaX;
+        deltaY_squared: int = deltaY * deltaY;
+        printf("Delta X Squared: %d\n", deltaX_squared);
+        printf("Delta Y Squared: %d\n", deltaY_squared);
+        sum_of_squares: int = deltaX_squared + deltaY_squared;
+        printf("Sum of Squares: %d\n", sum_of_squares);
+        distance: float = math.sqrt(sum_of_squares);
+        printf("Distance: %f\n", distance);
+        return distance;
+    };
+};
+
+struct Square {
+    bottomLeft: Point;
+    topLeft: Point;
+    def __init__(self: Square, bottomLeft: Point, topLeft: Point) {
+        self.bottomLeft = bottomLeft;
+        self.topLeft = topLeft;
+    };
+    def __init__(self: Square) {}; # Garbage Initilizer
+    def getLen(self: Square) -> float {
+        return self.bottomLeft - self.topLeft;
+    };
+};
+
+def main() -> int {
+    sq_10by10: auto = Square(Point(0, 0), Point(10, 10));
+    printf("Length of the side of the square is: %lf\n", sq_10by10.getLen());
+    return sq_10by10.getLen();
+};
