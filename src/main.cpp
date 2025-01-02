@@ -17,19 +17,17 @@
 #include <vector>
 
 // Include necessary headers
-#include "compiler/compiler.hpp"
 #include "include/cli11.hpp"
-#include "include/json.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
+#include "compiler/compiler.hpp"
+#include "compilation_state.hpp"
 
 // #define DEBUG_LEXER
 // #define DEBUG_PARSER
 
 constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
 constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
-
-using json = nlohmann::json;
 
 // =======================================
 // Custom Exception Classes
@@ -135,34 +133,6 @@ void createDirectories(const std::filesystem::path& path) {
     if (!std::filesystem::create_directories(path, ec) && ec) { throw std::runtime_error("Error: Could not create directories " + path.string() + ": " + ec.message()); }
 }
 
-/**
- * @brief Writes JSON data to a file.
- *
- * @param filePath The path to the file.
- * @param data The JSON data to write.
- * @throws std::runtime_error If the file cannot be written.
- */
-void writeJsonToFile(const std::filesystem::path& filePath, const json& data) {
-    std::ofstream outFile(filePath, std::ios::trunc);
-    if (!outFile) { throw std::runtime_error("Failed to write to JSON file: " + filePath.string()); }
-    outFile << data.dump(4);
-}
-
-/**
- * @brief Reads JSON data from a file.
- *
- * @param filePath The path to the file.
- * @return json The JSON data read from the file.
- * @throws FileNotFoundException If the file cannot be opened.
- */
-json readJsonFromFile(const std::filesystem::path& filePath) {
-    std::ifstream inFile(filePath);
-    if (!inFile) { throw FileNotFoundException("Failed to open JSON file: " + filePath.string()); }
-    json data;
-    inFile >> data;
-    return data;
-}
-
 } // namespace Utils
 
 // =======================================
@@ -176,11 +146,8 @@ class EnvManager {
 
     const std::filesystem::path& getStdDir() const { return GC_STD_DIR; }
 
-    const std::filesystem::path& getStdIrGcMap() const { return GC_STD_IRGCMAP; }
-
   private:
     std::filesystem::path GC_STD_DIR;
-    std::filesystem::path GC_STD_IRGCMAP;
     bool valid = true;
 
     /**
@@ -194,27 +161,62 @@ class EnvManager {
         } else {
             GC_STD_DIR = std::filesystem::path(gcStdDir);
         }
-
-        const char* gc_Std_IrGcMap = std::getenv("GC_STD_IRGCMAP");
-        if (!gc_Std_IrGcMap) {
-            std::cerr << "Warning: GC_STD_IRGCMAP environment variable is not set." << std::endl;
-            valid = false;
-        } else {
-            GC_STD_IRGCMAP = std::filesystem::path(gc_Std_IrGcMap);
-        }
     }
 };
 
 // =======================================
 // Compiler Class
 // =======================================
+
+/**
+ * @brief Finds or creates a file record in the folder structure.
+ *
+ * @param rootFolder The root folder.
+ * @param relativePath The relative path of the file.
+ * @return compilationState::RecordFile* The file record.
+ */
+compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFolder* rootFolder, const std::filesystem::path& relativePath) {
+    compilationState::RecordFolder* currentFolder = rootFolder;
+    for (const auto& part : relativePath.parent_path()) {
+        bool found = false;
+        for (auto& item : currentFolder->files_or_folder) {
+            if (auto folder = std::get_if<compilationState::RecordFolder*>(&item)) {
+                if ((*folder)->name == part.string()) {
+                    currentFolder = *folder;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            auto newFolder = new compilationState::RecordFolder();
+            newFolder->name = part.string();
+            newFolder->parent = currentFolder;
+            currentFolder->files_or_folder.push_back(newFolder);
+            currentFolder = newFolder;
+        }
+    }
+
+    for (auto& item : currentFolder->files_or_folder) {
+        if (auto file = std::get_if<compilationState::RecordFile*>(&item)) {
+            if ((*file)->name == relativePath.filename().string()) {
+                return *file;
+            }
+        }
+    }
+
+    auto newFile = new compilationState::RecordFile();
+    newFile->name = relativePath.filename().string();
+    newFile->parent = currentFolder;
+    currentFolder->files_or_folder.push_back(newFile);
+    return newFile;
+}
+
 class Compiler {
   public:
     Compiler(const std::filesystem::path& srcDir, const std::filesystem::path& buildDir, const std::string& optimizationLevel, bool verbose)
-        : srcDir(srcDir), buildDir(buildDir), optimizationLevel(optimizationLevel), verbose(verbose), irDir(buildDir / "ir"), irGcMapDir(buildDir / "ir_gc_map"), objDir(buildDir / "obj"),
-          recordFilePath(buildDir / "compiled_files_record.json") {
+        : srcDir(srcDir), buildDir(buildDir), optimizationLevel(optimizationLevel), verbose(verbose), irDir(buildDir / "ir"), objDir(buildDir / "obj") {
         Utils::createDirectories(irDir);
-        Utils::createDirectories(irGcMapDir);
         Utils::createDirectories(objDir);
 
         if (verbose) {
@@ -228,12 +230,9 @@ class Compiler {
     /**
      * @brief Compiles all supported files in the source directory.
      *
-     * @param compiledFilesRecord JSON object to track compiled files.
+     * @param rootFolder The root folder to track compiled files.
      */
-    void compileAll(json& compiledFilesRecord) {
-        // Update the ir_gc_map files
-        updateIrGcMaps(compiledFilesRecord);
-
+    void compileAll(compilationState::RecordFolder* rootFolder) {
         // Collect all relevant files
         std::vector<std::filesystem::path> files;
         for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
@@ -262,7 +261,7 @@ class Compiler {
                         fileQueue.pop();
                     }
                     try {
-                        compileFile(file, compiledFilesRecord);
+                        compileFile(file, rootFolder);
                     } catch (const std::exception& e) { std::cerr << "Error compiling " << file << ": " << e.what() << std::endl; }
                 }
             });
@@ -314,9 +313,7 @@ class Compiler {
     bool verbose;
 
     std::filesystem::path irDir;
-    std::filesystem::path irGcMapDir;
     std::filesystem::path objDir;
-    std::filesystem::path recordFilePath;
 
     std::mutex recordMutex; // Mutex to protect compiledFilesRecord
 
@@ -333,95 +330,36 @@ class Compiler {
     }
 
     /**
-     * @brief Updates IR GC Map files before compilation.
-     *
-     * @param compiledFilesRecord JSON object tracking compiled files.
-     */
-    void updateIrGcMaps(const json& compiledFilesRecord) const {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(srcDir)) {
-            if (entry.is_regular_file() && isSupportedFile(entry.path())) {
-                auto relative = std::filesystem::relative(entry.path(), srcDir);
-                std::filesystem::path irGcMapPath = irGcMapDir / (relative.string() + ".json");
-                setIrGcMap(entry.path(), irGcMapPath, compiledFilesRecord);
-            }
-        }
-    }
-
-    /**
-     * @brief Sets or updates the IR GC Map for a specific file.
-     *
-     * @param filePath The path to the source file.
-     * @param irGcMapPath The path to the IR GC Map file.
-     * @param compiledFilesRecord JSON object tracking compiled files.
-     */
-    void setIrGcMap(const std::filesystem::path& filePath, const std::filesystem::path& irGcMapPath, const json& compiledFilesRecord) const {
-        std::string fileContent = Utils::readFileToString(filePath);
-        size_t currentHash = Utils::computeHash(fileContent);
-
-        json irGcMapJson;
-        if (!std::filesystem::exists(irGcMapPath)) {
-            irGcMapJson["uptodate"] = false;
-            irGcMapJson["functions"] = json::object();
-            irGcMapJson["structs"] = json::object();
-            irGcMapJson["GSinstance"] = json::object();
-            irGcMapJson["GFinstance"] = json::object();
-            Utils::createDirectories(irGcMapPath.parent_path());
-
-            Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
-        } else {
-            irGcMapJson = Utils::readJsonFromFile(irGcMapPath);
-        }
-
-        if (compiledFilesRecord.contains(filePath.string()) && compiledFilesRecord[filePath.string()] == currentHash) {
-            irGcMapJson["uptodate"] = true;
-        } else {
-            irGcMapJson["uptodate"] = false;
-        }
-
-        Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
-    }
-
-    /**
      * @brief Compiles an individual file depending on its extension.
      *
      * @param filePath The path to the source file.
-     * @param compiledFilesRecord JSON object tracking compiled files.
+     * @param rootFolder The root folder to track compiled files.
      */
-    void compileFile(const std::filesystem::path& filePath, json& compiledFilesRecord) {
+    void compileFile(const std::filesystem::path& filePath, compilationState::RecordFolder* rootFolder) {
         auto relative = std::filesystem::relative(filePath, srcDir);
         std::filesystem::path outputIRPath = irDir / (relative.string() + ".ll");
-        std::filesystem::path irGcMapPath = irGcMapDir / (relative.string() + ".json");
         std::filesystem::path objFilePath = objDir / (relative.string() + ".o");
 
         if (verbose) {
             std::cout << "Compiling file: " << filePath << "\n"
                       << " Output IR Path: " << outputIRPath << "\n"
-                      << " IR GC Map Path: " << irGcMapPath << "\n"
                       << " Object File Path: " << objFilePath << "\n";
         }
 
         Utils::createDirectories(outputIRPath.parent_path());
 
         std::string fileContent = Utils::readFileToString(filePath);
-        size_t currentHash = Utils::computeHash(fileContent);
 
         // Check if the file needs recompilation
-        {
-            std::lock_guard<std::mutex> lock(recordMutex);
-            // if (compiledFilesRecord.contains(filePath.string()) && compiledFilesRecord[filePath.string()] == currentHash) {
-            //     if (verbose) { std::cout << "Skipping up-to-date file: " << filePath << std::endl; }
-            //     return;
-            // }
-        }
-
+        compilationState::RecordFile* fileRecord = findOrCreateFileRecord(rootFolder, relative);
         // Compile based on file extension
         std::string extension = filePath.extension().string();
         if (extension == ".gc") {
-            compileGcFile(fileContent, filePath, outputIRPath, irGcMapPath, objFilePath, compiledFilesRecord, currentHash);
+            compileGcFile(fileContent, filePath, outputIRPath, objFilePath, fileRecord);
         } else if (extension == ".c") {
-            compileCFile(filePath, outputIRPath, irGcMapPath, objFilePath, compiledFilesRecord, currentHash);
+            compileCFile(filePath, outputIRPath, objFilePath, fileRecord);
         } else if (extension == ".rs") {
-            compileRustFile(filePath, outputIRPath, objFilePath, compiledFilesRecord, currentHash);
+            compileRustFile(filePath, outputIRPath, objFilePath, fileRecord);
         } else {
             throw std::runtime_error("Unsupported file type: " + filePath.string());
         }
@@ -432,18 +370,15 @@ class Compiler {
      *
      * @param filePath The path to the .gc file.
      * @param outputIRPath The path to the output LLVM IR file.
-     * @param irGcMapPath The path to the IR GC Map file.
      * @param objFilePath The path to the output object file.
-     * @param compiledFilesRecord JSON object tracking compiled files.
-     * @param currentHash The current hash of the source file.
+     * @param fileRecord The record of the file being compiled.
      */
     void compileGcFile(std::string fileContent,
                        const std::filesystem::path& filePath,
                        const std::filesystem::path& outputIRPath,
-                       const std::filesystem::path& irGcMapPath,
                        const std::filesystem::path& objFilePath,
-                       json& compiledFilesRecord,
-                       size_t currentHash) {
+                       compilationState::RecordFile* fileRecord
+    ) {
 // Debugging Lexer
 #ifdef DEBUG_LEXER
         debugLexer(Utils::readFileToString(filePath));
@@ -458,7 +393,7 @@ class Compiler {
         parser::Parser parser(&lexer);
         auto program = parser.parseProgram();
 
-        compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), irGcMapPath, buildDir, std::filesystem::relative(filePath, srcDir).string());
+        compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string());
         comp.compile(program);
         delete program;
 
@@ -478,15 +413,8 @@ class Compiler {
         std::string clangOutput = runCommand(clangCommand, clangResult);
         if (clangResult != 0) { throw CompilationException("Failed to convert " + outputIRPath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
 
-        // Update compiled files record and IR GC Map
-        {
-            std::lock_guard<std::mutex> lock(recordMutex);
-            compiledFilesRecord[filePath.string()] = currentHash;
-        }
-
-        json irGcMapJson = Utils::readJsonFromFile(irGcMapPath);
-        irGcMapJson["uptodate"] = true;
-        Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
+        // Update file record
+        fileRecord->compiled = true;
 
         if (verbose) { std::cout << "Compiled .gc file: " << filePath << std::endl; }
     }
@@ -496,17 +424,13 @@ class Compiler {
      *
      * @param filePath The path to the .c file.
      * @param outputIRPath The path to the output LLVM IR file.
-     * @param irGcMapPath The path to the IR GC Map file.
      * @param objFilePath The path to the output object file.
-     * @param compiledFilesRecord JSON object tracking compiled files.
-     * @param currentHash The current hash of the source file.
+     * @param fileRecord The record of the file being compiled.
      */
     void compileCFile(const std::filesystem::path& filePath,
                       const std::filesystem::path& outputIRPath,
-                      const std::filesystem::path& irGcMapPath,
                       const std::filesystem::path& objFilePath,
-                      json& compiledFilesRecord,
-                      size_t currentHash) {
+                      compilationState::RecordFile* fileRecord) {
         // Compile to LLVM IR
         std::string optFlag = optimizationLevel.empty() ? "" : " -O" + optimizationLevel;
         std::string clangCommandIR = "clang -emit-llvm -S " + optFlag + " \"" + filePath.string() + "\" -o \"" + outputIRPath.string() + "\"";
@@ -522,15 +446,8 @@ class Compiler {
         std::string clangOutputObj = runCommand(clangCommandObj, clangResultObj);
         if (clangResultObj != 0) { throw CompilationException("Failed to compile " + filePath.string() + " to object file" + "\nCommand: " + clangCommandObj + "\nOutput: " + clangOutputObj); }
 
-        // Update compiled files record and IR GC Map
-        {
-            std::lock_guard<std::mutex> lock(recordMutex);
-            compiledFilesRecord[filePath.string()] = currentHash;
-        }
-
-        json irGcMapJson = Utils::readJsonFromFile(irGcMapPath);
-        irGcMapJson["uptodate"] = true;
-        Utils::writeJsonToFile(irGcMapPath, irGcMapJson);
+        // Update file record
+        fileRecord->compiled = true;
 
         if (verbose) { std::cout << "Compiled .c file: " << filePath << std::endl; }
     }
@@ -541,10 +458,9 @@ class Compiler {
      * @param filePath The path to the .rs file.
      * @param outputIRPath The path to the output LLVM IR file.
      * @param objFilePath The path to the output object file.
-     * @param compiledFilesRecord JSON object tracking compiled files.
-     * @param currentHash The current hash of the source file.
+     * @param fileRecord The record of the file being compiled.
      */
-    void compileRustFile(const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, json& compiledFilesRecord, size_t currentHash) {
+    void compileRustFile(const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, compilationState::RecordFile* fileRecord) {
         std::filesystem::path irFilePath = outputIRPath.string() + ".ll";
         Utils::createDirectories(irFilePath.parent_path());
 
@@ -562,11 +478,8 @@ class Compiler {
         std::string clangOutput = runCommand(clangCommand, clangResult);
         if (clangResult != 0) { throw CompilationException("Failed to convert " + irFilePath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
 
-        // Update compiled files record
-        {
-            std::lock_guard<std::mutex> lock(recordMutex);
-            compiledFilesRecord[filePath.string()] = currentHash;
-        }
+        // Update file record
+        fileRecord->compiled = true;
 
         if (verbose) { std::cout << "Compiled Rust file: " << filePath << std::endl; }
     }
@@ -672,25 +585,11 @@ int main(int argc, char* argv[]) {
         // Initialize Compiler with verbose flag
         Compiler compiler(srcDir, buildDir, optimizationLevel, verbose);
 
-        // Load Compiled Files Record
-        std::filesystem::path recordFilePath = buildDir / "compiled_files_record.json";
-        json compiledFilesRecord;
-        if (std::filesystem::exists(recordFilePath)) {
-            try {
-                compiledFilesRecord = Utils::readJsonFromFile(recordFilePath);
-            } catch (const FileNotFoundException& e) { std::cerr << "Warning: " << e.what() << " Proceeding without it." << std::endl; }
-        } else {
-            if (verbose) { std::cout << "Compiled files record does not exist. A new one will be created." << std::endl; }
-        }
+        // Initialize rootFolder directly
+        compilationState::RecordFolder rootFolder;
 
         // Compile All Files
-        compiler.compileAll(compiledFilesRecord);
-
-        // Save Compiled Files Record
-        try {
-            Utils::writeJsonToFile(recordFilePath, compiledFilesRecord);
-            if (verbose) { std::cout << "Compiled files record updated at " << recordFilePath << std::endl; }
-        } catch (const std::exception& e) { std::cerr << "Warning: Could not save compiled files record. " << e.what() << std::endl; }
+        compiler.compileAll(&rootFolder);
 
         // Link Object Files into Executable
         return compiler.linkAll(executablePath);

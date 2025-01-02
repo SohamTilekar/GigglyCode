@@ -3,6 +3,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Value.h>
+#include <thread>
 
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
@@ -12,8 +13,8 @@
 using namespace compiler;
 using llConstInt = llvm::ConstantInt;
 
-Compiler::Compiler(const Str& source, const std::filesystem::path& file_path, const std::filesystem::path& ir_gc_map, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
-    : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), ir_gc_map(std::move(ir_gc_map)), buildDir(std::move(buildDir)),
+Compiler::Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
+    : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)),
       relativePath(std::move(relativePath)) {
 
     // Convert file path to Str
@@ -33,9 +34,6 @@ Compiler::Compiler(const Str& source, const std::filesystem::path& file_path, co
 
     // Initialize built-in functions and types
     _initializeBuiltins();
-
-    // Initialize JSON structure for IR-GC mapping
-    _initializeIRGCMap();
 }
 
 Str Compiler::extractPrefix(const Str& path_str) {
@@ -63,10 +61,7 @@ void Compiler::_initializeLLVMModule(const Str& path_str) {
 
 void Compiler::_initializeEnvironment() {
     env = std::make_shared<Enviornment>(std::make_shared<Enviornment>(nullptr, StrRecordMap(), "builtins"), StrRecordMap());
-}
-
-void Compiler::_initializeIRGCMap() {
-    this->ir_gc_map_json = Json{{"functions", Json::object()}, {"structs", Json::object()}, {"GSinstance", Json::array()}, {"GFinstance", Json::array()}};
+    this->file_record->env = this->env;
 }
 
 void Compiler::_initializeArrayType() {}
@@ -203,7 +198,6 @@ void Compiler::compile(AST::Node* node) {
 void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
     if (this->env->loop_conti_block.empty()) {
         errors::NodeOutside("Break outside loop", this->source, *node, errors::outsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary").raise();
-        exit(1);
     }
     if (node->loopIdx >= this->env->loop_ifbreak_block.size()) {
         errors::CompletionError("WrongLoopIdx", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no, "Loop Index is out of range", "Remember: LoopIdx start with `0`").raise();
@@ -225,7 +219,6 @@ void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
                             "Continue statement outside the Loop",
                             "Remove the Continue statement, it is not necessary")
             .raise();
-        exit(1);
     }
     if (node->loopIdx >= this->env->loop_ifbreak_block.size()) {
         errors::CompletionError("WrongLoopIdx", this->source, node->meta_data.st_line_no, node->meta_data.end_line_no, "Loop Index is out of range", "Remember: LoopIdx start with `0`").raise();
@@ -350,9 +343,6 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
         auto func_type = llvm::FunctionType::get(llvm_return_type, llvm_param_types, false);
         auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name, this->llvm_module.get());
 
-        // Update IR-GC mapping
-        this->ir_gc_map_json["functions"][name] = func->getName().str();
-
         // Assign names to LLVM function arguments
         for (const auto& [idx, arg] : llvm::enumerate(func->args())) { arg.setName(param_names[idx]); }
 
@@ -452,7 +442,7 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
     }
 };
 
-void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_, shared_ptr<RecordModule> module, const Json& ir_gc_map_json) {
+void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_, shared_ptr<RecordModule> module) {
     // Extract the function name from the AST
     auto name = function_declaration_statement->name->castToIdentifierLiteral()->value;
 
@@ -517,12 +507,10 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     // Add the function record to the appropriate scope (struct, module, or global environment)
     if (struct_) {
         struct_->methods.emplace_back(name, func_record);
-        this->ir_gc_map_json["structs"][struct_->name]["methods"][name] = func->getName().str();
     } else if (module) {
         module->record_map.emplace_back(name, func_record);
     } else {
         this->env->addRecord(func_record);
-        this->ir_gc_map_json["functions"][name] = func->getName().str();
     }
 
     // If the function has a body, proceed to compile it
@@ -590,7 +578,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 }
 
 void Compiler::_visitFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_) {
-    this->_createFunctionRecord(function_declaration_statement, struct_, nullptr, this->ir_gc_map_json);
+    this->_createFunctionRecord(function_declaration_statement, struct_, nullptr);
 }
 
 Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call_expression) {
@@ -605,10 +593,8 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         auto param_type = std::get<StructTypePtr>(_param_type);
         if (ptt == resolveType::Module) {
             errors::WrongType(this->source, arg, {}, "Cant pass Module to the Function").raise();
-            exit(1);
         } else if ((ptt == resolveType::StructType && param_type->name != "nullptr") && !this->env->isGenericStruct(name)) {
             errors::WrongType(this->source, arg, {}, "Cant pass type to the Function").raise();
-            exit(1);
         }
         params_types.push_back(param_type);
         if (!value && !alloca) {
@@ -642,7 +628,6 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
     }
 
     errors::CompletionError("Function not defined", this->source, call_expression->meta_data.st_line_no, call_expression->meta_data.end_line_no, "Function `" + name + "` not defined").raise();
-    exit(1);
 };
 
 Compiler::ResolvedValue Compiler::_callStruct(StructTypePtr struct_record, AST::CallExpression* call_expression, vector<StructTypePtr> params_types, LLVMValueVector args) {
@@ -687,7 +672,6 @@ Compiler::ResolvedValue Compiler::_callStruct(StructTypePtr struct_record, AST::
                            "Initialization method does not exist for struct " + struct_record->name + ".",
                            "Check the initialization method name or define the method.")
             .raise();
-        exit(1);
     }
 
     // Return the resolved value indicating a struct instance
@@ -774,7 +758,7 @@ Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallEx
                     struct_record->struct_type = struct_type;
                 } else {
                     // Process function declarations within the struct
-                    this->_processFieldFunction(field, struct_record, ir_gc_map_json);
+                    this->_processFieldFunction(field, struct_record);
                 }
             }
 
@@ -794,7 +778,6 @@ Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallEx
     // If no matching struct overload is found, raise an error and exit
     errors::NoOverload(this->source, {}, func_call, "Struct overload does not exist.", "Check the argument types or define an appropriate overload, first pass types & then init function params.")
         .raise();
-    exit(1);
 };
 
 void Compiler::_handleFieldDeclaration(GenericStructTypePtr gstruct, AST::Node* field, shared_ptr<RecordStructType> struct_record, vector<llvm::Type*>& field_types, const Str& struct_name) {
@@ -824,13 +807,9 @@ void Compiler::_handleFieldDeclaration(GenericStructTypePtr gstruct, AST::Node* 
     struct_record->struct_type = struct_type;
 }
 
-void Compiler::_createStructRecord(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module, const Json& ir_gc_map_json) {
+void Compiler::_createStructRecord(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module) {
     // Extract the struct name
     Str struct_name = struct_statement->name->castToIdentifierLiteral()->value;
-
-    // Initialize JSON entries for the struct
-    this->ir_gc_map_json["structs"][struct_name] = Json::object();
-    this->ir_gc_map_json["structs"][struct_name]["methods"] = Json::object();
 
     // Create a new record for the struct
     auto struct_record = std::make_shared<RecordStructType>(struct_name);
@@ -871,7 +850,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, share
             struct_record->struct_type = struct_type;
         } else {
             // Process function declarations within the struct
-            this->_processFieldFunction(field, struct_record, ir_gc_map_json);
+            this->_processFieldFunction(field, struct_record);
         }
     }
 
@@ -906,7 +885,7 @@ void Compiler::_handleGenericSubType(AST::Node* field, AST::StructStatement* str
     }
 }
 
-void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructType> struct_record, const Json& ir_gc_map_json) {
+void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructType> struct_record) {
     auto func_dec = field->castToFunctionStatement();
 
     // Ensure the function is not generic
@@ -918,15 +897,14 @@ void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructTy
                                 "Struct Methods do not support Generic Functions",
                                 "Set the Generic on the struct")
             .raise();
-        exit(1);
     }
 
     // Create the function record within the struct
-    this->_createFunctionRecord(func_dec, struct_record, nullptr, ir_gc_map_json);
+    this->_createFunctionRecord(func_dec, struct_record, nullptr);
 }
 
 void Compiler::_visitStructStatement(AST::StructStatement* struct_statement) {
-    this->_createStructRecord(struct_statement, nullptr, this->ir_gc_map_json);
+    this->_createStructRecord(struct_statement, nullptr);
 }
 
 Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_expression) {
@@ -950,7 +928,6 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                                       "no member `" + name + "` not found in module " + module->name,
                                       "Check the Member Name in the module is correct")
                     .raise();
-                exit(1);
             }
         } else if (ltt == resolveType::StructInst) {
             auto left_type = std::get<StructTypePtr>(_left_type);
@@ -970,7 +947,6 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                                       "no member `" + right->castToIdentifierLiteral()->value + "` not found in struct " + left_type->name,
                                       "Check the Member Name in the struct is correct")
                     .raise();
-                exit(1);
             }
         }
     } else if (right->type() == AST::NodeType::CallExpression) {
@@ -984,10 +960,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
             if (ptt == resolveType::Module) {
                 errors::WrongType(this->source, arg, {}, "Cant pass Module to the Function").raise();
-                exit(1);
             } else if ((ptt == resolveType::StructType && std::get<shared_ptr<RecordStructType>>(param_type)->name != "nullptr" && !(ltt == resolveType::Module && std::get<shared_ptr<RecordModule>>(_left_type)->isGenericStruct(name))) || ptt == resolveType::GStructType) {
                 errors::WrongType(this->source, arg, {}, "Cant pass type to the Function").raise();
-                exit(1);
             }
             params_types.push_back(std::get<StructTypePtr>(param_type));
             arg_allocas.push_back(val_alloca);
@@ -1019,7 +993,6 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                                       "Struct Or Function " + name + " overload Dose Not Exit.",
                                       "Check the Name is Correct or the params are correct")
                     .raise();
-                exit(1);
             }
         } else if (ltt == resolveType::StructInst) {
             auto left_type = std::get<StructTypePtr>(_left_type);
@@ -1039,7 +1012,6 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             } else {
                 errors::NoOverload(this->source, {}, call_expression, "method does not exist for struct " + left_type->name + ".", "Check the initialization method name or define the method.")
                     .raise();
-                exit(1);
             }
         }
     }
@@ -1049,7 +1021,6 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                             right->meta_data.end_line_no,
                             "Member access should be identifier of method not " + AST::nodeTypeToString(right->type()))
         .raise();
-    exit(1);
 };
 
 Compiler::ResolvedValue Compiler::_StructInfixCall(
@@ -1066,7 +1037,6 @@ Compiler::ResolvedValue Compiler::_StructInfixCall(
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else {
         errors::WrongInfix(this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct").raise();
-        exit(1);
     }
 };
 
@@ -1160,7 +1130,6 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, StructT
                                 "Conversion from int, float, or str to bool is not yet implemented",
                                 "Fix the conversion logic for int, float, or str to bool.")
             .raise();
-        exit(1);
     } else if (fromtype->struct_type) { // If struct & it is mark as auto cast
         if (fromtype->is_method("", {fromtype}, {{"autocast", true}}, to)) {
             auto method = fromtype->get_method("", {fromtype}, {{"autocast", true}}, to);
@@ -1196,7 +1165,6 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     if (ltt != resolveType::StructInst && !(ltt == resolveType::StructType && std::get<StructTypePtr>(_left_type)->name == "nullptr") ||
         (rtt != resolveType::StructInst && !(rtt == resolveType::StructType && std::get<StructTypePtr>(_right_type)->name == "nullptr"))) {
         errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules").raise();
-        exit(1);
     }
     // Handle type conversion
     auto left_val = left_value;
@@ -1279,7 +1247,6 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             }
             default: {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant operator: `" + token::tokenTypeString(op) + "` 2 structs", "").raise();
-                exit(1);
             }
         }
     }
@@ -1360,11 +1327,9 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             }
             case (token::TokenType::AsteriskAsterisk): {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for int").raise();
-                exit(1);
             }
             default: {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op)).raise();
-                exit(1);
             }
         }
     } else if (common_type->stand_alone_type->isDoubleTy()) {
@@ -1411,16 +1376,13 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             }
             case (token::TokenType::AsteriskAsterisk): {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Power operator not supported for float").raise();
-                exit(1);
             }
             default: {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op)).raise();
-                exit(1);
             }
         }
     } else {
         errors::WrongType(this->source, infixed_expression, {this->env->getStruct("int"), this->env->getStruct("float")}, "Unknown Type", "Check the types of the operands.").raise();
-        exit(1);
     }
 };
 
@@ -1429,7 +1391,6 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateLeftOperand(AST::IndexExpre
 
     if (ltt != resolveType::StructInst) {
         errors::Cantindex(this->source, index_expression, false, "Cannot index Module or type", "Ensure the left-hand side is an array or a valid indexable type.").raise();
-        exit(1);
     }
 
     auto left_generic = std::get<StructTypePtr>(_left_generic);
@@ -1441,7 +1402,6 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(AST::IndexExpr
 
     if (itt != resolveType::StructInst) {
         errors::Cantindex(this->source, index_expression, true, "Index must be an integer, not a Module or type", "Ensure the index is an integer.").raise();
-        exit(1);
     }
 
     auto index_generic = std::get<StructTypePtr>(_index_generic);
@@ -1452,7 +1412,6 @@ Compiler::ResolvedValue Compiler::_handleArrayIndexing(llvm::Value* left, Struct
     // Validate that the index is of type 'int'
     if (!_checkType(index_generic, this->env->getStruct("int"))) {
         errors::Cantindex(this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.").raise();
-        exit(1);
     }
 
     // Get the element type
@@ -1469,7 +1428,6 @@ Compiler::ResolvedValue Compiler::_handleArrayIndexing(llvm::Value* left, Struct
 
 [[noreturn]] void Compiler::_raiseNoIndexMethodError(StructTypePtr left_generic, AST::IndexExpression* index_expression) {
     errors::NoOverload(this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "Define the __index__ method.").raise();
-    exit(1);
 }
 
 Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* index_expression) {
@@ -1648,7 +1606,6 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
         return {nullptr, nullptr, this->env->getGenericStruct(identifier_literal->value), resolveType::GStructType};
     }
     errors::NotDefined(this->source, identifier_literal, "Variable or function or struct `" + identifier_literal->value + "` not defined", "Recheck the Name").raise();
-    std::exit(1);
 }
 
 Compiler::ResolvedValue Compiler::_resolveInfixExpression(AST::InfixExpression* infix_expression) {
@@ -1703,7 +1660,6 @@ Compiler::ResolvedValue Compiler::_resolveValue(AST::Node* node) {
                                          node->meta_data.end_col_no,
                                          "Unknown node type: " + AST::nodeTypeToString(node->type()))
                 .raise();
-            std::exit(1);
     }
 }
 
@@ -1790,7 +1746,6 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
     auto return_type = std::get<StructTypePtr>(_return_type);
     if (this->env->current_function == nullptr) {
         errors::NodeOutside("Return outside function", this->source, *return_statement, errors::outsideNodeType::Retuen, "Return statement outside of a function").raise();
-        exit(1);
     }
 
     _checkAndConvertReturnType(value, return_type);
@@ -1810,7 +1765,6 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression
             throw DoneRet();
         } else {
             errors::WrongType(this->source, value, {this->env->current_function->return_type}, "Cannot return module or type from function").raise();
-            exit(1);
         }
     }
 
@@ -1830,12 +1784,10 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, StructTypePtr&
             return_alloca = converted_alloca;
             if (!return_value) {
                 errors::ReturnTypeMismatchError(this->source, this->env->current_function->return_type, value, "Return Type mismatch").raise();
-                exit(1);
             }
             return_type = std::get<StructTypePtr>(converted_type);
         } else {
             errors::ReturnTypeMismatchError(this->source, this->env->current_function->return_type, value, "Return Type mismatch").raise();
-            exit(1);
         }
     }
 }
@@ -1933,7 +1885,6 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
     // Ensure the condition is of type StructInst and can be converted to bool if necessary
     if (resolved_cond.type != resolveType::StructInst) {
         errors::WrongType(this->source, if_statement->condition, {this->env->getStruct("bool")}, "If-else condition can't be module or type").raise();
-        exit(1);
     } else if (!_checkType(std::get<StructTypePtr>(resolved_cond.variant), this->env->getStruct("bool"))) {
         if (!this->canConvertType(std::get<StructTypePtr>(resolved_cond.variant), this->env->getStruct("bool"))) {
             errors::WrongType(this->source, if_statement->condition, {this->env->getStruct("bool")}, "If-else condition can't be module or type").raise();
@@ -2006,7 +1957,6 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Ensure the condition is of type StructInst
     if (condition_resolve_type != resolveType::StructInst) {
         errors::WrongType(this->source, condition, {this->env->getStruct("bool")}, "While loop condition cannot be a module or type.").raise();
-        exit(1);
     }
 
     // Retrieve the actual condition type
@@ -2019,7 +1969,6 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
             condition_val = converted.value;
         } else {
             errors::WrongType(this->source, condition, {this->env->getStruct("bool")}, "While loop condition must be of type bool.").raise();
-            exit(1);
         }
     }
 
@@ -2108,7 +2057,6 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
     // Ensure the resolved type is a struct instance
     if (resolve_type != resolveType::StructInst) {
         errors::WrongType(this->source, for_statement->from, {}, "Cannot loop over a module or type").raise();
-        exit(1);
     }
 
     // Get the actual struct type of the iterable
@@ -2279,6 +2227,8 @@ namespace Utils {
 const Str readFileToString(const std::filesystem::path& filePath); // Defined in main.cpp
 }
 
+compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFolder* rootFolder, const std::filesystem::path& relativePath); // Defined in `main.cpp`
+
 void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, shared_ptr<RecordModule> module) {
     // Extract the relative path from the import statement
     Str relative_path = import_statement->relativePath;
@@ -2289,24 +2239,16 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
 
     // Determine the path for the imported source file
     std::filesystem::path gc_source_path = this->file_path.parent_path() / (relative_path + ".gc");
-
-    // Determine the path for the IR-GC map file
-    std::filesystem::path ir_gc_map_path = this->ir_gc_map.parent_path() / (relative_path + ".gc.Json");
-
-    // Load the IR-GC map JSON
-    Json ir_gc_map_json;
-    std::ifstream ir_gc_map_file(ir_gc_map_path);
-    if (!ir_gc_map_file.is_open()) {
-        std::cerr << "Failed to open IR-GC map file: " << ir_gc_map_path << std::endl;
-        throw NotCompiledError(gc_source_path.string());
+    if (!std::filesystem::exists(gc_source_path)) {
+        errors::CompletionError("ImportError", this->source, import_statement->meta_data.st_line_no, import_statement->meta_data.end_line_no, "Imported file not found: " + gc_source_path.string()).raise();
     }
-    ir_gc_map_file >> ir_gc_map_json;
-    ir_gc_map_file.close();
 
-    // Verify if the IR-GC map is up-to-date
-    if (!ir_gc_map_json["uptodate"]) {
-        std::cerr << "IR-GC map is not up-to-date for: " << gc_source_path << std::endl;
-        throw NotCompiledError(gc_source_path.string());
+    // Check if the file is already being compiled
+    compilationState::RecordFile* local_file_record = findOrCreateFileRecord(this->file_record->parent, relative_path + ".gc");
+
+    // Wait until the file is compiled
+    while (!local_file_record->compiled) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     // Read the source code from the file
@@ -2319,10 +2261,6 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
     parser::Parser parser(lexer);
     auto program = parser.parseProgram();
 
-    // Save the current environment and create a new one for the imported module
-    auto previous_env = this->env;
-    this->env = std::make_shared<Enviornment>(previous_env, StrRecordMap{}, module_name);
-
     // Create a new module record if not importing into an existing module
     shared_ptr<RecordModule> import_module = module;
     if (!module) {
@@ -2330,15 +2268,19 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
         this->env->addRecord(import_module);
     }
 
+    // Save the current environment and create a new one for the imported module
+    auto previous_env = this->env;
+    this->env = std::make_shared<Enviornment>(previous_env, StrRecordMap{}, module_name);
+
     // Iterate over each statement in the imported program
     for (auto& stmt : program->statements) {
         switch (stmt->type()) {
             case AST::NodeType::FunctionStatement:
-                this->_createFunctionRecord(stmt->castToFunctionStatement(), nullptr, import_module, ir_gc_map_json);
+                this->_createFunctionRecord(stmt->castToFunctionStatement(), nullptr, import_module);
                 break;
 
             case AST::NodeType::StructStatement:
-                this->_createStructRecord(stmt->castToStructStatement(), import_module, ir_gc_map_json);
+                this->_createStructRecord(stmt->castToStructStatement(), import_module);
                 break;
 
             case AST::NodeType::ImportStatement:
@@ -2357,12 +2299,12 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
     this->source = previous_source;
 }
 
-void Compiler::_importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, shared_ptr<RecordModule> module, Json& ir_gc_map_json) {
-    // Utilize the helper function with the module and ir_gc_map_json
-    this->_createFunctionRecord(function_declaration_statement, nullptr, module, ir_gc_map_json);
+void Compiler::_importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, shared_ptr<RecordModule> module) {
+    // Utilize the helper function with the module
+    this->_createFunctionRecord(function_declaration_statement, nullptr, module);
 }
 
-void Compiler::_importStructStatement(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module, Json& ir_gc_map_json) {
-    // Utilize the helper function with the module and ir_gc_map_json
-    this->_createStructRecord(struct_statement, module, ir_gc_map_json);
+void Compiler::_importStructStatement(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module) {
+    // Utilize the helper function with the module
+    this->_createStructRecord(struct_statement, module);
 }
