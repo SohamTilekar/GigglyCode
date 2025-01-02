@@ -459,7 +459,7 @@ class Compiler {
      * @return The resolved value after the operation.
      */
     ResolvedValue _StructInfixCall(
-        const Str& op_method, const Str& op, StructTypePtr left_type, StructTypePtr right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* right_value);
+        const Str& op_method, const Str& op, StructTypePtr left_type, StructTypePtr right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* left_alloca, llvm::Value* right_value, llvm::Value* right_alloca);
 
     /**
      * @brief Manages a function call within the compiler.
@@ -715,7 +715,7 @@ class Compiler {
      * @param value Shared pointer to the expression representing the return value.
      * @param return_type Reference to the StructTypePtr of the return value.
      */
-    void _checkAndConvertReturnType(AST::Expression* value, StructTypePtr& return_type);
+    void _checkAndConvertReturnType(AST::Expression* value, llvm::Value*& return_value, llvm::Value*& return_alloca, StructTypePtr& return_type);
 
     /**
      * @brief Creates the appropriate LLVM return instruction based on types.

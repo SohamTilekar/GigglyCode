@@ -293,7 +293,7 @@ class Compiler {
             return 1;
         }
 
-        std::string linkCommand = "clang " + objFiles + "-o \"" + executablePath.string() + "\"";
+        std::string linkCommand = "clang++ " + objFiles + "-o \"" + executablePath.string() + "\"";
         if (verbose) {
             std::cout << "Linking object files into executable..." << std::endl;
             std::cout << "Link Command: " << linkCommand << std::endl;
