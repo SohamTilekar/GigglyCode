@@ -1,6 +1,0 @@
-import "op/temp" as t;
-
-def main() -> int {
-    X: auto = 0;
-    return t.Add(X, 1);
-}

@@ -11,7 +11,7 @@ run:
 	@echo ---------------------------------------------------------
 	cmake --build ./build --config Debug --target all -j 4 --
 	@echo ---------------------------------------------------------
-	./build/gigly ./gpm/ -o ./dump/exec
+	./build/gigly ./hells/ -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec $(ARGS)
 
@@ -19,7 +19,7 @@ runr:
 	@echo ---------------------------------------------------------
 	cmake --build ./build --config Release --target all -j 4 --
 	@echo ---------------------------------------------------------
-	./build/gigly ./gpm/ -o ./dump/exec
+	./build/gigly ./hells/ -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec $(ARGS)
 
@@ -27,7 +27,7 @@ orun:
 	@echo ---------------------------------------------------------
 	cmake --build ./build --config Debug --target all -j 4 --
 	@echo ---------------------------------------------------------
-	./build/gigly ./gpm/ -O3 -o ./dump/exec
+	./build/gigly ./hells/ -O3 -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec
 
