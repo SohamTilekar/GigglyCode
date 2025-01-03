@@ -985,6 +985,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             if (left_type->isGenericFunc(name) ? left_type->isFunction(name, params_types, true) : left_type->isFunction(name, params_types)) {
                 auto func = left_type->getFunction(name, params_types);
                 unsigned short idx = 0;
+                _checkAndConvertCallType(func, call_expression, args, params_types);
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
@@ -1016,6 +1017,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             if (left_type->is_method(name, params_types)) {
                 auto method = left_type->get_method(name, params_types);
                 unsigned short idx = 0;
+                _checkAndConvertCallType(method, call_expression, args, params_types);
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, method->arguments)) {
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
@@ -1037,16 +1039,16 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
 };
 
 Compiler::ResolvedValue Compiler::_StructInfixCall(
-    const Str& op_method, const Str& op, StructTypePtr left_type, StructTypePtr right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* right_value) {
+    const Str& op_method, const Str& op, StructTypePtr left_type, StructTypePtr right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* left_alloca, llvm::Value* right_value, llvm::Value* right_alloca) {
     vector<StructTypePtr> params_type1{left_type, right_type};
     vector<StructTypePtr> params_type2{right_type, left_type};
     if (left_type->is_method(op_method, params_type1)) {
         auto func_record = left_type->get_method(op_method, params_type1);
-        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value, right_value});
+        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca), right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else if (right_type->is_method(op_method, params_type2)) {
         auto func_record = right_type->get_method(op_method, params_type2);
-        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value, left_value});
+        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca), left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else {
         errors::WrongInfix(this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct").raise();
@@ -1203,19 +1205,19 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     if (left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
         switch (op) {
             case token::TokenType::Plus: {
-                return this->_StructInfixCall("__add__", "add", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__add__", "add", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::Dash: {
-                return this->_StructInfixCall("__sub__", "substract", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__sub__", "substract", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::Asterisk: {
-                return this->_StructInfixCall("__mul__", "multiply", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__mul__", "multiply", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::ForwardSlash: {
-                return this->_StructInfixCall("__div__", "divide", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__div__", "divide", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::Percent: {
-                return this->_StructInfixCall("__mod__", "%", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__mod__", "%", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::EqualEqual: {
                 if (left_type->name == "nullptr" && right_type->name == "nullptr") {
@@ -1228,7 +1230,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                     auto inst = this->llvm_ir_builder.CreateICmpEQ(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 }
-                return this->_StructInfixCall("__eq__", "compare equals", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__eq__", "compare equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::NotEquals: {
                 if (left_type->name == "nullptr" && right_type->name == "nullptr") {
@@ -1241,22 +1243,22 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                     auto inst = this->llvm_ir_builder.CreateICmpNE(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 }
-                return this->_StructInfixCall("__neq__", "compare not equals", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__neq__", "compare not equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::LessThan: {
-                return this->_StructInfixCall("__lt__", "compare less than", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__lt__", "compare less than", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::GreaterThan: {
-                return this->_StructInfixCall("__gt__", "compare greater than", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__gt__", "compare greater than", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::LessThanOrEqual: {
-                return this->_StructInfixCall("__lte__", "compare less than equals", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__lte__", "compare less than equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::GreaterThanOrEqual: {
-                return this->_StructInfixCall("__gte__", "compare greater than equals", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__gte__", "compare greater than equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::AsteriskAsterisk: {
-                return this->_StructInfixCall("__pow__", "**", left_type, right_type, left, right, left_value, right_value);
+                return this->_StructInfixCall("__pow__", "**", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             default: {
                 errors::WrongInfix(this->source, left, right, token::tokenTypeString(op), "Cant operator: `" + token::tokenTypeString(op) + "` 2 structs", "").raise();
@@ -1752,7 +1754,6 @@ void Compiler::_handleTypeConversion(AST::Expression* element, ResolvedValue& re
     }
 }
 
-// Definition of _handleValueReturnStatement
 void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statement) {
     auto value = return_statement->value;
     auto [return_value, return_alloca, _return_type, _] = _resolveAndValidateReturnValue(value);
@@ -1761,14 +1762,13 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
         errors::NodeOutside("Return outside function", this->source, *return_statement, errors::outsideNodeType::Retuen, "Return statement outside of a function").raise();
     }
 
-    _checkAndConvertReturnType(value, return_type);
+    _checkAndConvertReturnType(value, return_value, return_alloca, return_type);
 
     _createReturnInstruction(return_value, return_alloca, return_type);
 
     throw DoneRet(); // Indicates to stop parsing further statements in the current block
 }
 
-// Definition of _resolveAndValidateReturnValue
 Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression* value) {
     auto resolved_value = this->_resolveValue(value);
 
@@ -1785,10 +1785,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression
     return {resolved_value.value, resolved_value.alloca, return_type, resolved_value.type};
 }
 
-// Definition of _checkAndConvertReturnType
-void Compiler::_checkAndConvertReturnType(AST::Expression* value, StructTypePtr& return_type) {
-    llvm::Value* return_value = nullptr;
-    llvm::Value* return_alloca = nullptr;
+void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& return_value, llvm::Value*& return_alloca, StructTypePtr& return_type) {
 
 void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& return_value, llvm::Value*& return_alloca, StructTypePtr& return_type) {
     if (!_checkType(this->env->current_function->return_type, return_type)) {
@@ -1807,20 +1804,23 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& 
 }
 
 
-// Definition of _createReturnInstruction
 void Compiler::_createReturnInstruction(llvm::Value* return_value, llvm::Value* return_alloca, StructTypePtr return_type) {
     auto function_return_type = this->env->current_function->function->getReturnType();
-
-    if (function_return_type->isPointerTy() && return_value->getType()->isPointerTy()) {
-        this->llvm_ir_builder.CreateRet(return_value);
-    } else if (function_return_type->isPointerTy() && !return_value->getType()->isPointerTy()) {
-        this->llvm_ir_builder.CreateRet(return_alloca);
-    } else if (!function_return_type->isPointerTy() && return_value->getType()->isPointerTy()) {
-        auto loaded_value = this->llvm_ir_builder.CreateLoad(function_return_type, return_value);
-        this->llvm_ir_builder.CreateRet(loaded_value);
+    if (return_type->struct_type || return_type->name == "array") {
+        this->llvm_ir_builder.CreateRet(return_value ? return_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, return_alloca));
     } else {
-        this->llvm_ir_builder.CreateRet(return_value);
+        this->llvm_ir_builder.CreateRet(return_value ? return_value : this->llvm_ir_builder.CreateLoad(return_type->stand_alone_type, return_alloca));
     }
+    // if (function_return_type->isPointerTy() && return_value->getType()->isPointerTy()) {
+    //     this->llvm_ir_builder.CreateRet(return_value);
+    // } else if (function_return_type->isPointerTy() && !return_value->getType()->isPointerTy()) {
+    //     this->llvm_ir_builder.CreateRet(return_alloca);
+    // } else if (!function_return_type->isPointerTy() && return_value->getType()->isPointerTy()) {
+    //     auto loaded_value = this->llvm_ir_builder.CreateLoad(function_return_type, return_value);
+    //     this->llvm_ir_builder.CreateRet(loaded_value);
+    // } else {
+    //     this->llvm_ir_builder.CreateRet(return_value);
+    // }
 }
 
 void Compiler::_visitReturnStatement(AST::ReturnStatement* return_statement) {

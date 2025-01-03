@@ -1,26 +1,28 @@
+@generic(T: Any)
 struct ListNode {
-    value: int;
-    next: ListNode;
+    value: T;
+    next: ListNode[T];
 
-    def __init__(self: ListNode, value: int, next: ListNode) -> void {
+    def __init__(self: ListNode[T], value: T, next: ListNode[T]) {
         self.value = value;
         self.next = next;
     };
 };
 
+@generic(T: Any)
 struct LinkedList {
-    head: ListNode;
+    head: ListNode[T];
 
-    def __init__(self: LinkedList) -> void {
+    def __init__(self: LinkedList[T]) -> void {
         self.head = nullptr;
     };
 
-    def add(self: LinkedList, value: int) -> void {
-        newNode: ListNode = new ListNode(value, nullptr);
+    def add(self: LinkedList[T], value: T) -> void {
+        newNode: ListNode[T] = new ListNode(T, value, nullptr);
         if (self.head == nullptr) {
             self.head = newNode;
         } else {
-            current: ListNode = self.head;
+            current: ListNode[T] = self.head;
             while (current.next != nullptr) {
                 current = current.next;
             }
@@ -30,13 +32,14 @@ struct LinkedList {
 };
 
 def main() -> int {
-    intList: LinkedList = LinkedList();
+    LinkedList(int);
+    intList: LinkedList[int] = LinkedList(int);
     intList.add(10);
     intList.add(20);
     intList.add(30);
-    current: ListNode = intList.head;
+    current: ListNode[int] = intList.head;
     while (current != nullptr) {
-        printf("List node value: %p\n", current.value);
+        printf("List node value: %lld\n", current.value);
         current = current.next;
     }
     return 0;
