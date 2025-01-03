@@ -55,7 +55,15 @@ bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<
     }
 
     // Final check to ensure stand-alone types match
-    return type1->stand_alone_type == type2->stand_alone_type;
+    bool X = type1->stand_alone_type == type2->stand_alone_type;
+    if (X)
+        return true;
+    else {
+        if (type1->stand_alone_type->getTypeID() && type2->stand_alone_type->getTypeID())
+            return true;
+        else
+            return false;
+    }
 }
 
 // Helper function to verify if function parameters match

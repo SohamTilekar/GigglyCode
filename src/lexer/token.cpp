@@ -197,6 +197,8 @@ std::string token::tokenTypeString(TokenType type) {
         //     return "Maybe";
         case TokenType::Import:
             return "Import";
+        case TokenType::As:
+            return "As";
         case TokenType::None:
             return "None";
         case TokenType::String:

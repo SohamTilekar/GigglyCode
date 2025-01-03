@@ -11,15 +11,14 @@
  */
 
 // === LLVM Headers ===
+#include <filesystem>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Value.h>
-
-// === External Libraries ===
-#include "../include/json.hpp"
 
 // === Project-specific Headers ===
 #include "../parser/AST/ast.hpp"
 #include "./enviornment/enviornment.hpp"
+#include "../compilation_state.hpp"
 
 namespace compiler {
 
@@ -37,7 +36,6 @@ using LLVMValueVector = vector<llvm::Value*>;                                   
 using StructTypeVector = vector<StructTypePtr>;                                               ///< Vector of struct type pointers
 using GenericFunctionVector = vector<GenericFunctionPtr>;                                     ///< Vector of generic function pointers
 using llBB = llvm::BasicBlock;                                                                ///< Alias for LLVM BasicBlock
-using Json = nlohmann::json;
 
 /**
  * @enum resolveType
@@ -143,7 +141,7 @@ class Compiler {
      * @param buildDir The build directory path.
      * @param relativePath The relative path of the source file.
      */
-    Compiler(const Str& source, const std::filesystem::path& file_path, const std::filesystem::path& ir_gc_map, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
+    Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
 
     // === Public Methods ===
 
@@ -182,8 +180,7 @@ class Compiler {
     std::unique_ptr<llvm::Module> llvm_module; ///< LLVM module; For code output purposes it is public
     llvm::IRBuilder<> llvm_ir_builder;         ///< LLVM IR builder
 
-    // --- IR-GC Mapping ---
-    Json ir_gc_map_json; ///< JSON object for IR-GC mapping; For code output purposes it is public
+    compilationState::RecordFile* file_record;
   private:
     // === Member Variables ===
 
@@ -192,7 +189,6 @@ class Compiler {
     std::filesystem::path buildDir;     ///< Build directory path
     std::filesystem::path relativePath; ///< Relative path of the source file
     std::filesystem::path file_path;    ///< Full path of the source file
-    std::filesystem::path ir_gc_map;    ///< Path to the IR-GC map
 
 
     // --- Naming Prefixes ---
@@ -249,11 +245,6 @@ class Compiler {
      * @brief Initializes the compiler environment.
      */
     void _initializeEnvironment();
-
-    /**
-     * @brief Initializes the IR-GC mapping from JSON.
-     */
-    void _initializeIRGCMap();
 
     void _initializeArrayType();
 
@@ -427,7 +418,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module, Json& ir_gc_map_json);
+    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module, compilationState::RecordFile* local_file_record);
 
     /**
      * @brief Imports a struct declaration into a module.
@@ -435,7 +426,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module, Json& ir_gc_map_json);
+    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module, compilationState::RecordFile* local_file_record);
 
     // --- Type Parsing and Conversion ---
 
@@ -524,7 +515,7 @@ class Compiler {
      * @param module Optional pointer to the module where the function is declared.
      * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
      */
-    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_ = nullptr, shared_ptr<RecordModule> module = nullptr, const Json& ir_gc_map_json = Json());
+    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_ = nullptr, shared_ptr<RecordModule> module = nullptr, compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Creates a struct record in the compiler environment.
@@ -532,7 +523,7 @@ class Compiler {
      * @param module Pointer to the module where the struct is declared.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module, const Json& ir_gc_map_json);
+    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module, compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Handles calling a struct method.
@@ -550,7 +541,7 @@ class Compiler {
      * @param struct_record The record for the struct.
      * @param ir_gc_map_json The JSON object for IR-GC mapping.
      */
-    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record, const Json& ir_gc_map_json);
+    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record, compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Handles generic subtypes for a field.

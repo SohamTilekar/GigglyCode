@@ -614,6 +614,7 @@ std::string ImportStatement::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "path" << YAML::Value << relativePath;
+    out << YAML::Key << "as" << YAML::Value << as;
     out << YAML::EndMap;
     return std::string(out.c_str());
 }
