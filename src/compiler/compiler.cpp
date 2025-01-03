@@ -288,19 +288,21 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
         for (const auto& [idx, gparam] : llvm::enumerate(gfunc->func->parameters)) {
             const auto& pparam = params_types[idx];
 
-            // Resolve the type of the generic parameter
-            auto gparam_resolved = this->_resolveValue(gparam->value_type->name);
-            auto gparam_type = gparam_resolved.type;
-            auto gparam_variant = std::get<StructTypePtr>(gparam_resolved.variant);
-
             // Handle identifier literals by creating a new struct record
             if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
                 auto struct_record = std::make_shared<RecordStructType>(*pparam);
                 struct_record->name = gparam->value_type->name->castToIdentifierLiteral()->value;
                 this->env->addRecord(struct_record);
+                continue;
             }
+
+            // Resolve the type of the generic parameter
+            auto gparam_resolved = this->_resolveValue(gparam->value_type->name);
+            auto gparam_type = gparam_resolved.type;
+            auto gparam_variant = std::get<StructTypePtr>(gparam_resolved.variant);
+
             // Check for exact type match or convertible types
-            else if (gparam_type == resolveType::StructType && _checkType(gparam_variant, pparam)) {
+            if (gparam_type == resolveType::StructType && _checkType(gparam_variant, pparam)) {
                 // Exact type match; no action needed
             } else if (gparam_type == resolveType::StructType && this->canConvertType(gparam_variant, pparam)) {
                 // Convertible type; no action needed
@@ -404,9 +406,6 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
             // Add the function record to the generic function's environment
             gfunc->env->addRecord(func_record);
         }
-
-        // Validate and convert call types before making the call
-        this->_checkAndConvertCallType(func_record, func_call, args, params_types);
 
         // Handle identifier literals by updating struct names
         for (size_t i = 0; i < gfunc->func->parameters.size(); ++i) {
