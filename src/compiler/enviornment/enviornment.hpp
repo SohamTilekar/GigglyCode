@@ -167,6 +167,7 @@ class Record {
  */
 class RecordFunction : public Record {
   public:
+    std::string ll_name;
     llvm::Function* function = nullptr;          ///< Pointer to the LLVM Function.
     llvm::FunctionType* function_type = nullptr; ///< Pointer to the LLVM FunctionType.
     /**

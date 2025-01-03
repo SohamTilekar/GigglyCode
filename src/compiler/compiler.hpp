@@ -418,7 +418,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module);
+    void _importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, ModulePtr module, compilationState::RecordFile* local_file_record);
 
     /**
      * @brief Imports a struct declaration into a module.
@@ -426,7 +426,7 @@ class Compiler {
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module);
+    void _importStructStatement(AST::StructStatement* struct_statement, ModulePtr module, compilationState::RecordFile* local_file_record);
 
     // --- Type Parsing and Conversion ---
 
@@ -515,7 +515,7 @@ class Compiler {
      * @param module Optional pointer to the module where the function is declared.
      * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
      */
-    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_ = nullptr, shared_ptr<RecordModule> module = nullptr);
+    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_ = nullptr, shared_ptr<RecordModule> module = nullptr, compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Creates a struct record in the compiler environment.
@@ -523,7 +523,7 @@ class Compiler {
      * @param module Pointer to the module where the struct is declared.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
-    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module);
+    void _createStructRecord(AST::StructStatement* struct_statement, std::shared_ptr<RecordModule> module, compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Handles calling a struct method.
@@ -541,7 +541,7 @@ class Compiler {
      * @param struct_record The record for the struct.
      * @param ir_gc_map_json The JSON object for IR-GC mapping.
      */
-    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record);
+    void _processFieldFunction(AST::Node* field, std::shared_ptr<RecordStructType> struct_record, compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Handles generic subtypes for a field.

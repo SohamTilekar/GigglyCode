@@ -442,7 +442,7 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
     }
 };
 
-void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_, shared_ptr<RecordModule> module) {
+void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaration_statement, StructTypePtr struct_, shared_ptr<RecordModule> module, compilationState::RecordFile* local_file_record) {
     // Extract the function name from the AST
     auto name = function_declaration_statement->name->castToIdentifierLiteral()->value;
 
@@ -468,6 +468,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     vector<Str> param_names;
     vector<llvm::Type*> param_types;
     vector<std::tuple<Str, StructTypePtr, bool>> arguments;
+    vector<StructTypePtr> args;
 
     for (const auto& param : params) {
         // Extract parameter name
@@ -482,6 +483,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
         param_types.push_back(llvm_param_type);
 
         // Store argument details for later use
+        args.push_back(param_type);
         arguments.emplace_back(param_name, param_type, param->value_type->refrence);
     }
 
@@ -493,7 +495,13 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     auto func_type = llvm::FunctionType::get(llvm_return_type, param_types, false);
 
     // Prefix the function name if necessary
-    Str prefixed_name = (this->fc_st_name_prefix != "main.gc..") ? this->fc_st_name_prefix + name : name;
+    Str prefixed_name;
+    if (module)
+        prefixed_name = local_file_record->env->getFunction(name, args)->ll_name;
+    else if(struct_ && local_file_record)
+        prefixed_name = local_file_record->env->getStruct(struct_->name)->get_method(name, args)->function->getName().str();
+    else
+        prefixed_name = this->fc_st_name_prefix != "main.gc.." ? this->fc_st_name_prefix + name : name;
 
     // Create the LLVM function and add it to the module
     auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, prefixed_name, this->llvm_module.get());
@@ -503,12 +511,17 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
     // Create a RecordFunction to keep track of the function's metadata and environment
     auto func_record = std::make_shared<RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
+    func_record->ll_name = func->getName().str();
 
     // Add the function record to the appropriate scope (struct, module, or global environment)
     if (struct_) {
         struct_->methods.emplace_back(name, func_record);
     } else if (module) {
         module->record_map.emplace_back(name, func_record);
+        return;
+    } else if (struct_ && local_file_record) {
+        struct_->addMethod(name, func_record);
+        return;
     } else {
         this->env->addRecord(func_record);
     }
@@ -519,7 +532,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
         auto bb = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
         this->function_entry_block.push_back(bb);
         this->llvm_ir_builder.SetInsertPoint(bb);
-        if (this->fc_st_name_prefix == "main.gc.." && name == "main") { func->setGC("statepoint-example"); }
+        // if (this->fc_st_name_prefix == "main.gc.." && name == "main") { func->setGC("statepoint-example"); }
 
         // Save the current environment and create a new one for the function
         auto prev_env = this->env;
@@ -807,7 +820,7 @@ void Compiler::_handleFieldDeclaration(GenericStructTypePtr gstruct, AST::Node* 
     struct_record->struct_type = struct_type;
 }
 
-void Compiler::_createStructRecord(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module) {
+void Compiler::_createStructRecord(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module, compilationState::RecordFile* local_file_record) {
     // Extract the struct name
     Str struct_name = struct_statement->name->castToIdentifierLiteral()->value;
 
@@ -850,7 +863,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, share
             struct_record->struct_type = struct_type;
         } else {
             // Process function declarations within the struct
-            this->_processFieldFunction(field, struct_record);
+            this->_processFieldFunction(field, struct_record, local_file_record);
         }
     }
 
@@ -885,7 +898,7 @@ void Compiler::_handleGenericSubType(AST::Node* field, AST::StructStatement* str
     }
 }
 
-void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructType> struct_record) {
+void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructType> struct_record, compilationState::RecordFile* local_file_record) {
     auto func_dec = field->castToFunctionStatement();
 
     // Ensure the function is not generic
@@ -900,7 +913,7 @@ void Compiler::_processFieldFunction(AST::Node* field, shared_ptr<RecordStructTy
     }
 
     // Create the function record within the struct
-    this->_createFunctionRecord(func_dec, struct_record, nullptr);
+    this->_createFunctionRecord(func_dec, struct_record, nullptr, local_file_record);
 }
 
 void Compiler::_visitStructStatement(AST::StructStatement* struct_statement) {
@@ -2280,17 +2293,14 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
     for (auto& stmt : program->statements) {
         switch (stmt->type()) {
             case AST::NodeType::FunctionStatement:
-                this->_createFunctionRecord(stmt->castToFunctionStatement(), nullptr, import_module);
+                this->_importFunctionDeclarationStatement(stmt->castToFunctionStatement(), import_module, local_file_record);
                 break;
-
             case AST::NodeType::StructStatement:
-                this->_createStructRecord(stmt->castToStructStatement(), import_module);
+                this->_importStructStatement(stmt->castToStructStatement(), import_module, local_file_record);
                 break;
-
             case AST::NodeType::ImportStatement:
                 this->_visitImportStatement(stmt->castToImportStatement(), import_module);
                 break;
-
             default:
                 std::cerr << "Unknown statement type during import. Skipping." << std::endl;
                 break;
@@ -2303,12 +2313,12 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
     this->source = previous_source;
 }
 
-void Compiler::_importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, shared_ptr<RecordModule> module) {
+void Compiler::_importFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, shared_ptr<RecordModule> module, compilationState::RecordFile* local_file_record) {
     // Utilize the helper function with the module
-    this->_createFunctionRecord(function_declaration_statement, nullptr, module);
+    this->_createFunctionRecord(function_declaration_statement, nullptr, module, local_file_record);
 }
 
-void Compiler::_importStructStatement(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module) {
+void Compiler::_importStructStatement(AST::StructStatement* struct_statement, shared_ptr<RecordModule> module, compilationState::RecordFile* local_file_record) {
     // Utilize the helper function with the module
-    this->_createStructRecord(struct_statement, module);
+    this->_createStructRecord(struct_statement, module, local_file_record);
 }
