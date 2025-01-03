@@ -11,7 +11,7 @@ class RecordFolder;
 class RecordFile {
   public:
     std::string name;
-    enviornment::EnviornmentPtr env = nullptr;
+    enviornment::Enviornment* env = nullptr;
     bool compiled = false;
     RecordFolder* parent = nullptr;
 };
@@ -21,6 +21,12 @@ class RecordFolder {
     std::string name;
     std::vector<std::variant<RecordFile*, RecordFolder*>> files_or_folder = {};
     RecordFolder* parent = nullptr;
+
+    ~RecordFolder() {
+        for (auto& item : files_or_folder) {
+            std::visit([](auto* ptr) { delete ptr; }, item);
+        }
+    }
 };
 }
 #endif

@@ -12,6 +12,7 @@
 
 using namespace compiler;
 using llConstInt = llvm::ConstantInt;
+using std::make_shared;
 
 Compiler::Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
     : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)),
@@ -60,14 +61,14 @@ void Compiler::_initializeLLVMModule(const Str& path_str) {
 }
 
 void Compiler::_initializeEnvironment() {
-    env = std::make_shared<Enviornment>(std::make_shared<Enviornment>(nullptr, StrRecordMap(), "builtins"), StrRecordMap());
-    this->file_record->env = this->env;
+    env = make_shared<Enviornment>(new Enviornment(nullptr, StrRecordMap(), "builtins"), StrRecordMap());
+    this->file_record->env = this->env.get();
 }
 
 void Compiler::_initializeArrayType() {}
 
 void Compiler::addBuiltinType(const Str& name, llvm::Type* type) {
-    auto record = std::make_shared<RecordStructType>(name, type);
+    auto record = make_shared<RecordStructType>(name, type);
     this->env->parent->addRecord(record);
 }
 
@@ -121,7 +122,7 @@ void Compiler::_initializeBuiltins() {
 
     addBuiltinType("nullptr", this->ll_pointer);
 
-    auto _Any = std::make_shared<RecordModule>("Any");
+    auto _Any = make_shared<RecordModule>("Any");
     env->parent->addRecord(_Any);
     // Initializing Built-in Types
     this->_initilizeCSTDLib();
@@ -281,7 +282,7 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
 
     for (const auto& gfunc : gfuncs) {
         // Create a new environment for each generic function
-        this->env = std::make_shared<Enviornment>(prev_env, StrRecordMap{}, name);
+        this->env = make_shared<Enviornment>(prev_env.get(), StrRecordMap{}, name);
         vector<unsigned short> mismatch_indices;
 
         // Iterate over parameters to check type compatibility
@@ -290,7 +291,7 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
 
             // Handle identifier literals by creating a new struct record
             if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
-                auto struct_record = std::make_shared<RecordStructType>(*pparam);
+                auto struct_record = make_shared<RecordStructType>(*pparam);
                 struct_record->name = gparam->value_type->name->castToIdentifierLiteral()->value;
                 this->env->addRecord(struct_record);
                 continue;
@@ -349,8 +350,8 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
         for (const auto& [idx, arg] : llvm::enumerate(func->args())) { arg.setName(param_names[idx]); }
 
         // Create a record for the new function
-        auto func_record = std::make_shared<RecordFunction>(name, func, func_type, std::vector<std::tuple<Str, StructTypePtr, bool>>(), return_type, gfunc->func->extra_info);
-        func_record->env = this->env;
+        auto func_record = make_shared<RecordFunction>(name, func, func_type, std::vector<std::tuple<Str, StructTypePtr, bool>>(), return_type, gfunc->func->extra_info);
+        func_record->env = this->env.get();
 
         if (body) {
             // Create entry basic block for the function
@@ -373,7 +374,7 @@ Compiler::_CallGfunc(const vector<GenericFunctionPtr>& gfuncs, AST::CallExpressi
                 // Load argument value if it's a reference
                 llvm::Value* arg_value = param_references[idx] ? this->llvm_ir_builder.CreateLoad(param_type->stand_alone_type, &arg, "loaded_" + arg.getName()) : alloca;
                 // Create and add a record for the argument variable
-                auto record = std::make_shared<RecordVariable>(Str(arg.getName()), arg_value, alloca, param_type);
+                auto record = make_shared<RecordVariable>(Str(arg.getName()), arg_value, alloca, param_type);
                 func_record->arguments.emplace_back(arg.getName().str(), param_type, param_references[idx]);
                 this->env->addRecord(record);
             }
@@ -447,7 +448,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
     // Handle generic functions separately
     if (!function_declaration_statement->generic.empty()) {
-        auto gsr = std::make_shared<RecordGenericFunction>(name, function_declaration_statement, this->env);
+        auto gsr = make_shared<RecordGenericFunction>(name, function_declaration_statement, this->env.get());
 
         if (module) {
             // If within a module, add to the module's record map
@@ -509,7 +510,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     for (auto& arg : func->args()) { arg.setName(param_names[idx++]); }
 
     // Create a RecordFunction to keep track of the function's metadata and environment
-    auto func_record = std::make_shared<RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
+    auto func_record = make_shared<RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
     func_record->ll_name = func->getName().str();
 
     // Add the function record to the appropriate scope (struct, module, or global environment)
@@ -535,8 +536,8 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
         // Save the current environment and create a new one for the function
         auto prev_env = this->env;
-        this->env = std::make_shared<Enviornment>(prev_env, StrRecordMap{}, name);
-        func_record->env = this->env;
+        this->env = make_shared<Enviornment>(prev_env.get(), StrRecordMap{}, name);
+        func_record->env = this->env.get();
         this->env->current_function = func_record.get();
 
         // Initialize function arguments in the new environment
@@ -555,7 +556,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
             }
 
             // Create a variable record for the argument and add it to the environment
-            auto record = std::make_shared<RecordVariable>(Str(arg.getName()), nullptr, alloca, param_type_record);
+            auto record = make_shared<RecordVariable>(Str(arg.getName()), nullptr, alloca, param_type_record);
             this->env->addRecord(record);
         }
 
@@ -709,7 +710,7 @@ Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallEx
         if (params_types.size() < gstruct->structAST->generics.size()) { continue; }
 
         // Set up a new environment based on the generic struct's environment
-        this->env = std::make_shared<Enviornment>(gstruct->env);
+        this->env = make_shared<Enviornment>(gstruct->env);
         vector<StructTypePtr> generics;
         vector<Str> generic_names;
         vector<llvm::Value*> remaining_args(args);
@@ -718,7 +719,7 @@ Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallEx
         // Map provided parameter types to the struct's generics
         auto generic_iter = llvm::zip(params_types, gstruct->structAST->generics);
         for (const auto& [pt, generic] : generic_iter) {
-            auto pt_copy = std::make_shared<RecordStructType>(*pt);
+            auto pt_copy = make_shared<RecordStructType>(*pt);
             generic_names.push_back(pt_copy->name);
             pt_copy->name = generic->name->castToIdentifierLiteral()->value;
             this->env->addRecord(pt_copy);
@@ -728,7 +729,7 @@ Compiler::_CallGstruct(const vector<GenericStructTypePtr>& gstructs, AST::CallEx
         }
 
         Str struct_name = gstruct->structAST->name->castToIdentifierLiteral()->value;
-        auto struct_record = std::make_shared<RecordStructType>(struct_name);
+        auto struct_record = make_shared<RecordStructType>(struct_name);
 
         // Check if the struct with the given generics already exists
         if (!gstruct->env->isStruct(struct_name, false, generics)) {
@@ -823,16 +824,16 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, share
     // Extract the struct name
     Str struct_name = struct_statement->name->castToIdentifierLiteral()->value;
 
-    // Create a new record for the struct
-    auto struct_record = std::make_shared<RecordStructType>(struct_name);
-
     // Handle generic structs early and return
     if (!struct_statement->generics.empty()) {
-        auto gsr = std::make_shared<RecordGenericStructType>(struct_name, struct_statement, this->env);
+        auto gsr = make_shared<RecordGenericStructType>(struct_name, struct_statement, this->env.get());
         this->env->addRecord(gsr);
         if (module) { module->record_map.emplace_back(struct_name, gsr); }
         return;
     }
+
+    // Create a new record for the struct
+    auto struct_record = make_shared<RecordStructType>(struct_name);
 
     // Prepare to parse struct fields
     vector<llvm::Type*> field_types;
@@ -840,7 +841,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, share
 
     // Save and update the environment for struct scope
     auto prev_env = this->env;
-    this->env = std::make_shared<Enviornment>(prev_env);
+    this->env = make_shared<Enviornment>(prev_env.get());
     this->env->addRecord(struct_record);
 
     // Iterate over each field in the struct
@@ -1469,7 +1470,7 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
 
     if (var_value == nullptr) {
         llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type || var_type->name == "array" ? this->ll_pointer : var_type->stand_alone_type);
-        auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_type);
+        auto var = make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_type);
         this->env->addRecord(var);
         return;
     }
@@ -1494,11 +1495,11 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_generic->struct_type || var_generic->name == "array" ? this->ll_pointer : var_generic->stand_alone_type);
     if (var_generic->struct_type || var_generic->name == "array") {
         this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(this->ll_pointer, var_value_alloca), alloca, variable_declaration_statement->is_volatile);
-        auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
+        auto var = make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
     } else {
         this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(var_generic->stand_alone_type, var_value_alloca), alloca, variable_declaration_statement->is_volatile);
-        auto var = std::make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
+        auto var = make_shared<RecordVariable>(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
     }
 }
@@ -1723,7 +1724,7 @@ Compiler::ResolvedValue Compiler::_visitArrayLiteral(AST::ArrayLiteral* array_li
     }
 
     // Create the array struct and manage reference counting
-    auto array_struct = std::make_shared<RecordStructType>(*this->env->getStruct("array"));
+    auto array_struct = make_shared<RecordStructType>(*this->env->getStruct("array"));
     array_struct->generic_sub_types.push_back(first_generic);
 
     return {array, array, array_struct, resolveType::StructInst};
@@ -1789,6 +1790,7 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, StructTypePtr&
     llvm::Value* return_value = nullptr;
     llvm::Value* return_alloca = nullptr;
 
+void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& return_value, llvm::Value*& return_alloca, StructTypePtr& return_type) {
     if (!_checkType(this->env->current_function->return_type, return_type)) {
         if (this->canConvertType(return_type, this->env->current_function->return_type)) {
             auto [converted_value, converted_alloca, converted_type, _] = this->convertType({return_value, return_alloca, return_type}, this->env->current_function->return_type);
@@ -1843,13 +1845,13 @@ StructTypePtr Compiler::_parseType(AST::Type* type) {
             for (auto gstruct : gstructs) {
                 if (generics.size() != gstruct->structAST->generics.size()) { continue; }
 
-                this->env = std::make_shared<Enviornment>(gstruct->env);
+                this->env = make_shared<Enviornment>(gstruct->env);
                 Str struct_name = gstruct->structAST->name->castToIdentifierLiteral()->value;
-                auto struct_record = std::make_shared<RecordStructType>(struct_name);
+                auto struct_record = make_shared<RecordStructType>(struct_name);
 
                 if (!gstruct->env->isStruct(struct_name, false, generics)) {
                     for (auto [generic, rg] : llvm::zip(generics, gstruct->structAST->generics)) {
-                        auto generic_copy = std::make_shared<RecordStructType>(*generic);
+                        auto generic_copy = make_shared<RecordStructType>(*generic);
                         generic_copy->name = rg->name->castToIdentifierLiteral()->value;
                         this->env->addRecord(generic_copy);
                     }
@@ -1884,7 +1886,7 @@ StructTypePtr Compiler::_parseType(AST::Type* type) {
 
     auto struct_ = std::get<StructTypePtr>(_struct);
     if (struct_->name == "array") {
-        struct_ = std::make_shared<RecordStructType>(*struct_);
+        struct_ = make_shared<RecordStructType>(*struct_);
         struct_->generic_sub_types.push_back(generics[0]);
     }
     return struct_;
@@ -1907,7 +1909,7 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
 
     // Save the current environment and create a new one for the if-else block
     auto previous_env = this->env;
-    this->env = make_shared<Enviornment>(this->env);
+    this->env = make_shared<Enviornment>(this->env.get());
 
     // Get the current function and create basic blocks for then, else, and continue
     auto current_function = this->llvm_ir_builder.GetInsertBlock()->getParent();
@@ -1932,7 +1934,7 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
 
     // If there is an else block, set insertion point to else block and compile the alternative
     if (else_block) {
-        this->env = make_shared<Enviornment>(previous_env);
+        this->env = make_shared<Enviornment>(previous_env.get());
         this->llvm_ir_builder.SetInsertPoint(else_block);
         try {
             this->compile(if_statement->alternative);
@@ -2005,7 +2007,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
 
     // Save the current environment and create a new one for the loop body
     auto previous_env = this->env;
-    this->env = make_shared<Enviornment>(this->env);
+    this->env = make_shared<Enviornment>(this->env.get());
 
     try {
         // Compile the loop body
@@ -2021,7 +2023,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Handle the ifbreak block if it exists
     if (ifBreakBlock) {
         // Restore the previous environment
-        this->env = make_shared<Enviornment>(previous_env);
+        this->env = make_shared<Enviornment>(previous_env.get());
         this->llvm_ir_builder.SetInsertPoint(ifBreakBlock);
 
         try {
@@ -2039,7 +2041,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Handle the notbreak block if it exists
     if (notBreakBlock) {
         // Restore the previous environment
-        this->env = make_shared<Enviornment>(previous_env);
+        this->env = make_shared<Enviornment>(previous_env.get());
         this->llvm_ir_builder.SetInsertPoint(notBreakBlock);
 
         try {
@@ -2141,7 +2143,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
 
         // Save the current environment and create a new one for the loop body
         auto previous_env = this->env;
-        this->env = std::make_shared<Enviornment>(this->env);
+        this->env = make_shared<Enviornment>(this->env.get());
 
         // Allocate space for the loop variable
         llvm::Value* loop_var_alloca;
@@ -2164,10 +2166,10 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
         // Create and add the loop variable to the environment
         VariablePtr loop_var;
         if (next_method->return_type->struct_type) {
-            loop_var = std::make_shared<RecordVariable>(for_statement->get->value, loop_var_alloca, loop_var_alloca, next_method->return_type);
+            loop_var = make_shared<RecordVariable>(for_statement->get->value, loop_var_alloca, loop_var_alloca, next_method->return_type);
         } else {
             llvm::Value* loaded_value = this->llvm_ir_builder.CreateLoad(next_method->return_type->stand_alone_type, loop_var_alloca);
-            loop_var = std::make_shared<RecordVariable>(for_statement->get->value, loaded_value, loop_var_alloca, next_method->return_type);
+            loop_var = make_shared<RecordVariable>(for_statement->get->value, loaded_value, loop_var_alloca, next_method->return_type);
         }
         this->env->addRecord(loop_var);
 
@@ -2185,7 +2187,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
         // Handle the ifbreak block if it exists
         if (if_break_block) {
             // Restore the previous environment
-            this->env = std::make_shared<Enviornment>(previous_env);
+            this->env = make_shared<Enviornment>(previous_env.get());
             this->llvm_ir_builder.SetInsertPoint(if_break_block);
             try {
                 // Compile the ifbreak statement
@@ -2202,7 +2204,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
         // Handle the notbreak block if it exists
         if (not_break_block) {
             // Restore the previous environment
-            this->env = std::make_shared<Enviornment>(previous_env);
+            this->env = make_shared<Enviornment>(previous_env.get());
             this->llvm_ir_builder.SetInsertPoint(not_break_block);
             try {
                 // Compile the notbreak statement
@@ -2274,19 +2276,21 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, sha
 
     // Parse the source code into an AST
     auto lexer = new Lexer(gc_source);
-    parser::Parser parser(lexer);
-    auto program = parser.parseProgram();
+    auto parser = new parser::Parser(lexer);
+    auto program = parser->parseProgram();
+    delete lexer;
+    delete parser;
 
     // Create a new module record if not importing into an existing module
     shared_ptr<RecordModule> import_module = module;
     if (!module) {
-        import_module = std::make_shared<RecordModule>(module_name);
+        import_module = make_shared<RecordModule>(module_name);
         this->env->addRecord(import_module);
     }
 
     // Save the current environment and create a new one for the imported module
     auto previous_env = this->env;
-    this->env = std::make_shared<Enviornment>(previous_env, StrRecordMap{}, module_name);
+    this->env = make_shared<Enviornment>(previous_env.get(), StrRecordMap{}, module_name);
 
     // Iterate over each statement in the imported program
     for (auto& stmt : program->statements) {

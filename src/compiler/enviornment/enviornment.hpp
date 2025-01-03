@@ -11,6 +11,7 @@
  */
 
 #include <llvm/IR/Function.h>
+#include <memory>
 #include <set>
 
 #include "../../parser/AST/ast.hpp"
@@ -179,7 +180,7 @@ class RecordFunction : public Record {
     std::vector<std::tuple<Str, StructTypePtr, bool>> arguments = {};
     StructTypePtr return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;   ///< Indicates if the function accepts variable number of arguments.
-    EnviornmentPtr env;        ///< Pointer to the environment in which the function is defined.
+    Enviornment* env;        ///< Pointer to the environment in which the function is defined.
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -271,7 +272,7 @@ class RecordFunction : public Record {
      * @param env Pointer to the environment.
      * @return Pointer to the current RecordFunction instance.
      */
-    RecordFunction* setEnv(EnviornmentPtr env) {
+    RecordFunction* setEnv(Enviornment* env) {
         this->env = env;
         return this;
     }
@@ -296,7 +297,7 @@ class RecordFunction : public Record {
 class RecordGenericFunction : public Record {
   public:
     AST::FunctionStatement* func = nullptr; ///< Pointer to the AST FunctionStatement.
-    EnviornmentPtr env = nullptr;           ///< Pointer to the environment.
+    Enviornment* env;         ///< Pointer to the environment.
 
     /**
      * @brief Constructs a RecordGenericFunction with the specified name, function, and environment.
@@ -304,7 +305,7 @@ class RecordGenericFunction : public Record {
      * @param func Pointer to the AST FunctionStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericFunction(const Str& name, AST::FunctionStatement* func, EnviornmentPtr env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
+    RecordGenericFunction(const Str& name, AST::FunctionStatement* func, Enviornment* env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
 
     /**
      * @brief Sets the AST FunctionStatement pointer.
@@ -321,14 +322,14 @@ class RecordGenericFunction : public Record {
      * @param env Pointer to the environment.
      * @return Pointer to the current RecordGenericFunction instance.
      */
-    RecordGenericFunction* setEnv(EnviornmentPtr env) {
+    RecordGenericFunction* setEnv(Enviornment* env) {
         this->env = env;
         return this;
     }
 
-    ~RecordGenericFunction() {
-        if (this->func) { delete func; }
-    }
+    // ~RecordGenericFunction() {
+    //     if (this->func) { delete func; }
+    // }
 };
 
 /**
@@ -341,7 +342,7 @@ class RecordGenericFunction : public Record {
 class RecordGenericStructType : public Record {
   public:
     AST::StructStatement* structAST = nullptr; ///< Pointer to the AST StructStatement.
-    EnviornmentPtr env = nullptr;              ///< Pointer to the environment.
+    Enviornment* env;              ///< Pointer to the environment.
 
     /**
      * @brief Constructs a RecordGenericStructType with the specified name, struct AST, and environment.
@@ -349,7 +350,7 @@ class RecordGenericStructType : public Record {
      * @param structAST Pointer to the AST StructStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, EnviornmentPtr env) : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {}
+    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, Enviornment* env) : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {}
 
     /**
      * @brief Sets the AST StructStatement pointer.
@@ -366,13 +367,13 @@ class RecordGenericStructType : public Record {
      * @param env Pointer to the environment.
      * @return Pointer to the current RecordGenericStructType instance.
      */
-    RecordGenericStructType* setEnv(EnviornmentPtr env) {
+    RecordGenericStructType* setEnv(Enviornment* env) {
         this->env = env;
         return this;
     }
-    ~RecordGenericStructType() {
-        if (structAST) { delete structAST; }
-    }
+    // ~RecordGenericStructType() {
+    //     if (structAST) { delete structAST; }
+    // }
 };
 
 /**
@@ -647,7 +648,7 @@ class RecordModule : public Record {
  */
 class Enviornment {
   public:
-    EnviornmentPtr parent;   ///< Pointer to the parent environment.
+    Enviornment* parent;   ///< Pointer to the parent environment.
     Str name;                ///< Name of the current environment.
     StrRecordMap record_map; ///< Map of records within the environment.
 
@@ -671,7 +672,7 @@ class Enviornment {
      * If a parent environment is provided, the loop-related basic blocks
      * and the current function pointer are inherited from the parent.
      */
-    Enviornment(EnviornmentPtr parent = nullptr, const StrRecordMap& records = {}, Str name = "unnamed") : parent(parent), name(name), record_map(records) {
+    Enviornment(Enviornment* parent = nullptr, const StrRecordMap& records = {}, Str name = "unnamed") : parent(parent), name(name), record_map(records) {
         if (parent) {
             this->loop_conti_block = parent->loop_conti_block;
             this->loop_body_block = parent->loop_body_block;
@@ -679,6 +680,12 @@ class Enviornment {
             this->loop_ifbreak_block = parent->loop_ifbreak_block;
             this->loop_notbreak_block = parent->loop_notbreak_block;
             this->current_function = parent->current_function;
+        }
+    }
+
+    ~Enviornment() {
+        if (this->parent && !this->parent->parent) {
+            delete this->parent;
         }
     }
 

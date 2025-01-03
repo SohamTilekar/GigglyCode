@@ -613,8 +613,10 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         this->_nextToken();                  // [:] -> [Type]
         LOG_TOK()
         type = this->_parseType(); // [Type] remains unchanged
-        if (type->name->type() == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto")
+        if (type->name->type() == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto") {
+            delete type;
             type = nullptr;
+        }
     }
     if (this->_peekTokenIs(TokenType::Semicolon)) {
         this->_nextToken(); // [Type] -> [;]
