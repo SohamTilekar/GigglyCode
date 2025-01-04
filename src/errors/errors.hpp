@@ -3,7 +3,6 @@
 #include "../compiler/enviornment/enviornment.hpp"
 #include "../lexer/token.hpp"
 #include "../parser/AST/ast.hpp"
-#include <memory>
 
 namespace errors {
 
@@ -87,10 +86,10 @@ class WrongInfix : public Error {
 class WrongType : public Error {
   public:
     AST::Expression* exp;
-    std::vector<std::shared_ptr<enviornment::RecordStructType>> expected;
+    std::vector<enviornment::RecordStructType*> expected;
     WrongType(const std::string& source,
               AST::Expression* exp,
-              const std::vector<std::shared_ptr<enviornment::RecordStructType>>& expected,
+              const std::vector<enviornment::RecordStructType*>& expected,
               const std::string& message = "",
               const std::string& suggestedFix = "")
         : Error("Wrong Type", source, exp->meta_data.st_line_no, exp->meta_data.end_line_no, message, suggestedFix), exp(exp), expected(expected) {};
@@ -152,7 +151,7 @@ class ArrayTypeError : public Error {
      * @param expected_type The expected struct type for array elements.
      * @param message An optional error message.
      */
-    ArrayTypeError(const std::string& source, AST::Node* element, enviornment::StructTypePtr expected_type, const std::string& message = "")
+    ArrayTypeError(const std::string& source, AST::Node* element, enviornment::RecordStructType* expected_type, const std::string& message = "")
         : Error("ArrayTypeError", source, element->meta_data.st_line_no, element->meta_data.end_line_no, message), element(element), expected_type(expected_type) {}
 
     /**
@@ -163,12 +162,12 @@ class ArrayTypeError : public Error {
     // Additional members if needed
   private:
     AST::Node* element;                       ///< The AST node that caused the error
-    enviornment::StructTypePtr expected_type; ///< The expected type for the array elements
+    enviornment::RecordStructType* expected_type; ///< The expected type for the array elements
 };
 
 class ReturnTypeMismatchError : public Error {
   public:
-    enviornment::StructTypePtr expectedType;
+    enviornment::RecordStructType* expectedType;
     AST::Node* actualType;
 
     /**
@@ -178,7 +177,7 @@ class ReturnTypeMismatchError : public Error {
      * @param actual The actual return type provided.
      * @param message An optional error message.
      */
-    ReturnTypeMismatchError(const std::string& source, enviornment::StructTypePtr expected, AST::Node* actual, const std::string& message = "")
+    ReturnTypeMismatchError(const std::string& source, enviornment::RecordStructType* expected, AST::Node* actual, const std::string& message = "")
         : Error("ReturnTypeMismatchError", source, -1, -1, message), expectedType(expected), actualType(actual) {}
 
     /**

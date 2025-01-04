@@ -157,7 +157,7 @@ class EnvManager {
         const char* gcStdDir = std::getenv("GC_STD_DIR");
         if (!gcStdDir) {
             std::cerr << "Warning: GC_STD_DIR environment variable is not set." << std::endl;
-            valid = false;
+            // valid = false;
         } else {
             GC_STD_DIR = std::filesystem::path(gcStdDir);
         }
@@ -603,4 +603,5 @@ int main(int argc, char* argv[]) {
         std::cerr << "Compilation failed: " << e.what() << std::endl;
         return 1;
     }
+    return 0;
 }

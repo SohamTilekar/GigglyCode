@@ -1,7 +1,7 @@
 #include "enviornment.hpp"
 #include "../compiler.hpp"
 #include <iostream>
-#include <memory>
+#include <llvm/ADT/STLExtras.h>
 
 // Use the enviornment namespace to simplify code references
 using namespace enviornment;
@@ -9,18 +9,18 @@ using namespace enviornment;
 #include <set>
 #include <utility> // For std::pair
 
-bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2) {
+bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2) {
     std::set<std::pair<RecordStructType*, RecordStructType*>> checked;
     return _checkType(type1, type2, checked);
 }
 
 // Modify the _checkType function to handle checked pairs
-bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked) {
+bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked) {
     if (type1 == type2) return true; // Same memory address implies identical types
     if (type2->name == "nullptr" || type1->name == "nullptr") return true;
 
     // Create a pair of the current types being compared
-    std::pair<RecordStructType*, RecordStructType*> currentPair = {type1.get(), type2.get()};
+    std::pair<RecordStructType*, RecordStructType*> currentPair = {type1, type2};
 
     // Check if this pair has already been compared
     if (checked.find(currentPair) != checked.end()) {
@@ -47,8 +47,8 @@ bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<
         if (field_name1 != field_name2) { return false; }
 
         // Retrieve subtypes
-        StructTypePtr subtype1 = type1->sub_types.at(field_name1);
-        StructTypePtr subtype2 = type2->sub_types.at(field_name2);
+        RecordStructType* subtype1 = type1->sub_types.at(field_name1);
+        RecordStructType* subtype2 = type2->sub_types.at(field_name2);
 
         // Recursively check subtypes
         if (!_checkType(subtype1, subtype2, checked)) { return false; }
@@ -60,7 +60,7 @@ bool enviornment::_checkType(StructTypePtr type1, StructTypePtr type2, std::set<
 }
 
 // Helper function to verify if function parameters match
-bool _checkFunctionParameterType(FunctionPtr func_record, std::vector<StructTypePtr> params, bool exact = false) {
+bool _checkFunctionParameterType(RecordFunction* func_record, std::vector<RecordStructType*> params, bool exact = false) {
     if (!exact && func_record->is_var_arg) return true;
     // Compare each argument type with the corresponding parameter type
     for (const auto& [arg, pass_instance] : llvm::zip(func_record->arguments, params)) {
@@ -78,16 +78,16 @@ bool _checkFunctionParameterType(FunctionPtr func_record, std::vector<StructType
 
 // Checks if a struct type has a specific method matching the given criteria
 bool RecordStructType::is_method(
-    const std::string& name, const std::vector<StructTypePtr>& params_types, const std::unordered_map<std::string, std::any>& ex_info, StructTypePtr return_type, bool exact) {
+    const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
 
         // Verify extra information matches
-        for (const auto& [key, value] : ex_info) {
+        for (const auto& [key, value] : ex_info.bool_map) {
             if (key == "autocast") {
-                auto it = method->extra_info.find(key);
-                if (it == method->extra_info.end() || std::any_cast<bool>(it->second) != std::any_cast<bool>(value)) {
+                auto it = method->extra_info.bool_map.find(key);
+                if (it == method->extra_info.bool_map.end() || it->second != value) {
                     match = false;
                     break;
                 }
@@ -112,17 +112,17 @@ bool RecordStructType::is_method(
 }
 
 // Retrieves a method from a struct type that matches the given criteria
-FunctionPtr
-RecordStructType::get_method(const std::string& name, const std::vector<StructTypePtr>& params_types, const std::unordered_map<std::string, std::any>& ex_info, StructTypePtr return_type, bool exact) {
+RecordFunction*
+RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
 
         // Verify extra information matches
-        for (const auto& [key, value] : ex_info) {
+        for (const auto& [key, value] : ex_info.bool_map) {
             if (key == "autocast") {
-                auto it = method->extra_info.find(key);
-                if (it == method->extra_info.end() || std::any_cast<bool>(it->second) != std::any_cast<bool>(value)) {
+                auto it = method->extra_info.bool_map.find(key);
+                if (it == method->extra_info.bool_map.end() || it->second != value) {
                     match = false;
                     break;
                 }
@@ -147,12 +147,12 @@ RecordStructType::get_method(const std::string& name, const std::vector<StructTy
 }
 
 // Checks if a module contains a specific function matching the given criteria
-bool RecordModule::isFunction(const std::string& name, const std::vector<StructTypePtr>& params_types, bool exact) {
+bool RecordModule::isFunction(const std::string& name, const std::vector<RecordStructType*>& params_types, bool exact) {
     // Iterate through all records in the module
     for (const auto& [func_name, func_record] : record_map) {
         // Only consider function records
         if (func_record->type == RecordType::RecordFunction) {
-            auto func = std::static_pointer_cast<RecordFunction>(func_record);
+            auto func = (RecordFunction*)func_record;
             bool name_matches = (func->name == name);
             bool params_match = _checkFunctionParameterType(func, params_types, exact);
 
@@ -164,11 +164,11 @@ bool RecordModule::isFunction(const std::string& name, const std::vector<StructT
 }
 
 // Checks if a module contains a specific struct with matching generic parameters
-bool RecordModule::is_struct(const std::string& name, std::vector<StructTypePtr> gens) {
+bool RecordModule::is_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     // Iterate through all records in the module
     for (const auto& [struct_name, struct_record] : record_map) {
         if (struct_record->type == RecordType::RecordStructInst) {
-            auto struct_type = std::static_pointer_cast<RecordStructType>(struct_record);
+            auto struct_type = (RecordStructType*)struct_record;
             if (struct_type->name == name) {
                 bool all_types_match = true;
                 // Check each generic type parameter
@@ -190,7 +190,7 @@ bool RecordModule::is_module(const std::string& name) {
     // Iterate through all records in the module
     for (const auto& [module_name, module_record] : record_map) {
         if (module_record->type == RecordType::RecordModule) {
-            auto module = std::static_pointer_cast<RecordModule>(module_record);
+            auto module = (RecordModule*)module_record;
             if (module->name == name) { return true; }
         }
     }
@@ -201,7 +201,7 @@ bool RecordModule::is_module(const std::string& name) {
 bool RecordModule::isGenericFunc(const std::string& name) {
     for (const auto& [Gfunc_name, Gfunc_record] : record_map) {
         if (Gfunc_record->type == RecordType::RecordGenericFunction) {
-            auto Gfunc = std::static_pointer_cast<RecordGenericFunction>(Gfunc_record);
+            auto Gfunc = (RecordGenericFunction*)Gfunc_record;
             if (Gfunc->name == name) { return true; }
         }
     }
@@ -212,7 +212,7 @@ bool RecordModule::isGenericFunc(const std::string& name) {
 bool RecordModule::isGenericStruct(const std::string& name) {
     for (const auto& [Gstruct_name, Gstruct_record] : record_map) {
         if (Gstruct_record->type == RecordType::RecordGStructType) {
-            auto Gstruct = std::static_pointer_cast<RecordGenericStructType>(Gstruct_record);
+            auto Gstruct =(RecordGenericStructType*)Gstruct_record;
             if (Gstruct->name == name) { return true; }
         }
     }
@@ -220,10 +220,10 @@ bool RecordModule::isGenericStruct(const std::string& name) {
 }
 
 // Retrieves a function from the module that matches the given criteria
-FunctionPtr RecordModule::getFunction(const std::string& name, const std::vector<StructTypePtr>& params_types, bool exact) {
+RecordFunction* RecordModule::getFunction(const std::string& name, const std::vector<RecordStructType*>& params_types, bool exact) {
     for (const auto& [func_name, func_record] : record_map) {
         if (func_record->type == RecordType::RecordFunction) {
-            auto func = std::static_pointer_cast<RecordFunction>(func_record);
+            auto func = (RecordFunction*)func_record;
             if (func->name == name && _checkFunctionParameterType(func, params_types, exact)) { return func; }
         }
     }
@@ -231,10 +231,10 @@ FunctionPtr RecordModule::getFunction(const std::string& name, const std::vector
 }
 
 // Retrieves a struct from the module that matches the given name and generic parameters
-StructTypePtr RecordModule::get_struct(const std::string& name, std::vector<StructTypePtr> gens) {
+RecordStructType* RecordModule::get_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     for (const auto& [struct_name, struct_record] : record_map) {
         if (struct_record->type == RecordType::RecordStructInst) {
-            auto struct_type = std::static_pointer_cast<RecordStructType>(struct_record);
+            auto struct_type = (RecordStructType*)struct_record;
             if (struct_type->name == name) {
                 bool types_match = true;
                 // Check each generic type parameter
@@ -252,10 +252,10 @@ StructTypePtr RecordModule::get_struct(const std::string& name, std::vector<Stru
 }
 
 // Retrieves a module by name from the current module
-ModulePtr RecordModule::get_module(const std::string& name) {
+RecordModule* RecordModule::get_module(const std::string& name) {
     for (const auto& [module_name, module_record] : record_map) {
         if (module_record->type == RecordType::RecordModule) {
-            auto module = std::static_pointer_cast<RecordModule>(module_record);
+            auto module = (RecordModule*)module_record;
             if (module->name == name) { return module; }
         }
     }
@@ -263,11 +263,11 @@ ModulePtr RecordModule::get_module(const std::string& name) {
 }
 
 // Retrieves all generic functions matching the given name
-std::vector<GenericFunctionPtr> RecordModule::get_GenericFunc(const std::string& name) {
-    std::vector<GenericFunctionPtr> matching_gfuncs;
+std::vector<RecordGenericFunction*> RecordModule::get_GenericFunc(const std::string& name) {
+    std::vector<RecordGenericFunction*> matching_gfuncs;
     for (const auto& [Gf_name, Gf_record] : record_map) {
         if (Gf_record->type == RecordType::RecordGenericFunction) {
-            auto Gf = std::static_pointer_cast<RecordGenericFunction>(Gf_record);
+            auto Gf = (RecordGenericFunction*)Gf_record;
             if (Gf->name == name) { matching_gfuncs.push_back(Gf); }
         }
     }
@@ -275,11 +275,11 @@ std::vector<GenericFunctionPtr> RecordModule::get_GenericFunc(const std::string&
 }
 
 // Retrieves all generic structs matching the given name
-std::vector<GenericStructTypePtr> RecordModule::getGenericStruct(const std::string& name) {
-    std::vector<GenericStructTypePtr> matching_gstructs;
+std::vector<RecordGenericStructType*> RecordModule::getGenericStruct(const std::string& name) {
+    std::vector<RecordGenericStructType*> matching_gstructs;
     for (const auto& [Gs_name, Gs_record] : record_map) {
         if (Gs_record->type == RecordType::RecordGStructType) {
-            auto Gs = std::static_pointer_cast<RecordGenericStructType>(Gs_record);
+            auto Gs = (RecordGenericStructType*)Gs_record;
             if (Gs->name == name) { matching_gstructs.push_back(Gs); }
         }
     }
@@ -287,7 +287,7 @@ std::vector<GenericStructTypePtr> RecordModule::getGenericStruct(const std::stri
 }
 
 // Adds a new record to the environment
-void Enviornment::addRecord(shared_ptr<Record> record) {
+void Enviornment::addRecord(Record* record) {
     record_map.push_back({record->name, record});
 }
 
@@ -301,10 +301,10 @@ bool Enviornment::isVariable(const std::string& name, bool limit2current_scope) 
 }
 
 // Checks if a function exists in the environment with matching parameters
-bool Enviornment::isFunction(const std::string& name, std::vector<StructTypePtr> params_types, bool limit2current_scope, bool exact) {
+bool Enviornment::isFunction(const std::string& name, std::vector<RecordStructType*> params_types, bool limit2current_scope, bool exact) {
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::RecordFunction && record->name == name) {
-            auto func = std::static_pointer_cast<RecordFunction>(record);
+            auto func = (RecordFunction*)record;
             if (_checkFunctionParameterType(func, params_types, exact)) { return true; }
         }
     }
@@ -313,12 +313,12 @@ bool Enviornment::isFunction(const std::string& name, std::vector<StructTypePtr>
 }
 
 // Checks if a struct exists in the environment with matching generic parameters
-bool Enviornment::isStruct(const std::string& name, bool limit2current_scope, std::vector<StructTypePtr> gens) {
+bool Enviornment::isStruct(const std::string& name, bool limit2current_scope, std::vector<RecordStructType*> gens) {
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::RecordStructInst && record->name == name) {
             bool all_types_match = true;
             // Verify each generic type parameter
-            for (const auto& [gen, expected_gen] : llvm::zip(gens, std::static_pointer_cast<RecordStructType>(record)->generic_sub_types)) {
+            for (const auto& [gen, expected_gen] : llvm::zip(gens, ((RecordStructType*)record)->generic_sub_types)) {
                 if (!_checkType(gen, expected_gen)) {
                     all_types_match = false;
                     break;
@@ -359,19 +359,19 @@ bool Enviornment::isGenericStruct(const std::string& name) {
 }
 
 // Retrieves a variable from the environment
-VariablePtr Enviornment::getVariable(const std::string& name, bool limit2current_scope) {
+RecordVariable* Enviornment::getVariable(const std::string& name, bool limit2current_scope) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordVariable && record->name == name) { return std::static_pointer_cast<RecordVariable>(record); }
+        if (record->type == RecordType::RecordVariable && record->name == name) { return (RecordVariable*)record; }
     }
     // If not found and not limited to current scope, check parent environments
     return (parent != nullptr && !limit2current_scope) ? parent->getVariable(name) : nullptr;
 }
 
 // Retrieves a function from the environment that matches the given criteria
-FunctionPtr Enviornment::getFunction(const std::string& name, std::vector<StructTypePtr> params_types, bool limit2current_scope, bool exact) {
+RecordFunction* Enviornment::getFunction(const std::string& name, std::vector<RecordStructType*> params_types, bool limit2current_scope, bool exact) {
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::RecordFunction && record->name == name) {
-            auto func = std::static_pointer_cast<RecordFunction>(record);
+            auto func = (RecordFunction*)record;
             if (_checkFunctionParameterType(func, params_types, exact)) { return func; }
         }
     }
@@ -380,18 +380,18 @@ FunctionPtr Enviornment::getFunction(const std::string& name, std::vector<Struct
 }
 
 // Retrieves a struct from the environment that matches the given name and generic parameters
-StructTypePtr Enviornment::getStruct(const std::string& name, bool limit2current_scope, std::vector<StructTypePtr> gens) {
+RecordStructType* Enviornment::getStruct(const std::string& name, bool limit2current_scope, std::vector<RecordStructType*> gens) {
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::RecordStructInst && record->name == name) {
             bool types_match = true;
             // Verify each generic type parameter
-            for (const auto& [gen, expected_gen] : llvm::zip(gens, std::static_pointer_cast<RecordStructType>(record)->generic_sub_types)) {
+            for (const auto& [gen, expected_gen] : llvm::zip(gens, ((RecordStructType*)record)->generic_sub_types)) {
                 if (!_checkType(gen, expected_gen)) {
                     types_match = false;
                     break;
                 }
             }
-            if (types_match) { return std::static_pointer_cast<RecordStructType>(record); }
+            if (types_match) { return (RecordStructType*)record; }
         }
     }
     // If not found and not limited to current scope, check parent environments
@@ -399,20 +399,20 @@ StructTypePtr Enviornment::getStruct(const std::string& name, bool limit2current
 }
 
 // Retrieves a module from the environment by name
-ModulePtr Enviornment::getModule(const std::string& name, bool limit2current_scope) {
+RecordModule* Enviornment::getModule(const std::string& name, bool limit2current_scope) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordModule && record->name == name) { return std::static_pointer_cast<RecordModule>(record); }
+        if (record->type == RecordType::RecordModule && record->name == name) { return (RecordModule*)record; }
     }
     // If not found and not limited to current scope, check parent environments
     return (parent != nullptr && !limit2current_scope) ? parent->getModule(name) : nullptr;
 }
 
 // Retrieves all generic functions with the specified name from the environment
-std::vector<GenericFunctionPtr> Enviornment::getGenericFunc(const std::string& name) {
-    std::vector<GenericFunctionPtr> matching_gfuncs;
+std::vector<RecordGenericFunction*> Enviornment::getGenericFunc(const std::string& name) {
+    std::vector<RecordGenericFunction*> matching_gfuncs;
     for (const auto& [Gf_name, Gf_record] : record_map) {
         if (Gf_record->type == RecordType::RecordGenericFunction) {
-            auto Gf = std::static_pointer_cast<RecordGenericFunction>(Gf_record);
+            auto Gf = (RecordGenericFunction*)Gf_record;
             if (Gf->name == name) { matching_gfuncs.push_back(Gf); }
         }
     }
@@ -421,11 +421,11 @@ std::vector<GenericFunctionPtr> Enviornment::getGenericFunc(const std::string& n
 }
 
 // Retrieves all generic structs with the specified name from the environment
-std::vector<GenericStructTypePtr> Enviornment::getGenericStruct(const std::string& name) {
-    std::vector<GenericStructTypePtr> matching_gstructs;
+std::vector<RecordGenericStructType*> Enviornment::getGenericStruct(const std::string& name) {
+    std::vector<RecordGenericStructType*> matching_gstructs;
     for (const auto& [Gs_name, Gs_record] : record_map) {
         if (Gs_record->type == RecordType::RecordGStructType) {
-            auto Gs = std::static_pointer_cast<RecordGenericStructType>(Gs_record);
+            auto Gs = (RecordGenericStructType*)Gs_record;
             if (Gs->name == name) { matching_gstructs.push_back(Gs); }
         }
     }
@@ -434,10 +434,10 @@ std::vector<GenericStructTypePtr> Enviornment::getGenericStruct(const std::strin
 }
 
 // Retrieves all variables in the current environment scope
-std::vector<VariablePtr> Enviornment::getCurrentFuncVars() {
-    std::vector<VariablePtr> vars;
+std::vector<RecordVariable*> Enviornment::getCurrentFuncVars() {
+    std::vector<RecordVariable*> vars;
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordVariable) { vars.push_back(std::static_pointer_cast<RecordVariable>(record)); }
+        if (record->type == RecordType::RecordVariable) { vars.push_back(((RecordVariable*)record)); }
     }
     if (this->parent && this->parent->current_function) {
         auto parent_vars = this->parent->getCurrentFuncVars();

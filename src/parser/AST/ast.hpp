@@ -1,8 +1,6 @@
 #ifndef AST_HPP
 #define AST_HPP
-#include <any>
 #include <unordered_map>
-#include <variant>
 #include <vector>
 
 #include "../../lexer/token.hpp"
@@ -84,18 +82,52 @@ enum class NodeType {
 
 std::string nodeTypeToString(NodeType type);
 
+struct MoreData {
+    std::unordered_map<std::string, int> int_map = {};
+    std::unordered_map<std::string, std::string> str_map = {};
+    std::unordered_map<std::string, std::tuple<int, int>> pos_map = {};
+    std::unordered_map<std::string, bool> bool_map = {};
+
+    MoreData() = default;
+    MoreData(std::unordered_map<std::string, int> int_map) : int_map(int_map) {}
+    MoreData(std::unordered_map<std::string, std::string> str_map) : str_map(str_map) {}
+    MoreData(std::unordered_map<std::string, bool> bool_map) : bool_map(bool_map) {}
+    MoreData(std::unordered_map<std::string, std::tuple<int, int>> pos_map) : pos_map(pos_map) {}
+
+    template <typename T>
+    void insert(const std::string& key, const T& value) {
+        if constexpr (std::is_same_v<T, int>) {
+            int_map[key] = value;
+        } else if constexpr (std::is_same_v<T, std::string>) {
+            str_map[key] = value;
+        } else if constexpr (std::is_same_v<T, std::tuple<int, int>>) {
+            pos_map[key] = value;
+        } else if constexpr (std::is_same_v<T, bool>) {
+            bool_map[key] = value;
+        } else {
+            // Handle other types or throw an error if needed
+            static_assert(false, "Unsupported type for MoreData::insert");
+        }
+    }
+
+    // Overload for std::pair<int, int> to avoid ambiguity with std::tuple
+    void insert(const std::string& key, const std::pair<int, int>& value) {
+        pos_map[key] = value;
+    }
+};
+
 struct MetaData {
     int st_line_no = -1;
     int st_col_no = -1;
     int end_line_no = -1;
     int end_col_no = -1;
-    std::unordered_map<std::string, std::variant<int, std::string, std::tuple<int, int>>> more_data = {};
+    MoreData more_data;
 };
 
 class Node {
   public:
     MetaData meta_data;
-    std::unordered_map<std::string, std::any> extra_info;
+    MoreData extra_info;
 
     inline void set_meta_data(int st_line_num, int st_col_num, int end_line_num, int end_col_num) {
         if (this->type() == NodeType::IdentifierLiteral) return;
@@ -268,7 +300,7 @@ class FunctionStatement : public Statement {
                              BlockStatement* body,
                              const std::vector<GenericType*>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
-        this->extra_info["autocast"] = false;
+        this->extra_info.insert("autocast", false);
     }
     inline NodeType type() override { return NodeType::FunctionStatement; };
     std::string toStr() override;
@@ -417,7 +449,7 @@ class InfixExpression : public Expression {
     Expression* right;
     token::TokenType op;
     inline InfixExpression(Expression* left, token::TokenType op, const std::string& literal, Expression* right = nullptr) : left(left), right(right), op(op) {
-        this->meta_data.more_data["operator_literal"] = literal;
+        this->meta_data.more_data.insert("operator_literal", literal);
     }
     inline NodeType type() override { return NodeType::InfixedExpression; };
     std::string toStr() override;
@@ -464,7 +496,7 @@ class FloatLiteral : public Expression {
 class StringLiteral : public Expression {
   public:
     std::string value;
-    inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data["length"] = int(value.length()); }
+    inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data.insert("length", int(value.length())); }
     inline NodeType type() override { return NodeType::StringLiteral; };
     std::string toStr() override;
 

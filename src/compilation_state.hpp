@@ -7,6 +7,7 @@
 
 
 namespace compilationState {
+
 class RecordFolder;
 class RecordFile {
   public:
@@ -14,6 +15,10 @@ class RecordFile {
     enviornment::Enviornment* env = nullptr;
     bool compiled = false;
     RecordFolder* parent = nullptr;
+
+    ~RecordFile() {
+        delete env;
+    }
 };
 
 class RecordFolder {
@@ -22,11 +27,15 @@ class RecordFolder {
     std::vector<std::variant<RecordFile*, RecordFolder*>> files_or_folder = {};
     RecordFolder* parent = nullptr;
 
-    ~RecordFolder() {
-        for (auto& item : files_or_folder) {
-            std::visit([](auto* ptr) { delete ptr; }, item);
+        ~RecordFolder() {
+            for (auto& item : files_or_folder) {
+                if (std::holds_alternative<RecordFile*>(item)) {
+                    delete std::get<RecordFile*>(item);
+                } else if (std::holds_alternative<RecordFolder*>(item)) {
+                    delete std::get<RecordFolder*>(item);
+                }
+            }
         }
-    }
 };
 }
 #endif

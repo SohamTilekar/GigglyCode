@@ -221,13 +221,13 @@ AST::Statement* Parser::_parseAutocastDeco() {
 
     if (this->_currentTokenIs(TokenType::Def)) {
         auto func = this->_parseFunctionStatement(); // [Def] -> [Function Statement]
-        func->extra_info["autocast"] = true;
+        func->extra_info.insert("autocast", true);
         return func;
     } else if (this->_currentTokenIs(TokenType::AtTheRate)) {
         auto _deco = this->_parseDeco(); // [@] -> [Decorator Statement]
         if (_deco->type() == AST::NodeType::FunctionStatement) {
             auto deco = _deco->castToFunctionStatement();
-            deco->extra_info["autocast"] = true;
+            deco->extra_info.insert("autocast", true);
             return deco;
         }
     }
@@ -625,9 +625,9 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         int end_col_no = current_token.col_no;
         auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, nullptr, is_volatile);
         variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-        variableDeclarationStatement->meta_data.more_data["name_line_no"] = st_line_no;
-        variableDeclarationStatement->meta_data.more_data["name_col_no"] = st_col_no;
-        variableDeclarationStatement->meta_data.more_data["name_end_col_no"] = current_token.end_col_no;
+        variableDeclarationStatement->meta_data.more_data.insert("name_line_no", st_line_no);
+        variableDeclarationStatement->meta_data.more_data.insert("name_col_no", st_col_no);
+        variableDeclarationStatement->meta_data.more_data.insert("name_end_col_no", current_token.end_col_no);
         return variableDeclarationStatement;
     } else if (this->_expectPeek({TokenType::Equals, TokenType::Semicolon})) {
         this->_nextToken(); // [Type] -> [=] or [Type] -> [;]
@@ -639,9 +639,9 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         int end_col_no = current_token.col_no;
         auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, expr, is_volatile);
         variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-        variableDeclarationStatement->meta_data.more_data["name_line_no"] = st_line_no;
-        variableDeclarationStatement->meta_data.more_data["name_col_no"] = st_col_no;
-        variableDeclarationStatement->meta_data.more_data["name_end_col_no"] = current_token.end_col_no;
+        variableDeclarationStatement->meta_data.more_data.insert("name_line_no", st_line_no);
+        variableDeclarationStatement->meta_data.more_data.insert("name_col_no", st_col_no);
+        variableDeclarationStatement->meta_data.more_data.insert("name_end_col_no", current_token.end_col_no);
         return variableDeclarationStatement;
     }
     return nullptr;
@@ -879,9 +879,9 @@ AST::Expression* Parser::_parseInfixExpression(AST::Expression* leftNode) {
     int st_line_no = leftNode->meta_data.st_line_no;
     int st_col_no = leftNode->meta_data.st_col_no;
     auto infix_expr = new AST::InfixExpression(leftNode, this->current_token.type, this->current_token.literal);
-    infix_expr->meta_data.more_data["operator_line_no"] = this->current_token.line_no;
-    infix_expr->meta_data.more_data["operator_st_col_no"] = this->current_token.col_no;
-    infix_expr->meta_data.more_data["operator_end_col_no"] = this->current_token.end_col_no;
+    infix_expr->meta_data.more_data.insert("operator_line_no", this->current_token.line_no);
+    infix_expr->meta_data.more_data.insert("operator_st_col_no", this->current_token.col_no);
+    infix_expr->meta_data.more_data.insert("operator_end_col_no", this->current_token.end_col_no);
     auto precedence = this->_currentPrecedence();
     this->_nextToken(); // [Operator] -> [Next Expression]
     LOG_TOK()
@@ -896,9 +896,9 @@ AST::Expression* Parser::_parseIndexExpression(AST::Expression* leftNode) {
     int st_line_no = leftNode->meta_data.st_line_no;
     int st_col_no = leftNode->meta_data.st_col_no;
     auto index_expr = new AST::IndexExpression(leftNode);
-    index_expr->meta_data.more_data["index_line_no"] = this->current_token.line_no;
-    index_expr->meta_data.more_data["index_st_col_no"] = this->current_token.col_no;
-    index_expr->meta_data.more_data["index_end_col_no"] = this->current_token.end_col_no;
+    index_expr->meta_data.more_data.insert("index_line_no", this->current_token.line_no);
+    index_expr->meta_data.more_data.insert("index_st_col_no", this->current_token.col_no);
+    index_expr->meta_data.more_data.insert("index_end_col_no", this->current_token.end_col_no);
     this->_nextToken(); // [LeftBracket] -> [Index Expression]
     LOG_TOK()
     index_expr->index = this->_parseExpression(PrecedenceType::INDEX); // [Index Expression] remains unchanged

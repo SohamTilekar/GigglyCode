@@ -10,9 +10,10 @@
  * modules, and their respective environments during the compilation process.
  */
 
+#include <cstdio>
 #include <llvm/IR/Function.h>
-#include <memory>
 #include <set>
+#include <vector>
 
 #include "../../parser/AST/ast.hpp"
 
@@ -96,17 +97,7 @@ class RecordModule;
 // Type Aliases for Improved Readability
 
 using Str = std::string; ///< Alias for std::string.
-using Any = std::any;    ///< Alias for std::any.
-using std::shared_ptr;
-using StrAnyMap = std::unordered_map<Str, Any>;                        ///< Map from string to any type.
-using StrRecordMap = std::vector<std::tuple<Str, shared_ptr<Record>>>; ///< Vector of tuples mapping strings to records.
-using StructTypePtr = shared_ptr<RecordStructType>;                    ///< Shared pointer to RecordStructType.
-using FunctionPtr = shared_ptr<RecordFunction>;                        ///< Shared pointer to RecordFunction.
-using GenericFunctionPtr = shared_ptr<RecordGenericFunction>;          ///< Shared pointer to RecordGenericFunction.
-using GenericStructTypePtr = shared_ptr<RecordGenericStructType>;      ///< Shared pointer to RecordGenericStructType.
-using ModulePtr = shared_ptr<RecordModule>;                            ///< Shared pointer to RecordModule.
-using VariablePtr = shared_ptr<RecordVariable>;                        ///< Shared pointer to RecordVariable.
-using EnviornmentPtr = shared_ptr<Enviornment>;                        ///< Shared pointer to Enviornment.
+using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuples mapping strings to records.
 
 /**
  * @enum RecordType
@@ -134,7 +125,7 @@ class Record {
     RecordType type;           ///< The type of the record.
     Str name;                  ///< The name of the record.
     AST::MetaData meta_data;   ///< Metadata associated with the record.
-    StrAnyMap extra_info = {}; ///< Additional information stored in the record.
+    AST::MoreData extra_info;
 
     /**
      * @brief Sets the metadata for the record.
@@ -156,7 +147,7 @@ class Record {
      * @param name The name of the record.
      * @param extraInfo Optional extra information for the record.
      */
-    Record(const RecordType& type, const Str& name, const StrAnyMap& extraInfo = {}) : type(type), name(name), extra_info(extraInfo) {}
+    Record(const RecordType& type, const Str& name, const AST::MoreData& extraInfo = {}) : type(type), name(name), extra_info(extraInfo) {}
 }; // class Record
 
 /**
@@ -177,8 +168,8 @@ class RecordFunction : public Record {
      * - Pointer to the struct type of the argument.
      * - Boolean indicating if the argument is passed by reference.
      */
-    std::vector<std::tuple<Str, StructTypePtr, bool>> arguments = {};
-    StructTypePtr return_type; ///< Pointer to the struct type of the return value.
+    std::vector<std::tuple<Str, RecordStructType*, bool>> arguments = {};
+    RecordStructType* return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;   ///< Indicates if the function accepts variable number of arguments.
     Enviornment* env;        ///< Pointer to the environment in which the function is defined.
 
@@ -200,9 +191,9 @@ class RecordFunction : public Record {
     RecordFunction(const Str& name,
                    llvm::Function* function,
                    llvm::FunctionType* functionType,
-                   std::vector<std::tuple<Str, StructTypePtr, bool>> arguments,
-                   StructTypePtr returnInst,
-                   const StrAnyMap& extraInfo = {})
+                   std::vector<std::tuple<Str, RecordStructType*, bool>> arguments,
+                   RecordStructType* returnInst,
+                   const AST::MoreData& extraInfo = {})
         : Record(RecordType::RecordFunction, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst) {}
 
     /**
@@ -214,7 +205,7 @@ class RecordFunction : public Record {
      * @param returnInst Pointer to the struct type of the return value.
      * @param isVarArg Indicates if the function accepts variable arguments.
      */
-    RecordFunction(const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, StructTypePtr, bool>> arguments, StructTypePtr returnInst, bool isVarArg)
+    RecordFunction(const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool>> arguments, RecordStructType* returnInst, bool isVarArg)
         : Record(RecordType::RecordFunction, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg) {}
 
     /**
@@ -242,7 +233,7 @@ class RecordFunction : public Record {
      * @param arguments Vector of arguments.
      * @return Pointer to the current RecordFunction instance.
      */
-    RecordFunction* setArguments(const std::vector<std::tuple<Str, StructTypePtr, bool>>& arguments) {
+    RecordFunction* setArguments(const std::vector<std::tuple<Str, RecordStructType*, bool>>& arguments) {
         this->arguments = arguments;
         return this;
     }
@@ -252,7 +243,7 @@ class RecordFunction : public Record {
      * @param argument Tuple containing argument details.
      * @return Pointer to the current RecordFunction instance.
      */
-    RecordFunction* addArgument(const std::tuple<Str, StructTypePtr, bool>& argument) {
+    RecordFunction* addArgument(const std::tuple<Str, RecordStructType*, bool>& argument) {
         arguments.push_back(argument);
         return this;
     }
@@ -262,7 +253,7 @@ class RecordFunction : public Record {
      * @param return_type Pointer to the struct type of the return value.
      * @return Pointer to the current RecordFunction instance.
      */
-    RecordFunction* setRetiType(StructTypePtr return_type) {
+    RecordFunction* setRetiType(RecordStructType* return_type) {
         this->return_type = return_type;
         return this;
     }
@@ -326,10 +317,6 @@ class RecordGenericFunction : public Record {
         this->env = env;
         return this;
     }
-
-    // ~RecordGenericFunction() {
-    //     if (this->func) { delete func; }
-    // }
 };
 
 /**
@@ -371,9 +358,6 @@ class RecordGenericStructType : public Record {
         this->env = env;
         return this;
     }
-    // ~RecordGenericStructType() {
-    //     if (structAST) { delete structAST; }
-    // }
 };
 
 /**
@@ -390,14 +374,14 @@ class RecordStructType : public Record {
   public:
     llvm::Type* stand_alone_type = nullptr;                ///< Pointer to the standalone LLVM Type.
     llvm::StructType* struct_type = nullptr;               ///< Pointer to the LLVM StructType.
-    std::unordered_map<Str, StructTypePtr> sub_types = {}; ///< Map of subtypes by field name.
-    std::vector<StructTypePtr> generic_sub_types = {};     ///< Vector of generic subtypes.
+    std::unordered_map<Str, RecordStructType*> sub_types = {}; ///< Map of subtypes by field name.
+    std::vector<RecordStructType*> generic_sub_types = {};     ///< Vector of generic subtypes.
     /**
      * @brief Vector of methods where each method is a tuple containing:
      * - Method name.
      * - Pointer to the function record.
      */
-    std::vector<std::tuple<Str, FunctionPtr>> methods = {};
+    std::vector<std::tuple<Str, RecordFunction*>> methods = {};
 
     /**
      * @brief Constructs a RecordStructType with the specified name.
@@ -421,7 +405,7 @@ class RecordStructType : public Record {
      * @param exact If true, performs an exact match.
      * @return True if the method exists, false otherwise.
      */
-    bool is_method(const Str& name, const std::vector<StructTypePtr>& params_types, const StrAnyMap& ex_info = {}, StructTypePtr return_type = nullptr, bool exact = false);
+    bool is_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
 
     /**
      * @brief Retrieves the method with the given name and parameters.
@@ -432,7 +416,7 @@ class RecordStructType : public Record {
      * @param exact If true, performs an exact match.
      * @return Pointer to the FunctionRecord if found, nullptr otherwise.
      */
-    FunctionPtr get_method(const Str& name, const std::vector<StructTypePtr>& params_types, const StrAnyMap& ex_info = {}, StructTypePtr return_type = nullptr, bool exact = false);
+    RecordFunction* get_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
 
     /**
      * @brief Sets the standalone LLVM Type.
@@ -451,7 +435,7 @@ class RecordStructType : public Record {
      * @param name The name of the subtype.
      * @param type Pointer to the struct type of the subtype.
      */
-    void addSubType(Str name, StructTypePtr type) {
+    void addSubType(Str name, RecordStructType* type) {
         this->fields.push_back(name);
         this->sub_types[name] = type;
     }
@@ -460,14 +444,14 @@ class RecordStructType : public Record {
      * @brief Adds a generic subtype to the struct.
      * @param type Pointer to the generic struct type.
      */
-    void addGenericSubType(StructTypePtr type) { this->generic_sub_types.push_back(type); }
+    void addGenericSubType(RecordStructType* type) { this->generic_sub_types.push_back(type); }
 
     /**
      * @brief Adds a method to the struct.
      * @param name The name of the method.
      * @param type Pointer to the function record of the method.
      */
-    void addMethod(Str name, FunctionPtr type) { this->methods.push_back({name, type}); }
+    void addMethod(Str name, RecordFunction* type) { this->methods.push_back({name, type}); }
 
     /**
      * @brief Retrieves the list of field names in the struct.
@@ -487,7 +471,7 @@ class RecordVariable : public Record {
   public:
     llvm::Value* value = nullptr;          ///< Pointer to the LLVM Value representing the variable.
     llvm::Value* allocainst = nullptr;     ///< Pointer to the LLVM Allocation Instruction.
-    StructTypePtr variable_type = nullptr; ///< Pointer to the struct type of the variable.
+    RecordStructType* variable_type = nullptr; ///< Pointer to the struct type of the variable.
 
     /**
      * @brief Constructs a RecordVariable with the specified name.
@@ -502,7 +486,7 @@ class RecordVariable : public Record {
      * @param allocainst Pointer to the LLVM Allocation Instruction.
      * @param generic Pointer to the struct type of the variable.
      */
-    RecordVariable(const Str& name, llvm::Value* value, llvm::Value* allocainst, StructTypePtr generic)
+    RecordVariable(const Str& name, llvm::Value* value, llvm::Value* allocainst, RecordStructType* generic)
         : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variable_type(generic) {}
 };
 
@@ -512,7 +496,7 @@ class RecordVariable : public Record {
  * @param type2 Pointer to the second struct type.
  * @return True if both struct types are equivalent, false otherwise.
  */
-bool _checkType(StructTypePtr type1, StructTypePtr type2);
+bool _checkType(RecordStructType* type1, RecordStructType* type2);
 
 /**
  * @brief Checks if two struct types are equivalent.
@@ -520,7 +504,7 @@ bool _checkType(StructTypePtr type1, StructTypePtr type2);
  * @param type2 Pointer to the second struct type.
  * @return True if both struct types are equivalent, false otherwise.
  */
-bool _checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked);
+bool _checkType(RecordStructType* type1, RecordStructType* type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked);
 
 /**
  * @brief Checks if two generic struct types are equivalent.
@@ -528,7 +512,7 @@ bool _checkType(StructTypePtr type1, StructTypePtr type2, std::set<std::pair<Rec
  * @param type2 Pointer to the second generic struct type.
  * @return True if both generic struct types are equivalent, false otherwise.
  */
-bool _checkType(GenericStructTypePtr type1, GenericStructTypePtr type2);
+bool _checkType(RecordGenericStructType* type1, RecordGenericStructType* type2);
 
 /**
  * @class RecordModule
@@ -549,6 +533,41 @@ class RecordModule : public Record {
      */
     RecordModule(const Str& name, const StrRecordMap& record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {}
 
+    ~RecordModule() {
+        for (auto& [_, record] : record_map) {
+            switch (record->type) {
+                case RecordType::RecordVariable: {
+                    delete (RecordVariable*)(record);
+                    break;
+                }
+                case RecordType::RecordFunction: {
+                    delete (RecordFunction*)(record);
+                    break;
+                }
+                case RecordType::RecordStructInst: {
+                    delete (RecordStructType*)(record);
+                    break;
+                }
+                case RecordType::RecordModule: {
+                    delete (RecordModule*)(record);
+                    break;
+                }
+                case RecordType::RecordGenericFunction: {
+                    delete (RecordGenericFunction*)(record);
+                    break;
+                }
+                case RecordType::RecordGStructType: {
+                    delete (RecordGenericStructType*)(record);
+                    break;
+                }
+                default: {
+                    delete record;
+                    break;
+                }
+            }
+        }
+    }
+
     /**
      * @brief Constructs a RecordModule with the specified name.
      * @param name The name of the module.
@@ -557,9 +576,9 @@ class RecordModule : public Record {
 
     /**
      * @brief Adds a record to the module.
-     * @param record Shared pointer to the record to be added.
+     * @param record pointer to the record to be added.
      */
-    void addRecord(shared_ptr<Record> record) { record_map.push_back({record->name, record}); }
+    void addRecord(Record* record) { record_map.push_back({record->name, record}); }
 
     /**
      * @brief Checks if a function with the given name and parameters exists in the module.
@@ -568,7 +587,7 @@ class RecordModule : public Record {
      * @param exact If true, performs an exact match.
      * @return True if the function exists, false otherwise.
      */
-    bool isFunction(const Str& name, const std::vector<StructTypePtr>& params_types, bool exact = false);
+    bool isFunction(const Str& name, const std::vector<RecordStructType*>& params_types, bool exact = false);
 
     /**
      * @brief Retrieves a function with the given name and parameters from the module.
@@ -577,7 +596,7 @@ class RecordModule : public Record {
      * @param exact If true, performs an exact match.
      * @return Pointer to the FunctionRecord if found, nullptr otherwise.
      */
-    FunctionPtr getFunction(const Str& name, const std::vector<StructTypePtr>& params_types, bool exact = false);
+    RecordFunction* getFunction(const Str& name, const std::vector<RecordStructType*>& params_types, bool exact = false);
 
     /**
      * @brief Checks if a generic function with the given name exists in the module.
@@ -591,7 +610,7 @@ class RecordModule : public Record {
      * @param name The name of the generic function.
      * @return Vector of pointers to generic function records.
      */
-    std::vector<GenericFunctionPtr> get_GenericFunc(const Str& name);
+    std::vector<RecordGenericFunction*> get_GenericFunc(const Str& name);
 
     /**
      * @brief Checks if a generic struct with the given name exists in the module.
@@ -605,7 +624,7 @@ class RecordModule : public Record {
      * @param name The name of the generic struct.
      * @return Vector of pointers to generic struct type records.
      */
-    std::vector<GenericStructTypePtr> getGenericStruct(const Str& name);
+    std::vector<RecordGenericStructType*> getGenericStruct(const Str& name);
 
     /**
      * @brief Checks if a struct with the given name exists in the module.
@@ -613,7 +632,7 @@ class RecordModule : public Record {
      * @param gen Vector of generic struct types for parameterized structs.
      * @return True if the struct exists, false otherwise.
      */
-    bool is_struct(const Str& name, std::vector<StructTypePtr> gen = {});
+    bool is_struct(const Str& name, std::vector<RecordStructType*> gen = {});
 
     /**
      * @brief Retrieves a struct with the given name from the module.
@@ -621,7 +640,7 @@ class RecordModule : public Record {
      * @param gen Vector of generic struct types for parameterized structs.
      * @return Pointer to the StructTypeRecord if found, nullptr otherwise.
      */
-    StructTypePtr get_struct(const Str& name, std::vector<StructTypePtr> gen = {});
+    RecordStructType* get_struct(const Str& name, std::vector<RecordStructType*> gen = {});
 
     /**
      * @brief Checks if a module with the given name exists within the module.
@@ -635,7 +654,7 @@ class RecordModule : public Record {
      * @param name The name of the module.
      * @return Pointer to the RecordModule if found, nullptr otherwise.
      */
-    ModulePtr get_module(const Str& name);
+    RecordModule* get_module(const Str& name);
 };
 
 /**
@@ -663,6 +682,8 @@ class Enviornment {
     std::vector<llvm::BasicBlock*> loop_ifbreak_block = {};   ///< Stack of loop if-break blocks.
     std::vector<llvm::BasicBlock*> loop_notbreak_block = {};  ///< Stack of loop not-break blocks.
 
+    std::vector<Enviornment*> childes = {};
+
     /**
      * @brief Constructs an Enviornment with an optional parent, records, and name.
      * @param parent Pointer to the parent environment (default: nullptr).
@@ -684,16 +705,48 @@ class Enviornment {
     }
 
     ~Enviornment() {
-        if (this->parent && !this->parent->parent) {
-            delete this->parent;
+        for (auto _record : record_map) {
+            switch (std::get<1>(_record)->type) {
+                case RecordType::RecordVariable: {
+                    delete (RecordVariable*)(std::get<1>(_record));
+                    break;
+                }
+                case RecordType::RecordFunction: {
+                    delete (RecordFunction*)(std::get<1>(_record));
+                    break;
+                }
+                case RecordType::RecordStructInst: {
+                    delete (RecordStructType*)(std::get<1>(_record));
+                    break;
+                }
+                case RecordType::RecordModule: {
+                    delete (RecordModule*)(std::get<1>(_record));
+                    break;
+                }
+                case RecordType::RecordGenericFunction: {
+                    delete (RecordGenericFunction*)(std::get<1>(_record));
+                    break;
+                }
+                case RecordType::RecordGStructType: {
+                    delete (RecordGenericStructType*)(std::get<1>(_record));
+                    break;
+                }
+                default: {
+                    delete std::get<1>(_record);
+                    break;
+                }
+            }
+        }
+        for (auto child : childes) {
+            delete child;
         }
     }
 
     /**
      * @brief Adds a record to the environment.
-     * @param record Shared pointer to the record to be added.
+     * @param record pointer to the record to be added.
      */
-    void addRecord(shared_ptr<Record> record);
+    void addRecord(Record* record);
 
     /**
      * @brief Checks if a variable with the given name exists in the environment.
@@ -709,7 +762,7 @@ class Enviornment {
      * @param limit2current_scope If true, limits the search to the current scope.
      * @return Pointer to the VariableRecord if found, nullptr otherwise.
      */
-    VariablePtr getVariable(const Str& name, bool limit2current_scope = false);
+    RecordVariable* getVariable(const Str& name, bool limit2current_scope = false);
 
     /**
      * @brief Checks if a function with the given name and parameters exists in the environment.
@@ -719,7 +772,7 @@ class Enviornment {
      * @param exact If true, performs an exact match.
      * @return True if the function exists, false otherwise.
      */
-    bool isFunction(const Str& name, std::vector<StructTypePtr> params_types, bool limit2current_scope = false, bool exact = false);
+    bool isFunction(const Str& name, std::vector<RecordStructType*> params_types, bool limit2current_scope = false, bool exact = false);
 
     /**
      * @brief Retrieves a function with the given name and parameters from the environment.
@@ -729,7 +782,7 @@ class Enviornment {
      * @param exact If true, performs an exact match.
      * @return Pointer to the FunctionRecord if found, nullptr otherwise.
      */
-    FunctionPtr getFunction(const Str& name, std::vector<StructTypePtr> params_types, bool limit2current_scope = false, bool exact = false);
+    RecordFunction* getFunction(const Str& name, std::vector<RecordStructType*> params_types, bool limit2current_scope = false, bool exact = false);
 
     /**
      * @brief Checks if a struct with the given name exists in the environment.
@@ -738,7 +791,7 @@ class Enviornment {
      * @param gen Vector of generic struct types for parameterized structs.
      * @return True if the struct exists, false otherwise.
      */
-    bool isStruct(const Str& name, bool limit2current_scope = false, std::vector<StructTypePtr> gen = {});
+    bool isStruct(const Str& name, bool limit2current_scope = false, std::vector<RecordStructType*> gen = {});
 
     /**
      * @brief Retrieves a struct with the given name from the environment.
@@ -747,7 +800,7 @@ class Enviornment {
      * @param gen Vector of generic struct types for parameterized structs.
      * @return Pointer to the StructTypeRecord if found, nullptr otherwise.
      */
-    StructTypePtr getStruct(const Str& name, bool limit2current_scope = false, std::vector<StructTypePtr> gen = {});
+    RecordStructType* getStruct(const Str& name, bool limit2current_scope = false, std::vector<RecordStructType*> gen = {});
 
     /**
      * @brief Checks if a module with the given name exists in the environment.
@@ -763,7 +816,7 @@ class Enviornment {
      * @param limit2current_scope If true, limits the search to the current scope.
      * @return Pointer to the RecordModule if found, nullptr otherwise.
      */
-    ModulePtr getModule(const Str& name, bool limit2current_scope = false);
+    RecordModule* getModule(const Str& name, bool limit2current_scope = false);
 
     /**
      * @brief Checks if a generic function with the given name exists in the environment.
@@ -777,7 +830,7 @@ class Enviornment {
      * @param name The name of the generic function.
      * @return Vector of pointers to generic function records.
      */
-    std::vector<GenericFunctionPtr> getGenericFunc(const Str& name);
+    std::vector<RecordGenericFunction*> getGenericFunc(const Str& name);
 
     /**
      * @brief Checks if a generic struct with the given name exists in the environment.
@@ -791,13 +844,13 @@ class Enviornment {
      * @param name The name of the generic struct.
      * @return Vector of pointers to generic struct type records.
      */
-    std::vector<GenericStructTypePtr> getGenericStruct(const Str& name);
+    std::vector<RecordGenericStructType*> getGenericStruct(const Str& name);
 
     /**
      * @brief Retrieves all variables in the current environment.
      * @return Vector of pointers to VariableRecords.
      */
-    std::vector<VariablePtr> getCurrentFuncVars();
+    std::vector<RecordVariable*> getCurrentFuncVars();
 
     /**
      * @brief Enters a new loop scope by adding loop-related basic blocks.
