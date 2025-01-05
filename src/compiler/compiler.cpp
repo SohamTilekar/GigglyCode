@@ -353,7 +353,6 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
 
         // Create a record for the new function
         auto func_record = new RecordFunction(name, func, func_type, {}, return_type, gfunc->func->extra_info);
-        func_record->env = this->env;
 
         if (body) {
             // Create entry basic block for the function
@@ -540,7 +539,6 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
         auto prev_env = this->env;
         this->env = new Enviornment(prev_env, {}, name);
         prev_env->childes.push_back(this->env);
-        func_record->env = this->env;
         this->env->current_function = func_record;
 
         // Initialize function arguments in the new environment

@@ -116,7 +116,6 @@ class RecordFunction : public Record {
     std::vector<std::tuple<Str, RecordStructType*, bool>> arguments = {};
     RecordStructType* return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;   ///< Indicates if the function accepts a variable number of arguments.
-    Enviornment* env;          ///< Pointer to the environment in which the function is defined.
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -159,7 +158,7 @@ class RecordFunction : public Record {
      */
     RecordFunction(const RecordFunction& other)
         : Record(other), ll_name(other.ll_name), function(other.function), function_type(other.function_type),
-            arguments(other.arguments), return_type(other.return_type), is_var_arg(other.is_var_arg), env(other.env) {}
+            arguments(other.arguments), return_type(other.return_type), is_var_arg(other.is_var_arg) {}
 
     /**
      * @brief Sets the LLVM Function pointer.
@@ -208,16 +207,6 @@ class RecordFunction : public Record {
      */
     RecordFunction* setRetiType(RecordStructType* return_type) {
         this->return_type = return_type;
-        return this;
-    }
-
-    /**
-     * @brief Sets the environment in which the function is defined.
-     * @param env Pointer to the environment.
-     * @return Pointer to the current RecordFunction instance.
-     */
-    RecordFunction* setEnv(Enviornment* env) {
-        this->env = env;
         return this;
     }
 
@@ -366,12 +355,15 @@ class RecordStructType : public Record {
     /**
      * @brief Copy constructor for RecordStructType.
      * @param other The RecordStructType object to copy from.
+     * @param is_on_stack If true, methods are not copied.
      */
-    RecordStructType(const RecordStructType& other)
+    RecordStructType(const RecordStructType& other, bool is_on_stack = false)
         : Record(other), fields(other.fields), stand_alone_type(other.stand_alone_type), struct_type(other.struct_type),
           sub_types(other.sub_types), generic_sub_types(other.generic_sub_types) {
-        for (const auto& method : other.methods) {
-            methods.push_back({std::get<0>(method), new RecordFunction(*std::get<1>(method))});
+        if (!is_on_stack) {
+            for (const auto& method : other.methods) {
+                methods.push_back({std::get<0>(method), new RecordFunction(*std::get<1>(method))});
+            }
         }
     }
 
