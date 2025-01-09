@@ -1,4 +1,5 @@
 #include <array>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -11,53 +12,23 @@
 #include <mutex>
 #include <queue>
 #include <sstream>
-#include <stdexcept>
 #include <system_error>
 #include <thread>
 #include <vector>
 
 // Include necessary headers
+#include "compilation_state.hpp"
+#include "compiler/compiler.hpp"
+#include "errors/errors.hpp"
 #include "include/cli11.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
-#include "compiler/compiler.hpp"
-#include "compilation_state.hpp"
 
-// #define DEBUG_LEXER
-// #define DEBUG_PARSER
+#define DEBUG_LEXER
+#define DEBUG_PARSER
 
 constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
 constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
-
-// =======================================
-// Custom Exception Classes
-// =======================================
-
-/**
- * @brief Exception thrown when a required file is not found.
- */
-class FileNotFoundException : public std::runtime_error {
-  public:
-    /**
-     * @brief Construct a new File Not Found Exception object
-     *
-     * @param message Detailed error message.
-     */
-    explicit FileNotFoundException(const std::string& message) : std::runtime_error(message) {}
-};
-
-/**
- * @brief Exception thrown during compilation failures.
- */
-class CompilationException : public std::runtime_error {
-  public:
-    /**
-     * @brief Construct a new Compilation Exception object
-     *
-     * @param message Detailed error message.
-     */
-    explicit CompilationException(const std::string& message) : std::runtime_error(message) {}
-};
 
 // =======================================
 // Helper Function to Run External Commands
@@ -77,7 +48,7 @@ std::string runCommand(const std::string& command, int& exit_code) {
 
     // Open pipe to file
     FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) { throw std::runtime_error("popen() failed while executing command: " + command); }
+    if (!pipe) { errors::raiseCompilationError("popen() failed while executing command: " + command); }
 
     try {
         // Read till end of process
@@ -106,7 +77,7 @@ namespace Utils {
  */
 std::string readFileToString(const std::filesystem::path& filePath) {
     std::ifstream file(filePath, std::ios::in | std::ios::binary);
-    if (!file) { throw FileNotFoundException("Error: Could not open file " + filePath.string()); }
+    if (!file) { errors::raiseFileNotFoundError("Error: Could not open file " + filePath.string()); }
     std::ostringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
@@ -130,7 +101,7 @@ size_t computeHash(const std::string& content) {
  */
 void createDirectories(const std::filesystem::path& path) {
     std::error_code ec;
-    if (!std::filesystem::create_directories(path, ec) && ec) { throw std::runtime_error("Error: Could not create directories " + path.string() + ": " + ec.message()); }
+    if (!std::filesystem::create_directories(path, ec) && ec) { errors::raiseCompilationError("Error: Could not create directories " + path.string() + ": " + ec.message()); }
 }
 
 } // namespace Utils
@@ -199,9 +170,7 @@ compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFol
 
     for (auto& item : currentFolder->files_or_folder) {
         if (auto file = std::get_if<compilationState::RecordFile*>(&item)) {
-            if ((*file)->name == relativePath.filename().string()) {
-                return *file;
-            }
+            if ((*file)->name == relativePath.filename().string()) { return *file; }
         }
     }
 
@@ -260,9 +229,7 @@ class Compiler {
                         file = fileQueue.front();
                         fileQueue.pop();
                     }
-                    try {
-                        compileFile(file, rootFolder);
-                    } catch (const std::exception& e) { std::cerr << "Error compiling " << file << ": " << e.what() << std::endl; }
+                    compileFile(file, rootFolder);
                 }
             });
         }
@@ -300,7 +267,7 @@ class Compiler {
 
         int exit_code;
         std::string linkOutput = runCommand(linkCommand, exit_code);
-        if (exit_code != 0) { throw CompilationException("Failed to link object files into executable " + executablePath.string() + "\nCommand: " + linkCommand + "\nOutput: " + linkOutput); }
+        if (exit_code != 0) { errors::raiseCompilationError("Failed to link object files into executable " + executablePath.string() + "\nCommand: " + linkCommand + "\nOutput: " + linkOutput); }
 
         if (verbose) { std::cout << "Successfully linked object files into executable: " << executablePath << std::endl; }
         return 0;
@@ -361,7 +328,7 @@ class Compiler {
         } else if (extension == ".rs") {
             compileRustFile(filePath, outputIRPath, objFilePath, fileRecord);
         } else {
-            throw std::runtime_error("Unsupported file type: " + filePath.string());
+            errors::raiseCompilationError("Unsupported file type: " + filePath.string());
         }
     }
 
@@ -373,23 +340,19 @@ class Compiler {
      * @param objFilePath The path to the output object file.
      * @param fileRecord The record of the file being compiled.
      */
-    void compileGcFile(std::string fileContent,
-                       const std::filesystem::path& filePath,
-                       const std::filesystem::path& outputIRPath,
-                       const std::filesystem::path& objFilePath,
-                       compilationState::RecordFile* fileRecord
-    ) {
+    void compileGcFile(
+        std::string fileContent, const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, compilationState::RecordFile* fileRecord) {
 // Debugging Lexer
 #ifdef DEBUG_LEXER
-        debugLexer(Utils::readFileToString(filePath));
+        debugLexer(Utils::readFileToString(filePath), filePath);
 #endif
 
 // Debugging Parser
 #ifdef DEBUG_PARSER
-        debugParser(Utils::readFileToString(filePath));
+        debugParser(Utils::readFileToString(filePath), filePath);
 #endif
 
-        Lexer lexer(fileContent);
+        Lexer lexer(fileContent, filePath);
         parser::Parser parser(&lexer);
         auto program = parser.parseProgram();
 
@@ -400,7 +363,7 @@ class Compiler {
         // Write LLVM IR to file
         std::error_code EC;
         llvm::raw_fd_ostream irFile(outputIRPath.string(), EC, llvm::sys::fs::OF_None);
-        if (EC) { throw CompilationException("Could not open IR file " + outputIRPath.string() + ": " + EC.message()); }
+        if (EC) { errors::raiseCompilationError("Could not open IR file " + outputIRPath.string() + ": " + EC.message()); }
         comp.llvm_module->print(irFile, nullptr);
         irFile.close();
 
@@ -411,7 +374,9 @@ class Compiler {
 
         int clangResult;
         std::string clangOutput = runCommand(clangCommand, clangResult);
-        if (clangResult != 0) { throw CompilationException("Failed to convert " + outputIRPath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
+        if (clangResult != 0) {
+            errors::raiseCompilationError("Failed to convert " + outputIRPath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput);
+        }
 
         // Update file record
         fileRecord->compiled = true;
@@ -427,24 +392,21 @@ class Compiler {
      * @param objFilePath The path to the output object file.
      * @param fileRecord The record of the file being compiled.
      */
-    void compileCFile(const std::filesystem::path& filePath,
-                      const std::filesystem::path& outputIRPath,
-                      const std::filesystem::path& objFilePath,
-                      compilationState::RecordFile* fileRecord) {
+    void compileCFile(const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, compilationState::RecordFile* fileRecord) {
         // Compile to LLVM IR
         std::string optFlag = optimizationLevel.empty() ? "" : " -O" + optimizationLevel;
         std::string clangCommandIR = "clang -emit-llvm -S " + optFlag + " \"" + filePath.string() + "\" -o \"" + outputIRPath.string() + "\"";
 
         int clangResultIR;
         std::string clangOutputIR = runCommand(clangCommandIR, clangResultIR);
-        if (clangResultIR != 0) { throw CompilationException("Failed to compile " + filePath.string() + " to LLVM IR" + "\nCommand: " + clangCommandIR + "\nOutput: " + clangOutputIR); }
+        if (clangResultIR != 0) { errors::raiseCompilationError("Failed to compile " + filePath.string() + " to LLVM IR" + "\nCommand: " + clangCommandIR + "\nOutput: " + clangOutputIR); }
 
         // Compile to object file
         std::string clangCommandObj = "clang -c \"" + filePath.string() + "\" -o \"" + objFilePath.string() + "\" " + optFlag;
 
         int clangResultObj;
         std::string clangOutputObj = runCommand(clangCommandObj, clangResultObj);
-        if (clangResultObj != 0) { throw CompilationException("Failed to compile " + filePath.string() + " to object file" + "\nCommand: " + clangCommandObj + "\nOutput: " + clangOutputObj); }
+        if (clangResultObj != 0) { errors::raiseCompilationError("Failed to compile " + filePath.string() + " to object file" + "\nCommand: " + clangCommandObj + "\nOutput: " + clangOutputObj); }
 
         // Update file record
         fileRecord->compiled = true;
@@ -469,14 +431,14 @@ class Compiler {
 
         int rustcResult;
         std::string rustcOutput = runCommand(rustcCommand, rustcResult);
-        if (rustcResult != 0) { throw CompilationException("Failed to compile Rust file " + filePath.string() + " to LLVM IR" + "\nCommand: " + rustcCommand + "\nOutput: " + rustcOutput); }
+        if (rustcResult != 0) { errors::raiseCompilationError("Failed to compile Rust file " + filePath.string() + " to LLVM IR" + "\nCommand: " + rustcCommand + "\nOutput: " + rustcOutput); }
 
         // Compile LLVM IR to object file
         std::string clangCommand = "clang -c \"" + irFilePath.string() + "\" -o \"" + objFilePath.string() + "\"" + (optimizationLevel.empty() ? "" : " -O" + optimizationLevel);
 
         int clangResult;
         std::string clangOutput = runCommand(clangCommand, clangResult);
-        if (clangResult != 0) { throw CompilationException("Failed to convert " + irFilePath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
+        if (clangResult != 0) { errors::raiseCompilationError("Failed to convert " + irFilePath.string() + " to " + objFilePath.string() + "\nCommand: " + clangCommand + "\nOutput: " + clangOutput); }
 
         // Update file record
         fileRecord->compiled = true;
@@ -489,10 +451,10 @@ class Compiler {
      *
      * @param fileContent The content of the source file.
      */
-    void debugLexer(const std::string& fileContent) const {
+    void debugLexer(const std::string& fileContent, const std::filesystem::path& file_path) const {
 #ifdef DEBUG_LEXER
         std::cout << "=========== Lexer Debug ===========" << std::endl;
-        Lexer debugLexer(fileContent);
+        Lexer debugLexer(fileContent, file_path);
         if (std::filesystem::path(DEBUG_LEXER_OUTPUT_PATH).string().empty()) {
             while (debugLexer.current_char != "") {
                 token::Token token = debugLexer.nextToken();
@@ -518,9 +480,9 @@ class Compiler {
      *
      * @param fileContent The content of the source file.
      */
-    void debugParser(const std::string& fileContent) const {
+    void debugParser(const std::string& fileContent, const std::filesystem::path& file_path) const {
 #ifdef DEBUG_PARSER
-        parser::Parser debugParser(new Lexer(fileContent));
+        parser::Parser debugParser(new Lexer(fileContent, file_path));
         auto program = debugParser.parseProgram();
         std::cout << "=========== Parser Debug ===========" << std::endl;
         if (!std::filesystem::path(DEBUG_PARSER_OUTPUT_PATH).string().empty()) {
@@ -529,8 +491,7 @@ class Compiler {
                 file << program->toStr() << std::endl;
                 std::cout << "Parser debug output written to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
             } else {
-                std::cerr << "Unable to open parser debug output file." << std::endl;
-                exit(1);
+                errors::raiseCompilationError("Unable to open parser debug output file.");
             }
         } else {
             std::cout << program->toStr();
@@ -554,54 +515,43 @@ void setupCLI(CLI::App& app, std::filesystem::path& inputFolderPath, std::string
 // Main Function
 // =======================================
 int main(int argc, char* argv[]) {
-    try {
-        // Initialize CLI
-        CLI::App app{"Folder Compiler"};
-        std::filesystem::path inputFolderPath;
-        std::string optimizationLevel;
-        std::filesystem::path executablePath;
-        bool verbose = false;
-        setupCLI(app, inputFolderPath, optimizationLevel, executablePath, verbose);
-        CLI11_PARSE(app, argc, argv);
+    // Initialize CLI
+    CLI::App app{"Folder Compiler"};
+    std::filesystem::path inputFolderPath;
+    std::string optimizationLevel;
+    std::filesystem::path executablePath;
+    bool verbose = false;
+    setupCLI(app, inputFolderPath, optimizationLevel, executablePath, verbose);
+    CLI11_PARSE(app, argc, argv);
 
-        if (verbose) { std::cout << "Verbose mode enabled." << std::endl; }
+    if (verbose) { std::cout << "Verbose mode enabled." << std::endl; }
 
-        // Environment Variable Management
-        EnvManager envManager;
-        if (!envManager.isValid()) {
-            std::cerr << "Environment variables are missing. Exiting." << std::endl;
-            return 1;
-        }
-
-        // Define Source and Build Directories
-        std::filesystem::path srcDir = inputFolderPath / "src";
-        std::filesystem::path buildDir = inputFolderPath / "build";
-
-        if (!std::filesystem::exists(srcDir)) {
-            std::cerr << "Error: Source directory " << srcDir << " does not exist." << std::endl;
-            return 1;
-        }
-
-        // Initialize Compiler with verbose flag
-        Compiler compiler(srcDir, buildDir, optimizationLevel, verbose);
-
-        // Initialize rootFolder directly
-        compilationState::RecordFolder rootFolder;
-
-        // Compile All Files
-        compiler.compileAll(&rootFolder);
-
-        // Link Object Files into Executable
-        return compiler.linkAll(executablePath);
-    } catch (const CLI::ParseError& e) { return CLI::App().exit(e); } catch (const FileNotFoundException& e) {
-        std::cerr << "File error: " << e.what() << std::endl;
-        return 1;
-    } catch (const CompilationException& e) {
-        std::cerr << "Compilation error: " << e.what() << std::endl;
-        return 1;
-    } catch (const std::exception& e) {
-        std::cerr << "Compilation failed: " << e.what() << std::endl;
+    // Environment Variable Management
+    EnvManager envManager;
+    if (!envManager.isValid()) {
+        std::cerr << "Environment variables are missing. Exiting." << std::endl;
         return 1;
     }
+
+    // Define Source and Build Directories
+    std::filesystem::path srcDir = inputFolderPath / "src";
+    std::filesystem::path buildDir = inputFolderPath / "build";
+
+    if (!std::filesystem::exists(srcDir)) {
+        std::cerr << "Error: Source directory " << srcDir << " does not exist." << std::endl;
+        return 1;
+    }
+
+    // Initialize Compiler with verbose flag
+    Compiler compiler(srcDir, buildDir, optimizationLevel, verbose);
+
+    // Initialize rootFolder directly
+    compilationState::RecordFolder rootFolder;
+
+    // Compile All Files
+    compiler.compileAll(&rootFolder);
+
+    // Link Object Files into Executable
+    return compiler.linkAll(executablePath);
     return 0;
 }

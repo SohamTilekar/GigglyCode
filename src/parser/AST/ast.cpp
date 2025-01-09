@@ -409,10 +409,10 @@ std::string ExpressionStatement::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "Expression";
-    if (expr == nullptr) {
-        out << YAML::Value << "null";
-    } else {
+    if (expr) {
         out << YAML::Value << YAML::Load(expr->toStr());
+    } else {
+        out << YAML::Value << "null";
     }
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -434,10 +434,10 @@ std::string ReturnStatement::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "value";
-    if (value == nullptr) {
-        out << YAML::Value << "null";
-    } else {
+    if (value) {
         out << YAML::Value << YAML::Load(value->toStr());
+    } else {
+        out << YAML::Value << "null";
     }
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -448,10 +448,10 @@ std::string RaiseStatement::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "value";
-    if (value == nullptr) {
-        out << YAML::Value << "null";
-    } else {
+    if (value) {
         out << YAML::Value << YAML::Load(value->toStr());
+    } else {
+        out << YAML::Value << "null";
     }
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -524,10 +524,10 @@ std::string IfElseStatement::toStr() {
         out << YAML::Value << "null";
     }
     out << YAML::Key << "alternative";
-    if (alternative == nullptr) {
-        out << YAML::Value << "null";
-    } else {
+    if (alternative) {
         out << YAML::Value << YAML::Load(alternative->toStr());
+    } else {
+        out << YAML::Value << "null";
     }
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -624,12 +624,17 @@ std::string VariableDeclarationStatement::toStr() {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
     out << YAML::Key << "name" << YAML::Value << name->toStr();
-    out << YAML::Key << "value_type" << YAML::Value << YAML::Load(value_type->toStr());
-    out << YAML::Key << "value";
-    if (value == nullptr) {
-        out << YAML::Value << "null";
+    out << YAML::Key << "value_type";
+    if (value_type) {
+        out << YAML::Value << YAML::Load(value_type->toStr());
     } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "value";
+    if (value) {
         out << YAML::Value << YAML::Load(value->toStr());
+    } else {
+        out << YAML::Value << "null";
     }
     out << YAML::Key << "volatile" << YAML::Value << (is_volatile ? "true" : "false");
     out << YAML::EndMap;
@@ -709,10 +714,10 @@ std::string InfixExpression::toStr() {
         out << YAML::Value << "null";
     }
     out << YAML::Key << "right_node";
-    if (right == nullptr) {
-        out << YAML::Value << "null";
-    } else {
+    if (right) {
         out << YAML::Value << YAML::Load(right->toStr());
+    } else {
+        out << YAML::Value << "null";
     }
     out << YAML::EndMap;
     return std::string(out.c_str());

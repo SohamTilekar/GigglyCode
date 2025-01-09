@@ -94,8 +94,7 @@ struct MoreData {
     MoreData(std::unordered_map<std::string, bool> bool_map) : bool_map(bool_map) {}
     MoreData(std::unordered_map<std::string, std::tuple<int, int>> pos_map) : pos_map(pos_map) {}
 
-    template <typename T>
-    void insert(const std::string& key, const T& value) {
+    template <typename T> void insert(const std::string& key, const T& value) {
         if constexpr (std::is_same_v<T, int>) {
             int_map[key] = value;
         } else if constexpr (std::is_same_v<T, std::string>) {
@@ -111,9 +110,7 @@ struct MoreData {
     }
 
     // Overload for std::pair<int, int> to avoid ambiguity with std::tuple
-    void insert(const std::string& key, const std::pair<int, int>& value) {
-        pos_map[key] = value;
-    }
+    void insert(const std::string& key, const std::pair<int, int>& value) { pos_map[key] = value; }
 };
 
 struct MetaData {
@@ -369,9 +366,9 @@ class ForStatement : public Statement {
 
 class BreakStatement : public Statement {
   public:
-    unsigned short loopIdx = 0;
+    int loopIdx;
     inline NodeType type() override { return NodeType::BreakStatement; };
-    BreakStatement(int loopNum) : loopIdx(loopNum) {};
+    BreakStatement(int loopNum = 0) : loopIdx(loopNum) {};
     std::string toStr() override;
 };
 
@@ -509,8 +506,8 @@ class IdentifierLiteral : public Expression {
     std::string value;
     inline IdentifierLiteral(token::Token value) {
         this->value = value.literal;
-        this->meta_data.st_line_no = value.line_no;
-        this->meta_data.end_line_no = value.line_no;
+        this->meta_data.st_line_no = value.end_line_no;
+        this->meta_data.end_line_no = value.end_line_no;
         this->meta_data.st_col_no = value.col_no;
         this->meta_data.end_col_no = value.end_col_no;
     }

@@ -2,10 +2,13 @@
 #include "../errors/errors.hpp"
 #include "token.hpp"
 
+#include <iostream>
 #include <sstream>
 
-Lexer::Lexer(const std::string& source) {
+Lexer::Lexer(const std::string& source, const std::filesystem::path& file_path, bool tokenize_coment) {
     this->source = source;
+    this->file_path = file_path;
+    this->tokenize_coment = tokenize_coment;
     // Calling the `_readChar` will incremnt the `pos` & `col_no`
     pos = -1;
     line_no = 1;
@@ -117,8 +120,10 @@ token::Token Lexer::nextToken() {
             token = this->_newToken(token::TokenType::Decrement, this->current_char + this->_peekChar());
             this->_readChar(); // Move to next character after '--'
         } else if (this->_isDigit(this->_peekChar())) {
+            int st_col_no = this->col_no;
             this->_readChar(); // Move to next character after '-'
             token = this->_readNumber();
+            token.col_no = st_col_no;
             token.literal = "-" + token.literal;
             return token;
         } else if (this->_peekChar() == "=") {
@@ -230,10 +235,22 @@ token::Token Lexer::nextToken() {
         token = this->_newToken(token::TokenType::AtTheRate, this->current_char);
     } else if (this->current_char == "") {
         token = this->_newToken(token::TokenType::EndOfFile, "");
+    } else if (this->current_char == "#" && tokenize_coment) {
+        int st_col = this->col_no - 1;
+        this->_readChar();
+        std::string literal = "#";
+        while (this->current_char != "\n" && this->current_char != "") {
+            this->_readChar();
+            literal += this->current_char;
+        }
+        return token::Token(token::TokenType::Coment, literal, line_no, line_no, st_col, this->col_no);
     } else {
         if (this->_isString() != "") {
-            std::string str = this->_readString(this->_isString());
-            token = this->_newToken(token::TokenType::String, str);
+            auto quote = this->_isString();
+            int st_col_no = this->col_no;
+            int st_line_no = this->line_no;
+            std::string str = this->_readString(quote);
+            token = token::Token(token::TokenType::String, str, st_line_no, line_no, st_col_no, col_no);
             return token;
         } else if (this->_isLetter(this->current_char)) {
             std::string ident = this->_readIdentifier();
@@ -273,7 +290,7 @@ std::string Lexer::_peekChar(int offset) {
 }
 
 token::Token Lexer::_newToken(token::TokenType type, std::string currentChar) {
-    return token::Token(type, currentChar, line_no, col_no);
+    return token::Token(type, currentChar, line_no, line_no, col_no - currentChar.length(), col_no);
 }
 
 token::Token Lexer::_readNumber() {
@@ -315,7 +332,7 @@ void Lexer::_skipWhitespace() {
         this->_readChar();
     }
     // Skip comments starting with #
-    if (this->current_char == "#") {
+    if (this->current_char == "#" && !tokenize_coment) {
         this->_readChar();
         while (this->current_char != "\n" && this->current_char != "") { this->_readChar(); }
         this->_skipWhitespace(); // Recursive call to also skip the white space
@@ -377,24 +394,20 @@ std::string Lexer::_isString() {
 std::string Lexer::_readString(const std::string& quote) {
     std::string str = "";
     std::string literal = quote;
+    int st_col_no = this->col_no;
     // Handle triple quotes
     if (quote == "\"\"\"" || quote == "'''") {
         this->_readChar();
         this->_readChar();
     }
+    st_col_no = st_col_no - quote.length() - 1;
     while (true) {
         this->_readChar();
         // Handle unterminated string literals
-        if (this->current_char == "") {
-            errors::raiseSyntaxError("Invalid Str",
+        if ((this->current_char == "" || this->current_char == "\n") && (quote == "\"" || quote == "'") && !this->tokenize_coment) {
+            errors::raiseSyntaxError(this->file_path,
+                                     token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
                                      this->source,
-                                     token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
-                                     "Unterminated string literal",
-                                     "Add a closing " + quote + " to terminate the string literal");
-        } else if (this->current_char == "\n" && quote != "\"\"\"" && quote != "'''") {
-            errors::raiseSyntaxError("Invalid Str",
-                                     this->source,
-                                     token::Token(token::TokenType::String, literal, this->line_no, this->col_no),
                                      "Unterminated string literal",
                                      "Add a closing " + quote + " to terminate the string literal");
         } else if (this->current_char == "\\") {
@@ -439,6 +452,12 @@ std::string Lexer::_readString(const std::string& quote) {
             this->_readChar();
             this->_readChar();
             break;
+        } else if (this->current_char == "") {
+            break;
+        } else if (this->current_char == "\n") {
+            str += this->current_char;
+            literal += this->current_char;
+            this->line_no++;
         } else {
             str += this->current_char;
             literal += this->current_char;

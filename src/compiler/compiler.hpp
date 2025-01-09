@@ -16,9 +16,9 @@
 #include <llvm/IR/Value.h>
 
 // === Project-specific Headers ===
+#include "../compilation_state.hpp"
 #include "../parser/AST/ast.hpp"
 #include "./enviornment/enviornment.hpp"
-#include "../compilation_state.hpp"
 
 namespace compiler {
 
@@ -30,12 +30,12 @@ using namespace enviornment;
 // === Type Aliases ===
 
 using std::vector;
-using GenericStructTypeVector = vector<RecordGenericStructType*>;                                 ///< Vector of generic struct type pointers
+using GenericStructTypeVector = vector<RecordGenericStructType*>;                                     ///< Vector of generic struct type pointers
 using ResolvedValueVariant = std::variant<GenericStructTypeVector, RecordModule*, RecordStructType*>; ///< Variant type for resolved values
-using LLVMValueVector = vector<llvm::Value*>;                                                 ///< Vector of LLVM values
-using StructTypeVector = vector<RecordStructType*>;                                               ///< Vector of struct type pointers
-using GenericFunctionVector = vector<RecordGenericFunction*>;                                     ///< Vector of generic function pointers
-using llBB = llvm::BasicBlock;                                                                ///< Alias for LLVM BasicBlock
+using LLVMValueVector = vector<llvm::Value*>;                                                         ///< Vector of LLVM values
+using StructTypeVector = vector<RecordStructType*>;                                                   ///< Vector of struct type pointers
+using GenericFunctionVector = vector<RecordGenericFunction*>;                                         ///< Vector of generic function pointers
+using llBB = llvm::BasicBlock;                                                                        ///< Alias for LLVM BasicBlock
 
 /**
  * @enum resolveType
@@ -181,6 +181,7 @@ class Compiler {
     llvm::IRBuilder<> llvm_ir_builder;         ///< LLVM IR builder
 
     compilationState::RecordFile* file_record;
+
   private:
     // === Member Variables ===
 
@@ -449,8 +450,16 @@ class Compiler {
      * @param right_value LLVM value of the right operand.
      * @return The resolved value after the operation.
      */
-    ResolvedValue _StructInfixCall(
-        const Str& op_method, const Str& op, RecordStructType* left_type, RecordStructType* right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* left_alloca, llvm::Value* right_value, llvm::Value* right_alloca);
+    ResolvedValue _StructInfixCall(const Str& op_method,
+                                   const Str& op,
+                                   RecordStructType* left_type,
+                                   RecordStructType* right_type,
+                                   AST::Expression* left,
+                                   AST::Expression* right,
+                                   llvm::Value* left_value,
+                                   llvm::Value* left_alloca,
+                                   llvm::Value* right_value,
+                                   llvm::Value* right_alloca);
 
     /**
      * @brief Manages a function call within the compiler.
@@ -469,7 +478,7 @@ class Compiler {
      * @param args Reference to the vector of LLVM values representing the arguments.
      * @param params_types Vector of struct types representing parameter types.
      */
-    void _checkAndConvertCallType(RecordFunction* func_record, AST::CallExpression* func_call, LLVMValueVector& args, const StructTypeVector& params_types);
+    void _checkAndConvertCallType(std::vector<RecordFunction*> func_record, AST::CallExpression* func_call, LLVMValueVector& args, const StructTypeVector& params_types);
 
     /**
      * @brief Calls a generic function.
@@ -515,7 +524,10 @@ class Compiler {
      * @param module Optional pointer to the module where the function is declared.
      * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
      */
-    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement, RecordStructType* struct_ = nullptr, RecordModule* module = nullptr, compilationState::RecordFile* local_file_record = nullptr);
+    void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement,
+                               RecordStructType* struct_ = nullptr,
+                               RecordModule* module = nullptr,
+                               compilationState::RecordFile* local_file_record = nullptr);
 
     /**
      * @brief Creates a struct record in the compiler environment.

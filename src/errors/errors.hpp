@@ -1,198 +1,166 @@
 #ifndef ERRORS_HPP
 #define ERRORS_HPP
+
 #include "../compiler/enviornment/enviornment.hpp"
 #include "../lexer/token.hpp"
 #include "../parser/AST/ast.hpp"
 
+#include <string>
+#include <vector>
+
 namespace errors {
 
-class Error {
-  public:
-    std::string source;
-    int st_line;
-    int end_line;
-    std::string type;
-    std::string message;
-    std::string suggestedFix;
-    Error(const std::string& type, const std::string& source, int st_line, int end_line, const std::string& message, const std::string& suggestedFix = "")
-        : type(type), source(source), st_line(st_line), end_line(end_line), message(message), suggestedFix(suggestedFix) {}
-    Error() {};
-    [[noreturn]] virtual void raise();
-};
+/**
+ * @brief Raise a "File Not Found" error.
+ *
+ * @param message The error message to display.
+ * @param suggestedFix An optional suggested fix for the error.
+ */
+[[noreturn]] void raiseFileNotFoundError(const std::string& message, const std::string& suggestedFix = "");
 
-class CompletionError : public Error {
-  public:
-    token::Token token;
-    CompletionError(const std::string& type, const std::string& source, int st_line, int end_line, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error(type, source, st_line, end_line, message, suggestedFix) {};
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise a "Compilation Error".
+ *
+ * @param message The error message to display.
+ * @param suggestedFix An optional suggested fix for the error.
+ */
+[[noreturn]] void raiseCompilationError(const std::string& message, const std::string& suggestedFix = "");
 
-enum class outsideNodeType { Break, Continue, Retuen };
+/**
+ * @brief Raise a generic runtime error.
+ *
+ * @param message The error message to display.
+ * @param suggestedFix An optional suggested fix for the error.
+ */
+[[noreturn]] void raiseRuntimeError(const std::string& message, const std::string& suggestedFix = "");
 
-class NodeOutside : public Error {
-  public:
-    AST::Node node;
-    outsideNodeType nodeType;
-    NodeOutside(const std::string& type, const std::string& source, AST::Node node, outsideNodeType nodeType, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error(type, source, node.meta_data.st_line_no, node.meta_data.end_line_no, message, suggestedFix), node(node), nodeType(nodeType) {}
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an unknown error with a custom label.
+ *
+ * @param label The label for the error (e.g., "Unknown Error").
+ * @param message The error message to display.
+ * @param suggestedFix An optional suggested fix for the error.
+ */
+[[noreturn]] void raiseUnknownError(const std::string& label, const std::string& message, const std::string& suggestedFix = "");
 
-class SyntaxError : public Error {
-  public:
-    token::Token token;
-    SyntaxError(const std::string& type, const std::string& source, token::Token token, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error(type, source, -1, -1, message, suggestedFix), token(token) {}
-    [[noreturn]] void raise() override;
-};
+// Enum for different types of node usage outside allowed contexts
+enum class OutsideNodeType { Break, Continue, Return };
 
-class NoPrefixParseFnError : public Error {
-  public:
-    token::Token token;
-    NoPrefixParseFnError(const std::string& source, token::Token token, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("No PreficParseFnError", source, -1, -1, message, suggestedFix), token(token) {}
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief General error raiser.
+ *
+ * @param file_path The path of the file where the error occurred.
+ * @param source The entire source code as a string.
+ * @param st_line Starting line number of the error.
+ * @param st_col Starting column number of the error.
+ * @param end_line Ending line number of the error.
+ * @param end_col Ending column number of the error.
+ * @param message The error message to display.
+ * @param suggestedFix An optional suggested fix for the error.
+ */
+[[noreturn]] void
+raiseError(const std::string& file_path, const std::string& source, int st_line, int st_col, int end_line, int end_col, const std::string& message, const std::string& suggestedFix = "");
 
-class NoOverload : public Error {
-  public:
-    std::vector<std::vector<unsigned short>> missmatches;
-    AST::Expression* func_call;
-    NoOverload(const std::string& source, std::vector<std::vector<unsigned short>> missmatches, AST::Expression* func_call, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("No Fucntion Overload", source, -1, -1, message, suggestedFix), missmatches(missmatches), func_call(func_call) {};
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise a completion-specific error.
+ */
+[[noreturn]] void raiseCompletionError(
+    const std::string& file_path, const std::string& source, int st_line, int st_col, int end_line, int end_col, const std::string& message = "", const std::string& suggestedFix = "");
 
-class DosentContain : public Error {
-  public:
-    AST::IdentifierLiteral* member;
-    AST::Expression* from;
-    DosentContain(const std::string& source, AST::IdentifierLiteral* member, AST::Expression* from, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("Dosent Contain", source, -1, -1, message, suggestedFix), member(member), from(from) {};
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an error when a node is used outside its allowed context.
+ */
+[[noreturn]] void
+raiseNodeOutsideError(const std::string& file_path, const std::string& source, const AST::Node* node, OutsideNodeType nodeType, const std::string& message = "", const std::string& suggestedFix = "");
 
-class WrongInfix : public Error {
-  public:
-    AST::Expression* left;
-    AST::Expression* right;
-    std::string op;
-    WrongInfix(const std::string& source, AST::Expression* left, AST::Expression* right, const std::string& op, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("Wrong infix", source, left->meta_data.st_line_no, right->meta_data.end_line_no, message, suggestedFix), left(left), right(right), op(op) {};
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise a syntax error.
+ */
+[[noreturn]] void raiseSyntaxError(const std::string& file_path, const token::Token& token, const std::string& source, const std::string& message = "", const std::string& suggestedFix = "");
 
-class WrongType : public Error {
-  public:
-    AST::Expression* exp;
-    std::vector<enviornment::RecordStructType*> expected;
-    WrongType(const std::string& source,
-              AST::Expression* exp,
-              const std::vector<enviornment::RecordStructType*>& expected,
-              const std::string& message = "",
-              const std::string& suggestedFix = "")
-        : Error("Wrong Type", source, exp->meta_data.st_line_no, exp->meta_data.end_line_no, message, suggestedFix), exp(exp), expected(expected) {};
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an error when no prefix parse function is found.
+ */
+[[noreturn]] void raiseNoPrefixParseFnError(const std::string& file_path, const token::Token& token, const std::string& source, const std::string& message = "", const std::string& suggestedFix = "");
 
-class Cantindex : public Error {
-  public:
-    AST::IndexExpression* exp;
-    bool wrongIDX;
-    Cantindex(const std::string& source, AST::IndexExpression* exp, bool wrongIDX, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("Cantindex", source, exp->meta_data.st_line_no, exp->meta_data.end_line_no, message, suggestedFix), exp(exp), wrongIDX(wrongIDX) {}
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an error when no function overload is found.
+ */
+[[noreturn]] void raiseNoOverloadError(const std::string& file_path,
+                                       const std::string& source,
+                                       const std::vector<std::vector<unsigned short>>& mismatches,
+                                       AST::Expression* func_call,
+                                       const std::string& message = "",
+                                       const std::string& suggestedFix = "");
 
-class NotDefined : public Error {
-  public:
-    AST::IdentifierLiteral* Name;
-    NotDefined(const std::string& source, AST::IdentifierLiteral* Name, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("Not Defined", source, -1, -1, message, suggestedFix), Name(Name) {}
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an error when a member is missing in a struct or object.
+ */
+[[noreturn]] void raiseDoesntContainError(
+    const std::string& file_path, const std::string& source, AST::IdentifierLiteral* member, AST::Expression* from, const std::string& message = "", const std::string& suggestedFix = "");
 
-class DuplicateVariableError : public Error {
-  public:
-    std::string variableName;
+/**
+ * @brief Raise an error for invalid operator usage.
+ */
+[[noreturn]] void raiseWrongInfixError(const std::string& file_path,
+                                       const std::string& source,
+                                       AST::Expression* left,
+                                       AST::Expression* right,
+                                       const std::string& op,
+                                       const std::string& message = "",
+                                       const std::string& suggestedFix = "");
 
-    /**
-     * @brief Constructs a DuplicateVariableError.
-     * @param source The source code where the error occurred.
-     * @param variableName The name of the duplicated variable.
-     * @param message An optional error message.
-     */
-    DuplicateVariableError(const std::string& source, const std::string& variableName, const std::string& message = "")
-        : Error("DuplicateVariableError", source, -1, -1, message), variableName(variableName) {}
+/**
+ * @brief Raise a type mismatch error.
+ */
+[[noreturn]] void raiseWrongTypeError(const std::string& file_path,
+                                      const std::string& source,
+                                      AST::Expression* exp,
+                                      enviornment::RecordStructType* got,
+                                      const std::vector<enviornment::RecordStructType*>& expected,
+                                      const std::string& message = "",
+                                      const std::string& suggestedFix = "");
 
-    /**
-     * @brief Raises the DuplicateVariableError.
-     */
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an indexing error.
+ */
+[[noreturn]] void
+raiseCantIndexError(const std::string& file_path, const std::string& source, AST::IndexExpression* exp, bool wrongIDX, const std::string& message = "", const std::string& suggestedFix = "");
 
-// New Custom Error Type
-class UnknownNodeTypeError : public Error {
-  public:
-    int st_col = -1;
-    int end_col = -1;
-    UnknownNodeTypeError(const std::string& type, const std::string& source, int st_line, int st_col, int end_line, int end_col, const std::string& message, const std::string& suggestedFix = "")
-        : Error(type, source, st_line, end_line, message, suggestedFix) {}
-    [[noreturn]] void raise() override;
-};
+/**
+ * @brief Raise an error for undefined identifiers.
+ */
+[[noreturn]] void raiseNotDefinedError(const std::string& file_path, const std::string& source, AST::Node* Name, const std::string& message = "", const std::string& suggestedFix = "");
 
-class ArrayTypeError : public Error {
-  public:
-    /**
-     * @brief Constructs an ArrayTypeError.
-     * @param source The source code where the error occurred.
-     * @param element The AST node related to the error.
-     * @param expected_type The expected struct type for array elements.
-     * @param message An optional error message.
-     */
-    ArrayTypeError(const std::string& source, AST::Node* element, enviornment::RecordStructType* expected_type, const std::string& message = "")
-        : Error("ArrayTypeError", source, element->meta_data.st_line_no, element->meta_data.end_line_no, message), element(element), expected_type(expected_type) {}
+/**
+ * @brief Raise a duplicate variable declaration error.
+ */
+[[noreturn]] void
+raiseDuplicateVariableError(const std::string& file_path, const std::string& source, const std::string& variableName, const AST::Node* declarationNode, const std::string& message = "");
 
-    /**
-     * @brief Raises the ArrayTypeError by throwing an exception.
-     */
-    [[noreturn]] void raise() override { throw *this; }
+/**
+ * @brief Raise an error for unknown node types.
+ */
+[[noreturn]] void raiseUnknownNodeTypeError(const std::string& file_path,
+                                            const std::string& source,
+                                            const std::string& type,
+                                            int st_line,
+                                            int st_col,
+                                            int end_line,
+                                            int end_col,
+                                            const std::string& message,
+                                            const std::string& suggestedFix = "");
 
-    // Additional members if needed
-  private:
-    AST::Node* element;                       ///< The AST node that caused the error
-    enviornment::RecordStructType* expected_type; ///< The expected type for the array elements
-};
+/**
+ * @brief Raise an array type error.
+ */
+[[noreturn]] void raiseArrayTypeError(const std::string& file_path, const std::string& source, AST::Node* element, enviornment::RecordStructType* expected_type, const std::string& message = "");
 
-class ReturnTypeMismatchError : public Error {
-  public:
-    enviornment::RecordStructType* expectedType;
-    AST::Node* actualType;
+/**
+ * @brief Raise a generic struct resolution error.
+ */
+[[noreturn]] void raiseGenericStructResolutionError(const std::string& file_path, const std::string& source, const std::string& message = "", const std::string& suggestedFix = "");
 
-    /**
-     * @brief Constructs a ReturnTypeMismatchError.
-     * @param source The source code where the error occurred.
-     * @param expected The expected return type.
-     * @param actual The actual return type provided.
-     * @param message An optional error message.
-     */
-    ReturnTypeMismatchError(const std::string& source, enviornment::RecordStructType* expected, AST::Node* actual, const std::string& message = "")
-        : Error("ReturnTypeMismatchError", source, -1, -1, message), expectedType(expected), actualType(actual) {}
-
-    /**
-     * @brief Raises the ReturnTypeMismatchError.
-     */
-    [[noreturn]] void raise() override;
-};
-
-class GenericStructResolutionError : public Error {
-  public:
-    GenericStructResolutionError(const std::string& source, const std::string& message = "", const std::string& suggestedFix = "")
-        : Error("GenericStructResolutionError", source, -1, -1, message, suggestedFix) {}
-    [[noreturn]] void raise() override;
-};
-
-[[noreturn]] void raiseSyntaxError(const std::string& type, const std::string& source, token::Token token, const std::string& message, const std::string& suggestedFix);
 } // namespace errors
-#endif // ERRORS_HPPast
+
+#endif // ERRORS_HPP

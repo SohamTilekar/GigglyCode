@@ -2,8 +2,8 @@
 #include "../compiler.hpp"
 #include <iostream>
 #include <llvm/ADT/STLExtras.h>
+#include <vector>
 
-// Use the enviornment namespace to simplify code references
 using namespace enviornment;
 
 #include <set>
@@ -16,109 +16,72 @@ bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2) {
 
 // Modify the _checkType function to handle checked pairs
 bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2, std::set<std::pair<RecordStructType*, RecordStructType*>>& checked) {
-    if (type1 == type2) return true; // Same memory address implies identical types
-    if (type2->name == "nullptr" || type1->name == "nullptr") return true;
+    if (type1 == type2) return true;
 
-    // Create a pair of the current types being compared
     std::pair<RecordStructType*, RecordStructType*> currentPair = {type1, type2};
-
-    // Check if this pair has already been compared
-    if (checked.find(currentPair) != checked.end()) {
-        // If already checked, assume equality to prevent infinite recursion
-        return true;
-    }
-
-    // Mark this pair as checked
+    if (checked.find(currentPair) != checked.end()) { return true; }
     checked.insert(currentPair);
 
-    // Iterate over fields of both types simultaneously
     const auto& fields1 = type1->getFields();
     const auto& fields2 = type2->getFields();
 
-    if (fields1.size() != fields2.size()) {
-        return false; // Different number of fields implies different types
-    }
+    if (fields1.size() != fields2.size()) { return false; }
 
     for (size_t i = 0; i < fields1.size(); ++i) {
         const std::string& field_name1 = fields1[i];
         const std::string& field_name2 = fields2[i];
 
-        // If field names differ, types do not match
-        if (field_name1 != field_name2) { return false; }
-
-        // Retrieve subtypes
         RecordStructType* subtype1 = type1->sub_types.at(field_name1);
         RecordStructType* subtype2 = type2->sub_types.at(field_name2);
 
-        // Recursively check subtypes
         if (!_checkType(subtype1, subtype2, checked)) { return false; }
     }
 
-    // Final check to ensure stand-alone types match
-    return type1->stand_alone_type == type2->stand_alone_type
-    || (type1->stand_alone_type->getTypeID() == type2->stand_alone_type->getTypeID());
+    return type1->stand_alone_type == type2->stand_alone_type || type1->stand_alone_type->getTypeID() == type2->stand_alone_type->getTypeID();
 }
 
-// Helper function to verify if function parameters match
 bool _checkFunctionParameterType(RecordFunction* func_record, std::vector<RecordStructType*> params, bool exact = false) {
     if (!exact && func_record->is_var_arg) return true;
-    // Compare each argument type with the corresponding parameter type
+
     for (const auto& [arg, pass_instance] : llvm::zip(func_record->arguments, params)) {
-        const auto& [arg_name, accept_instance, _] = arg;
+        const auto& [_, accept_instance, _] = arg;
         bool types_match = _checkType(accept_instance, pass_instance);
-        // Allow type conversion if exact matching is not required
+
         bool can_convert = !exact && compiler::Compiler::canConvertType(accept_instance, pass_instance);
+
         if (!(types_match || can_convert)) { return false; }
     }
 
-    // Ensure the number of arguments is correct
     bool correct_arg_count = func_record->is_var_arg || func_record->arguments.size() == params.size();
     return correct_arg_count;
 }
 
-// Checks if a struct type has a specific method matching the given criteria
-bool RecordStructType::is_method(
-    const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
-    // Iterate through all methods of the struct
-    for (const auto& [method_name, method] : this->methods) {
-        bool match = true;
+bool RecordStructType::is_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
 
-        // Verify extra information matches
+    for (const auto& [method_name, method] : this->methods) {
         for (const auto& [key, value] : ex_info.bool_map) {
             if (key == "autocast") {
                 auto it = method->extra_info.bool_map.find(key);
-                if (it == method->extra_info.bool_map.end() || it->second != value) {
-                    match = false;
-                    break;
-                }
+                if (it == method->extra_info.bool_map.end() || it->second != value) { return false; }
             } else {
-                // Unsupported keys in ex_info will cause an error
                 std::cerr << "Unsupported key found in ex_info: " << key << std::endl;
                 throw std::runtime_error("Unsupported key found in ex_info: " + key);
             }
         }
 
-        // Check if return type matches (if specified)
-        bool return_correct = !return_type || _checkType(return_type, method->return_type);
-        // Check if method name matches (if specified)
         bool name_matches = name.empty() || method->name == name;
-        // Ensure function parameters match
+        bool return_correct = !return_type || _checkType(return_type, method->return_type);
         bool params_match = _checkFunctionParameterType(method, params_types, exact);
 
-        // If all conditions are met, the method exists
-        if (return_correct && match && name_matches && params_match) { return true; }
+        if (return_correct && name_matches && params_match) { return true; }
     }
     return false;
 }
 
-// Retrieves a method from a struct type that matches the given criteria
-RecordFunction*
-RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
-    // Iterate through all methods of the struct
+RecordFunction* RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
 
-        // Verify extra information matches
         for (const auto& [key, value] : ex_info.bool_map) {
             if (key == "autocast") {
                 auto it = method->extra_info.bool_map.find(key);
@@ -127,22 +90,16 @@ RecordStructType::get_method(const std::string& name, const std::vector<RecordSt
                     break;
                 }
             } else {
-                // Throw an error for unsupported keys
                 throw std::runtime_error("Unsupported key found in ex_info: " + key);
             }
         }
 
-        // Check if return type matches (if specified)
-        bool return_correct = !return_type || _checkType(return_type, method->return_type);
-        // Check if method name matches (if specified)
         bool name_matches = name.empty() || method->name == name;
-        // Ensure function parameters match
+        bool return_correct = !return_type || _checkType(return_type, method->return_type);
         bool params_match = _checkFunctionParameterType(method, params_types);
 
-        // If all conditions are met, return the matching method
         if (return_correct && match && name_matches && params_match) { return method; }
     }
-    // Return nullptr if no matching method is found
     return nullptr;
 }
 
@@ -163,23 +120,16 @@ bool RecordModule::isFunction(const std::string& name, const std::vector<RecordS
     return false;
 }
 
-// Checks if a module contains a specific struct with matching generic parameters
 bool RecordModule::is_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     // Iterate through all records in the module
     for (const auto& [struct_name, struct_record] : record_map) {
-        if (struct_record->type == RecordType::RecordStructInst) {
+        if (struct_record->type == RecordType::RecordStructInst && struct_record->name == "name") {
             auto struct_type = (RecordStructType*)struct_record;
-            if (struct_type->name == name) {
-                bool all_types_match = true;
-                // Check each generic type parameter
-                for (const auto& [gen, expected_gen] : llvm::zip(gens, struct_type->generic_sub_types)) {
-                    if (!_checkType(gen, expected_gen)) {
-                        all_types_match = false;
-                        break;
-                    }
-                }
-                if (all_types_match) { return true; }
+            if (gens.size() != struct_type->generic_sub_types.size()) return false;
+            for (const auto& [gen, expected_gen] : llvm::zip(gens, struct_type->generic_sub_types)) {
+                if (!_checkType(gen, expected_gen)) { return false; }
             }
+            return true;
         }
     }
     return false;
@@ -212,7 +162,7 @@ bool RecordModule::isGenericFunc(const std::string& name) {
 bool RecordModule::isGenericStruct(const std::string& name) {
     for (const auto& [Gstruct_name, Gstruct_record] : record_map) {
         if (Gstruct_record->type == RecordType::RecordGStructType) {
-            auto Gstruct =(RecordGenericStructType*)Gstruct_record;
+            auto Gstruct = (RecordGenericStructType*)Gstruct_record;
             if (Gstruct->name == name) { return true; }
         }
     }
@@ -348,6 +298,15 @@ bool Enviornment::isGenericFunc(const std::string& name) {
     // If not found, check parent environments
     return this->parent ? this->parent->isGenericFunc(name) : false;
 }
+
+std::vector<RecordFunction*> Enviornment::getFunc(const Str& name) {
+    std::vector<RecordFunction*> jadu;
+    for (const auto& [record_name, record] : record_map) {
+        if (record->type == RecordType::RecordFunction && record->name == name) { jadu.push_back((RecordFunction*)record); }
+    }
+    return this->parent && jadu.size() == 0 ? this->parent->getFunc(name) : jadu;
+}
+
 
 // Checks if a generic struct exists in the environment
 bool Enviornment::isGenericStruct(const std::string& name) {

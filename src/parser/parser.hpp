@@ -304,13 +304,6 @@ class Parser {
     [[noreturn]] void _currentTokenError(TokenType type, std::vector<TokenType> expected_types, std::string suggestedFix = "");
 
     /**
-     * @brief Report an error when no prefix parse function is found for a token type
-     *
-     * @param type The token type without a corresponding prefix parse function
-     */
-    [[noreturn]] void _noPrefixParseFnError(TokenType type);
-
-    /**
      * @brief Get the precedence of the current token
      *
      * @return PrecedenceType The precedence level of the current token

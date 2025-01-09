@@ -27,7 +27,8 @@ std::string token::Token::toString(bool color) {
     }
 
     // Convert line and column numbers to strings
-    std::string lineNoString = std::to_string(line_no);
+    std::string stLineNoString = std::to_string(st_line_no);
+    std::string endLineNoString = std::to_string(end_line_no);
     std::string colNoString = std::to_string(col_no);
     std::string endColNoString = std::to_string(end_col_no);
 
@@ -37,7 +38,7 @@ std::string token::Token::toString(bool color) {
 
     // Apply padding to each field for alignment
     if (typeString.length() < 15) typeString += std::string(15 - typeString.length(), ' ');
-    if (literalString.length() < 2) lineNoString += std::string(2 - literalString.length(), ' ');
+    if (literalString.length() < 2) endLineNoString += std::string(2 - literalString.length(), ' ');
     if (colNoString.length() < 2) colNoString += std::string(2 - colNoString.length(), ' ');
     if (endColNoString.length() < 2) endColNoString += std::string(2 - endColNoString.length(), ' ');
 
@@ -45,12 +46,12 @@ std::string token::Token::toString(bool color) {
     if (color) {
         // Construct the formatted string with colors
         return colorRed + "[type: " + colorReset + colorBlue + typeString + colorRed + ", literal: " + colorGreen + "\"" + colorYellow + literalPaddingStr + literalString + literalPaddingStr +
-            colorGreen + "\"" + ", line_no: " + colorReset + colorGreen + lineNoString + colorReset + ", col_no: " + colorReset + colorMagenta + colNoString + colorReset +
-            ", end_col_no: " + colorReset + colorMagenta + endColNoString + colorReset + colorRed + "]" + colorReset;
+            colorGreen + "\"" + ", st_line_no: " + colorReset + colorGreen + stLineNoString + colorReset + ", end_line_no: " + colorReset + colorGreen + endLineNoString + colorReset +
+            ", col_no: " + colorReset + colorMagenta + colNoString + colorReset + ", end_col_no: " + colorReset + colorMagenta + endColNoString + colorReset + colorRed + "]" + colorReset;
     } else {
         // Construct the formatted string without colors
-        return "[type: " + typeString + ", literal: \"" + literalPaddingStr + literalString + literalPaddingStr + "\"" + ", line_no: " + lineNoString + ", col_no: " + colNoString +
-            ", end_col_no: " + endColNoString + "]";
+        return "[type: " + typeString + ", literal: \"" + literalPaddingStr + literalString + literalPaddingStr + "\"" + ", st_line_no: " + stLineNoString + ", end_line_no: " + endLineNoString +
+            ", col_no: " + colNoString + ", end_col_no: " + endColNoString + "]";
     }
 }
 
@@ -64,97 +65,97 @@ std::string token::tokenTypeString(TokenType type) {
         case TokenType::Float:
             return "Float";
         case TokenType::PlusEqual:
-            return "PlusEqual";
+            return "PlusEqual(`+=`)";
         case TokenType::DashEqual:
-            return "DashEqual";
+            return "DashEqual(`-=`)";
         case TokenType::AsteriskEqual:
-            return "AsteriskEqual";
+            return "AsteriskEqual(`*=`)";
         case TokenType::PercentEqual:
-            return "PercentEqual";
+            return "PercentEqual(`%=`)";
         case TokenType::CaretEqual:
-            return "CaretEqual";
+            return "CaretEqual(`^=`)";
         case TokenType::ForwardSlashEqual:
-            return "ForwardSlashEqual";
+            return "ForwardSlashEqual(`/=`)";
         case TokenType::BackwardSlashEqual:
-            return "BackwardSlashEqual";
+            return "BackwardSlashEqual(`\\=`)";
         case TokenType::Increment:
-            return "Increment";
+            return "Increment(`++`)";
         case TokenType::Decrement:
-            return "Decrement";
+            return "Decrement(`--`)";
         case TokenType::Dot:
-            return "Dot";
+            return "Dot(`.`)";
         case TokenType::Ellipsis:
-            return "Ellipsis";
+            return "Ellipsis(`...`)";
         case TokenType::Plus:
-            return "Plus";
+            return "Plus(`+`)";
         case TokenType::Dash:
-            return "Dash";
+            return "Dash(`-`)";
         case TokenType::Asterisk:
-            return "Asterisk";
+            return "Asterisk(`*`)";
         case TokenType::AsteriskAsterisk:
-            return "AsteriskAsterisk";
+            return "AsteriskAsterisk(`**`)";
         case TokenType::Percent:
-            return "Percent";
+            return "Percent(`%`)";
         case TokenType::ForwardSlash:
-            return "ForwardSlash";
+            return "ForwardSlash(`/`)";
         case TokenType::BackwardSlash:
-            return "BackwardSlash";
+            return "BackwardSlash(`\\`)";
         case TokenType::LeftParen:
-            return "LeftParen";
+            return "LeftParen(`(`)";
         case TokenType::RightParen:
-            return "RightParen";
+            return "RightParen(`)`)";
         case TokenType::LeftBrace:
-            return "LeftBrace";
+            return "LeftBrace(`{`)";
         case TokenType::RightBrace:
-            return "RightBrace";
+            return "RightBrace(`}`)";
         case TokenType::LeftBracket:
-            return "LeftBracket";
+            return "LeftBracket(`[`)";
         case TokenType::RightBracket:
-            return "RightBracket";
+            return "RightBracket(`]`)";
         case TokenType::Colon:
-            return "Colon";
+            return "Colon(`:`)";
         case TokenType::Semicolon:
-            return "Semicolon";
+            return "Semicolon(`;`)";
         case TokenType::RightArrow:
-            return "RightArrow";
+            return "RightArrow(`->`)";
         case TokenType::Comma:
-            return "Comma";
+            return "Comma(`,`)";
         case TokenType::AtTheRate:
-            return "AtTheRate";
+            return "AtTheRate(`@`)";
         case TokenType::Pipe:
-            return "Pipe";
+            return "Pipe(`|`)";
         case TokenType::Equals:
-            return "Equals";
+            return "Equals(`=`)";
         case TokenType::Illegal:
             return "Illegal";
         case TokenType::EndOfFile:
-            return "EndOfFile";
+            return "EndOfFile(`file ended`)";
         case TokenType::Return:
             return "Return";
         case TokenType::GreaterThan:
-            return "GreaterThan";
+            return "GreaterThan(`>`)";
         case TokenType::LessThan:
-            return "LessThan";
+            return "LessThan(`<`)";
         case TokenType::GreaterThanOrEqual:
-            return "GreaterThanOrEqual";
+            return "GreaterThanOrEqual(`>=`)";
         case TokenType::LessThanOrEqual:
-            return "LessThanOrEqual";
+            return "LessThanOrEqual(`<=`)";
         case TokenType::EqualEqual:
-            return "EqualEqual";
+            return "EqualEqual(`==`)";
         case TokenType::NotEquals:
-            return "NotEquals";
+            return "NotEquals(`!=`)";
         case TokenType::BitwiseAnd:
-            return "BitwiseAnd";
+            return "BitwiseAnd(`&&`)";
         case TokenType::BitwiseOr:
-            return "BitwiseOr";
+            return "BitwiseOr(`||   `)";
         case TokenType::BitwiseXor:
-            return "BitwiseXor";
+            return "BitwiseXor(`^`)";
         case TokenType::BitwiseNot:
-            return "BitwiseNot";
+            return "BitwiseNot(`~`)";
         case TokenType::LeftShift:
-            return "LeftShift";
+            return "LeftShift(`<<`)";
         case TokenType::RightShift:
-            return "RightShift";
+            return "RightShift(`>>`)";
         case TokenType::And:
             return "And";
         case TokenType::Or:
@@ -221,6 +222,8 @@ std::string token::tokenTypeString(TokenType type) {
             return "Case";
         case TokenType::Other:
             return "Other";
+        case TokenType::Coment:
+            return "Coment";
         default:
             return "unknown token type(" + std::to_string(static_cast<int>(type)) + ")";
     }

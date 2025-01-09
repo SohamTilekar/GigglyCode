@@ -34,6 +34,7 @@
 #ifndef LEXER_HPP
 #define LEXER_HPP
 #include "token.hpp"
+#include <filesystem>
 
 /**
  * @brief Get the string on a specific line number from the input string.
@@ -55,17 +56,19 @@ int getNumberOfLines(const std::string& str);
 class Lexer {
   public:
     std::string source;       ///< The source code to be lexed.
+    std::filesystem::path file_path;
     int pos;                  ///< The current position in the source code.
     unsigned int line_no;     ///< The current line number in the source code.
     int col_no;               ///< The current column number in the source code.
     std::string current_char; ///< The current character being processed.
+    bool tokenize_coment;
 
     /**
      * @brief Construct a new Lexer object.
      *
      * @param source The source code to be lexed.
      */
-    explicit Lexer(const std::string& source);
+    explicit Lexer(const std::string& source, const std::filesystem::path& file_path, bool tokenize_coment = false);
 
     /**
      * @brief Get the next token from the source code.
