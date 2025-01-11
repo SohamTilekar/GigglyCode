@@ -137,7 +137,7 @@ class Token {
   public:
     TokenType type;      ///< The type of the token.
     std::string literal; ///< The literal value of the token.
-    int st_line_no;         ///< The line number where the token is located.
+    int st_line_no;      ///< The line number where the token is located.
     int end_line_no;     ///< The line number where the token is located.
     int end_col_no;      ///< The ending column number of the token.
     int col_no;          ///< The starting column number of the token.
@@ -164,7 +164,8 @@ class Token {
      * @param lineNo The line number where the token is located.
      * @param colNo The column number where the token starts.
      */
-    inline Token(TokenType type, std::string literal, int stLineNo, int lineNo, int colNo, int endColNo) : type(type), literal(literal), st_line_no(stLineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
+    inline Token(TokenType type, std::string literal, int stLineNo, int lineNo, int colNo, int endColNo)
+        : type(type), literal(literal), st_line_no(stLineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
 
     /**
      * @brief Convert the current token to a string.

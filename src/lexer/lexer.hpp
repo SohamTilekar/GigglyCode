@@ -55,7 +55,7 @@ int getNumberOfLines(const std::string& str);
 
 class Lexer {
   public:
-    std::string source;       ///< The source code to be lexed.
+    std::string source; ///< The source code to be lexed.
     std::filesystem::path file_path;
     int pos;                  ///< The current position in the source code.
     unsigned int line_no;     ///< The current line number in the source code.

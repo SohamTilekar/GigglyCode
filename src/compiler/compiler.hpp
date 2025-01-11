@@ -213,7 +213,7 @@ class Compiler {
     llvm::Type* ll_char = nullptr;           ///< LLVM char type
     llvm::Type* ll_str = nullptr;            ///< LLVM string type
     llvm::Type* ll_bool = nullptr;           ///< LLVM boolean type
-    llvm::PointerType* ll_array = nullptr;   ///< LLVM array pointer type
+    llvm::PointerType* ll_raw_array = nullptr;   ///< LLVM raw_array pointer type
     // --- Garbage-Collected Struct Types ---
     RecordStructType* gc_int = nullptr;     ///< GC wrapper for int
     RecordStructType* gc_int32 = nullptr;   ///< GC wrapper for int32
@@ -225,7 +225,7 @@ class Compiler {
     RecordStructType* gc_char = nullptr;    ///< GC wrapper for char
     RecordStructType* gc_str = nullptr;     ///< GC wrapper for string
     RecordStructType* gc_bool = nullptr;    ///< GC wrapper for boolean
-    RecordStructType* gc_array = nullptr;   ///< GC wrapper for array
+    RecordStructType* gc_raw_array = nullptr;   ///< GC wrapper for raw_array
 
     // === Private Methods ===
 
@@ -246,8 +246,6 @@ class Compiler {
      * @brief Initializes the compiler environment.
      */
     void _initializeEnvironment();
-
-    void _initializeArrayType();
 
     void _initilizeCSTDLib();
 
@@ -391,11 +389,11 @@ class Compiler {
     ResolvedValue _visitCallExpression(AST::CallExpression* call_expression);
 
     /**
-     * @brief Visits an ArrayLiteral node in the AST.
-     * @param array_literal pointer to the ArrayLiteral node.
-     * @return The resolved value of the array literal.
+     * @brief Visits an raw_arrayLiteral node in the AST.
+     * @param raw_array_literal pointer to the raw_arrayLiteral node.
+     * @return The resolved value of the raw_array literal.
      */
-    ResolvedValue _visitArrayLiteral(AST::ArrayLiteral* array_literal);
+    ResolvedValue _visitArrayLiteral(AST::ArrayLiteral* raw_array_literal);
 
     /**
      * @brief Resolves the value of a given AST node.
@@ -590,15 +588,15 @@ class Compiler {
     Compiler::ResolvedValue _resolveAndValidateIndexOperand(AST::IndexExpression* index_expression);
 
     /**
-     * @brief Handles array indexing logic.
-     * @param left Loaded LLVM value of the array.
-     * @param left_generic RecordStructType* of the array.
+     * @brief Handles raw_array indexing logic.
+     * @param left Loaded LLVM value of the raw_array.
+     * @param left_generic RecordStructType* of the raw_array.
      * @param index Loaded LLVM value of the index.
      * @param index_generic RecordStructType* of the index.
      * @param index_expression pointer to the IndexExpression node.
      * @return ResolvedValue containing the result of the indexing operation.
      */
-    ResolvedValue _handleArrayIndexing(llvm::Value* left, RecordStructType* left_generic, llvm::Value* index, RecordStructType* index_generic, AST::IndexExpression* index_expression);
+    ResolvedValue _handleraw_arrayIndexing(llvm::Value* left, RecordStructType* left_generic, llvm::Value* index, RecordStructType* index_generic, AST::IndexExpression* index_expression);
 
     /**
      * @brief Handles struct indexing logic by invoking the `__index__` method.
@@ -677,22 +675,22 @@ class Compiler {
     ResolvedValue _resolveBooleanLiteral(AST::BooleanLiteral* boolean_literal);
 
     /**
-     * @brief Resolves an ArrayLiteral node.
-     * @param array_literal pointer to the ArrayLiteral node.
+     * @brief Resolves an raw_arrayLiteral node.
+     * @param raw_array_literal pointer to the raw_arrayLiteral node.
      * @return The resolved value.
      */
-    ResolvedValue _resolveArrayLiteral(AST::ArrayLiteral* array_literal);
+    ResolvedValue _resolveArrayLiteral(AST::ArrayLiteral* raw_array_literal);
 
     /**
-     * @brief Validates an array element's type.
-     * @param element pointer to the array element.
+     * @brief Validates an raw_array element's type.
+     * @param element pointer to the raw_array element.
      * @param first_generic The expected struct type of the element.
      */
-    void _validateArrayElement(AST::Node* element, RecordStructType*& first_generic);
+    void _validateraw_arrayElement(AST::Node* element, RecordStructType*& first_generic);
 
     /**
-     * @brief Handles type conversion for an array element.
-     * @param element pointer to the array element expression.
+     * @brief Handles type conversion for an raw_array element.
+     * @param element pointer to the raw_array element expression.
      * @param resolved_value Reference to the ResolvedValue to be updated.
      * @param first_generic The expected struct type of the element.
      */

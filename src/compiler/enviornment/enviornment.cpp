@@ -55,8 +55,7 @@ bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2, s
     }
 
     // Final check to ensure stand-alone types match
-    return type1->stand_alone_type == type2->stand_alone_type
-    || (type1->stand_alone_type->getTypeID() == type2->stand_alone_type->getTypeID());
+    return type1->stand_alone_type == type2->stand_alone_type || (type1->stand_alone_type->getTypeID() == type2->stand_alone_type->getTypeID());
 }
 
 // Helper function to verify if function parameters match
@@ -77,8 +76,7 @@ bool _checkFunctionParameterType(RecordFunction* func_record, std::vector<Record
 }
 
 // Checks if a struct type has a specific method matching the given criteria
-bool RecordStructType::is_method(
-    const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
+bool RecordStructType::is_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
@@ -112,8 +110,7 @@ bool RecordStructType::is_method(
 }
 
 // Retrieves a method from a struct type that matches the given criteria
-RecordFunction*
-RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
+RecordFunction* RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
@@ -212,7 +209,7 @@ bool RecordModule::isGenericFunc(const std::string& name) {
 bool RecordModule::isGenericStruct(const std::string& name) {
     for (const auto& [Gstruct_name, Gstruct_record] : record_map) {
         if (Gstruct_record->type == RecordType::RecordGStructType) {
-            auto Gstruct =(RecordGenericStructType*)Gstruct_record;
+            auto Gstruct = (RecordGenericStructType*)Gstruct_record;
             if (Gstruct->name == name) { return true; }
         }
     }
