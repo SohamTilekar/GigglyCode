@@ -3,9 +3,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Value.h>
-#include <string>
 #include <thread>
-#include <vector>
 
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
@@ -15,9 +13,9 @@
 using namespace compiler;
 using llConstInt = llvm::ConstantInt;
 
-Compiler::Compiler(
-    const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
-    : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)), relativePath(std::move(relativePath)) {
+Compiler::Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
+    : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)),
+      relativePath(std::move(relativePath)) {
 
     // Convert file path to Str
     Str path_str = file_path.string();
@@ -196,12 +194,12 @@ void Compiler::compile(AST::Node* node) {
             break;
         default:
             errors::raiseCompletionError(this->file_path,
-                                         this->source,
-                                         node->meta_data.st_line_no,
-                                         node->meta_data.st_col_no,
-                                         node->meta_data.end_line_no,
-                                         node->meta_data.end_col_no,
-                                         "Unknown node type: " + AST::nodeTypeToString(node->type()));
+                                        this->source,
+                                        node->meta_data.st_line_no,
+                                        node->meta_data.st_col_no,
+                                        node->meta_data.end_line_no,
+                                        node->meta_data.end_col_no,
+                                        "Unknown node type: " + AST::nodeTypeToString(node->type()));
     }
 }
 
@@ -474,10 +472,8 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
 
     // Handle cases where no overload matches
     if (mismatches.empty()) {
-        // No function exists with the given name and parameter types
         errors::raiseNotDefinedError(this->file_path, this->source, func_call->name, "Function dose not Exist.", "Check the function name or define the function.");
     } else {
-        // Argument types do not match any overload
         errors::raiseNoOverloadError(this->file_path, this->source, mismatches, func_call, "Argument types do not match any overload.", "Check the argument types or define an appropriate overload.");
     }
 };
@@ -579,8 +575,8 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
         // Save the current environment and create a new one for the function
         auto prev_env = this->env;
-        this->env = new Enviornment(prev_env, {}, name);
-        prev_env->childes.push_back(this->env);
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
         this->env->current_function = func_record;
 
         // Initialize function arguments in the new environment
@@ -671,7 +667,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             idx++;
         }
         this->_checkAndConvertCallType({func}, call_expression, args, params_types);
-        auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args, name + "_result");
+        auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args);
         return {returnValue, nullptr, func->return_type, resolveType::StructInst};
     } else if (this->env->isGenericFunc(name)) {
         auto gfuncs = this->env->getGenericFunc(name);
@@ -751,8 +747,7 @@ Compiler::ResolvedValue Compiler::_callStruct(RecordStructType* struct_record, A
     return {alloca, alloca, struct_record, resolveType::StructInst};
 }
 
-Compiler::ResolvedValue
-Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, RecordStructType* index_generic, RecordStructType* left_generic, AST::IndexExpression* index_expression) {
+Compiler::ResolvedValue Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, RecordStructType* index_generic, RecordStructType* left_generic, AST::IndexExpression* index_expression) {
     if (left_generic->is_method("__index__", {left_generic, index_generic})) {
         auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
         auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
@@ -998,11 +993,11 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             auto module = std::get<RecordModule*>(_left_type);
             auto name = right->castToIdentifierLiteral()->value;
             if (module->is_module(name)) {
-                return {nullptr, nullptr, module->get_module(name), resolveType::Module};
+                return Compiler::ResolvedValue(nullptr, nullptr, module->get_module(name), resolveType::Module);
             } else if (module->is_struct(name)) {
-                return {nullptr, nullptr, module->get_struct(name), resolveType::StructType};
+                return Compiler::ResolvedValue(nullptr, nullptr, module->get_struct(name), resolveType::StructType);
             } else if (module->isGenericStruct(name)) {
-                return {nullptr, nullptr, module->getGenericStruct(name), resolveType::GStructType};
+                return Compiler::ResolvedValue(nullptr, nullptr, module->getGenericStruct(name), resolveType::GStructType);
             } else {
                 errors::raiseDoesntContainError(this->file_path,
                                                 this->source,
@@ -1013,7 +1008,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             }
         } else if (ltt == resolveType::StructInst) {
             auto left_type = std::get<RecordStructType*>(_left_type);
-            if (left_type->sub_types.find(right->castToIdentifierLiteral()->value) != left_type->sub_types.end()) {
+            if (left_type->sub_types.contains(right->castToIdentifierLiteral()->value)) {
                 unsigned short idx = 0;
                 for (auto field : left_type->getFields()) {
                     if (field == right->castToIdentifierLiteral()->value) { break; }
@@ -1042,9 +1037,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
             if (ptt == resolveType::Module) {
                 errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass Module to the Function");
-            } else if ((ptt == resolveType::StructType && std::get<RecordStructType*>(param_type)->name != "nullptr" &&
-                        !(ltt == resolveType::Module && std::get<RecordModule*>(_left_type)->isGenericStruct(name))) ||
-                       ptt == resolveType::GStructType) {
+            } else if ((ptt == resolveType::StructType && std::get<RecordStructType*>(param_type)->name != "nullptr" && !(ltt == resolveType::Module && std::get<RecordModule*>(_left_type)->isGenericStruct(name))) || ptt == resolveType::GStructType) {
                 errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass type to the Function");
             }
             params_types.push_back(std::get<RecordStructType*>(param_type));
@@ -1114,31 +1107,17 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                                  "Member access should be identifier of method not " + AST::nodeTypeToString(right->type()));
 };
 
-Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
-                                                   const Str& op,
-                                                   RecordStructType* left_type,
-                                                   RecordStructType* right_type,
-                                                   AST::Expression* left,
-                                                   AST::Expression* right,
-                                                   llvm::Value* left_value,
-                                                   llvm::Value* left_alloca,
-                                                   llvm::Value* right_value,
-                                                   llvm::Value* right_alloca) {
+Compiler::ResolvedValue Compiler::_StructInfixCall(
+    const Str& op_method, const Str& op, RecordStructType* left_type, RecordStructType* right_type, AST::Expression* left, AST::Expression* right, llvm::Value* left_value, llvm::Value* left_alloca, llvm::Value* right_value, llvm::Value* right_alloca) {
     vector<RecordStructType*> params_type1{left_type, right_type};
     vector<RecordStructType*> params_type2{right_type, left_type};
     if (left_type->is_method(op_method, params_type1)) {
         auto func_record = left_type->get_method(op_method, params_type1);
-        auto returnValue = this->llvm_ir_builder.CreateCall(
-            func_record->function,
-            {left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca),
-             right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca)});
+        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca), right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else if (right_type->is_method(op_method, params_type2)) {
         auto func_record = right_type->get_method(op_method, params_type2);
-        auto returnValue = this->llvm_ir_builder.CreateCall(
-            func_record->function,
-            {right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca),
-             left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca)});
+        auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, {right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca), left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else {
         errors::raiseWrongInfixError(this->file_path, this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct");
@@ -1174,94 +1153,58 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
     if (_checkType(fromtype, to)) { return {fromloadedval, fromalloca, fromtype, resolveType::StructInst}; }
 
     if (fromtype->name == "int32" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateSExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                         this->env->getStruct("int")->stand_alone_type,
-                                                         "int32_to_int");
+        auto int_type = this->llvm_ir_builder.CreateSExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("int")->stand_alone_type, "int32_to_int");
         return {int_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "int" && to->name == "int32") {
-        auto int32_type = this->llvm_ir_builder.CreateTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                            this->env->getStruct("int32")->stand_alone_type,
-                                                            "int_to_int32");
+        auto int32_type = this->llvm_ir_builder.CreateTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("int32")->stand_alone_type, "int_to_int32");
         return {int32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "uint32" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                          this->env->getStruct("uint")->stand_alone_type,
-                                                          "uint32_to_uint");
+        auto uint_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("uint")->stand_alone_type, "uint32_to_uint");
         return {uint_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "uint" && to->name == "uint32") {
-        auto uint32_type = this->llvm_ir_builder.CreateTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("uint32")->stand_alone_type,
-                                                             "uint_to_uint32");
+        auto uint32_type = this->llvm_ir_builder.CreateTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("uint32")->stand_alone_type, "uint_to_uint32");
         return {uint32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "float32" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateFPExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                            this->env->getStruct("float")->stand_alone_type,
-                                                            "float32_to_float");
+        auto float_type = this->llvm_ir_builder.CreateFPExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float")->stand_alone_type, "float32_to_float");
         return {float_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "float" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateFPTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                                this->env->getStruct("float32")->stand_alone_type,
-                                                                "float_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateFPTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float32")->stand_alone_type, "float_to_float32");
         return {float32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "int" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateSIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("float")->stand_alone_type,
-                                                             "int_to_float");
+        auto float_type = this->llvm_ir_builder.CreateSIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float")->stand_alone_type, "int_to_float");
         return {float_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "int32" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateSIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                               this->env->getStruct("float32")->stand_alone_type,
-                                                               "int32_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateSIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float32")->stand_alone_type, "int32_to_float32");
         return {float32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "uint" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("float")->stand_alone_type,
-                                                             "uint_to_float");
+        auto float_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float")->stand_alone_type, "uint_to_float");
         return {float_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "uint32" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                               this->env->getStruct("float32")->stand_alone_type,
-                                                               "uint32_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float32")->stand_alone_type, "uint32_to_float32");
         return {float32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "float" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateFPToSI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                           this->env->getStruct("int")->stand_alone_type,
-                                                           "float_to_int");
+        auto int_type = this->llvm_ir_builder.CreateFPToSI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("int")->stand_alone_type, "float_to_int");
         return {int_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "float32" && to->name == "int32") {
-        auto int32_type = this->llvm_ir_builder.CreateFPToSI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("int32")->stand_alone_type,
-                                                             "float32_to_int32");
+        auto int32_type = this->llvm_ir_builder.CreateFPToSI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("int32")->stand_alone_type, "float32_to_int32");
         return {int32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "float" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateFPToUI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                            this->env->getStruct("uint")->stand_alone_type,
-                                                            "float_to_uint");
+        auto uint_type = this->llvm_ir_builder.CreateFPToUI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("uint")->stand_alone_type, "float_to_uint");
         return {uint_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "float32" && to->name == "uint32") {
-        auto uint32_type = this->llvm_ir_builder.CreateFPToUI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                              this->env->getStruct("uint32")->stand_alone_type,
-                                                              "float32_to_uint32");
+        auto uint32_type = this->llvm_ir_builder.CreateFPToUI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("uint32")->stand_alone_type, "float32_to_uint32");
         return {uint32_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "bool" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                         this->env->getStruct("int")->stand_alone_type,
-                                                         "bool_to_int");
+        auto int_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("int")->stand_alone_type, "bool_to_int");
         return {int_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "bool" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                          this->env->getStruct("uint")->stand_alone_type,
-                                                          "bool_to_uint");
+        auto uint_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("uint")->stand_alone_type, "bool_to_uint");
         return {uint_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "bool" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("float")->stand_alone_type,
-                                                             "bool_to_float");
+        auto float_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float")->stand_alone_type, "bool_to_float");
         return {float_type, fromalloca, to, resolveType::StructInst};
     } else if (fromtype->name == "bool" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                               this->env->getStruct("float32")->stand_alone_type,
-                                                               "bool_to_float32");
+        auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca), this->env->getStruct("float32")->stand_alone_type, "bool_to_float32");
         return {float32_type, fromalloca, to, resolveType::StructInst};
     } else if ((fromtype->name == "int" || fromtype->name == "float" || fromtype->name == "str") && to->name == "bool") {
         errors::raiseCompletionError(this->file_path,
@@ -1306,7 +1249,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto [right_value, right_alloca, _right_type, rtt] = this->_resolveValue(right);
     if (ltt != resolveType::StructInst && !(ltt == resolveType::StructType && std::get<RecordStructType*>(_left_type)->name == "nullptr") ||
         (rtt != resolveType::StructInst && !(rtt == resolveType::StructType && std::get<RecordStructType*>(_right_type)->name == "nullptr"))) {
-        errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules");
+            errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules");
     }
     // Handle type conversion
     auto left_val = left_value;
@@ -1351,12 +1294,10 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                     auto inst = llvm::ConstantInt::getTrue(this->llvm_context);
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 } else if (left_type->name == "nullptr") {
-                    auto inst = this->llvm_ir_builder.CreateICmpEQ(right_value ? right_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, right_alloca),
-                                                                   llvm::Constant::getNullValue(this->ll_pointer));
+                    auto inst = this->llvm_ir_builder.CreateICmpEQ(right_value ? right_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, right_alloca), llvm::Constant::getNullValue(this->ll_pointer));
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 } else if (right_type->name == "nullptr") {
-                    auto inst =
-                        this->llvm_ir_builder.CreateICmpEQ(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
+                    auto inst = this->llvm_ir_builder.CreateICmpEQ(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 }
                 return this->_StructInfixCall("__eq__", "compare equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
@@ -1366,12 +1307,10 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                     auto inst = llvm::ConstantInt::getFalse(this->llvm_context);
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 } else if (left_type->name == "nullptr") {
-                    auto inst = this->llvm_ir_builder.CreateICmpNE(right_value ? right_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, right_alloca),
-                                                                   llvm::Constant::getNullValue(this->ll_pointer));
+                    auto inst = this->llvm_ir_builder.CreateICmpNE(right_value ? right_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, right_alloca), llvm::Constant::getNullValue(this->ll_pointer));
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 } else if (right_type->name == "nullptr") {
-                    auto inst =
-                        this->llvm_ir_builder.CreateICmpNE(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
+                    auto inst = this->llvm_ir_builder.CreateICmpNE(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
                     return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
                 }
                 return this->_StructInfixCall("__neq__", "compare not equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
@@ -1633,15 +1572,11 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     }
     llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_generic->struct_type || var_generic->name == "array" ? this->ll_pointer : var_generic->stand_alone_type);
     if (var_generic->struct_type || var_generic->name == "array") {
-        this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(this->ll_pointer, var_value_alloca),
-                                          alloca,
-                                          variable_declaration_statement->is_volatile);
+        this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(this->ll_pointer, var_value_alloca), alloca, variable_declaration_statement->is_volatile);
         auto var = new RecordVariable(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
     } else {
-        this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(var_generic->stand_alone_type, var_value_alloca),
-                                          alloca,
-                                          variable_declaration_statement->is_volatile);
+        this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(var_generic->stand_alone_type, var_value_alloca), alloca, variable_declaration_statement->is_volatile);
         auto var = new RecordVariable(var_name->value, nullptr, alloca, var_generic);
         this->env->addRecord(var);
     }
@@ -1742,9 +1677,7 @@ Compiler::ResolvedValue Compiler::_resolveStringLiteral(AST::StringLiteral* stri
 }
 
 Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiteral* identifier_literal) {
-    if (identifier_literal->value == "nullptr") {
-        return {llvm::Constant::getNullValue(this->ll_pointer), llvm::Constant::getNullValue(this->ll_pointer), this->env->getStruct("nullptr"), resolveType::StructType};
-    }
+    if (identifier_literal->value == "nullptr") { return {llvm::Constant::getNullValue(this->ll_pointer), llvm::Constant::getNullValue(this->ll_pointer), this->env->getStruct("nullptr"), resolveType::StructType}; }
     if (this->env->isVariable(identifier_literal->value)) {
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
@@ -1810,14 +1743,14 @@ Compiler::ResolvedValue Compiler::_resolveValue(AST::Node* node) {
         case AST::NodeType::ArrayLiteral:
             return this->_resolveArrayLiteral(node->castToArrayLiteral());
         default:
-            errors::raiseUnknownNodeTypeError(this->file_path,
-                                              this->source,
-                                              AST::nodeTypeToString(node->type()),
-                                              node->meta_data.st_line_no,
-                                              node->meta_data.st_col_no,
-                                              node->meta_data.end_line_no,
-                                              node->meta_data.end_col_no,
-                                              "Unknown node type: " + AST::nodeTypeToString(node->type()));
+        errors::raiseUnknownNodeTypeError(this->file_path,
+                                          this->source,
+                                          AST::nodeTypeToString(node->type()),
+                                          node->meta_data.st_line_no,
+                                          node->meta_data.st_col_no,
+                                          node->meta_data.end_line_no,
+                                          node->meta_data.end_col_no,
+                                          "Unknown node type: " + AST::nodeTypeToString(node->type()));
     }
 }
 
@@ -1934,8 +1867,10 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& 
             auto [converted_value, converted_alloca, converted_type, _] = this->convertType({return_value, return_alloca, return_type}, this->env->current_function->return_type);
             return_value = converted_value;
             return_alloca = converted_alloca;
+            if (!return_value) {
+                if (!return_value && !return_alloca) { errors::raiseWrongTypeError(this->file_path, this->source, value, return_type, {this->env->current_function->return_type}, "Return Type mismatch & also no viable conversion avalable"); }
+            }
             return_type = std::get<RecordStructType*>(converted_type);
-            if (!return_value && !return_alloca) { errors::raiseWrongTypeError(this->file_path, this->source, value, return_type, {this->env->current_function->return_type}, "Return Type mismatch & also no viable conversion avalable"); }
         } else {
             errors::raiseWrongTypeError(this->file_path, this->source, value, return_type, {this->env->current_function->return_type}, "Return Type mismatch & also no viable conversion avalable");
         }
@@ -2040,8 +1975,8 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
 
     // Save the current environment and create a new one for the if-else block
     auto prev_env = this->env;
-    this->env = new Enviornment(this->env);
-    prev_env->childes.push_back(this->env);
+    auto new_env = Enviornment(prev_env);
+    this->env = &new_env;
 
     // Get the current function and create basic blocks for then, else, and continue
     auto current_function = this->llvm_ir_builder.GetInsertBlock()->getParent();
@@ -2066,8 +2001,8 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
 
     // If there is an else block, set insertion point to else block and compile the alternative
     if (else_block) {
-        this->env = new Enviornment(prev_env);
-        prev_env->childes.push_back(this->env);
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
         this->llvm_ir_builder.SetInsertPoint(else_block);
         try {
             this->compile(if_statement->alternative);
@@ -2140,8 +2075,8 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
 
     // Save the current environment and create a new one for the loop body
     auto prev_env = this->env;
-    this->env = new Enviornment(this->env);
-    prev_env->childes.push_back(this->env);
+    auto new_env = Enviornment(prev_env);
+    this->env = &new_env;
 
     try {
         // Compile the loop body
@@ -2157,8 +2092,8 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Handle the ifbreak block if it exists
     if (ifBreakBlock) {
         // Restore the previous environment
-        this->env = new Enviornment(prev_env);
-        prev_env->childes.push_back(this->env);
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
         this->llvm_ir_builder.SetInsertPoint(ifBreakBlock);
 
         try {
@@ -2176,8 +2111,8 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
     // Handle the notbreak block if it exists
     if (notBreakBlock) {
         // Restore the previous environment
-        this->env = new Enviornment(prev_env);
-        prev_env->childes.push_back(this->env);
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
         this->llvm_ir_builder.SetInsertPoint(notBreakBlock);
 
         try {
@@ -2278,8 +2213,8 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
 
         // Save the current environment and create a new one for the loop body
         auto prev_env = this->env;
-        this->env = new Enviornment(this->env);
-        prev_env->childes.push_back(this->env);
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
 
         // Allocate space for the loop variable
         llvm::Value* loop_var_alloca;
@@ -2323,8 +2258,8 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
         // Handle the ifbreak block if it exists
         if (if_break_block) {
             // Restore the previous environment
-            this->env = new Enviornment(prev_env);
-            prev_env->childes.push_back(this->env);
+            auto new_env = Enviornment(prev_env);
+            this->env = &new_env;
             this->llvm_ir_builder.SetInsertPoint(if_break_block);
             try {
                 // Compile the ifbreak statement
@@ -2341,8 +2276,8 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
         // Handle the notbreak block if it exists
         if (not_break_block) {
             // Restore the previous environment
-            this->env = new Enviornment(prev_env);
-            prev_env->childes.push_back(this->env);
+            auto new_env = Enviornment(prev_env);
+            this->env = &new_env;
             this->llvm_ir_builder.SetInsertPoint(not_break_block);
             try {
                 // Compile the notbreak statement
@@ -2393,7 +2328,8 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     if (import_statement->as == "") {
         module_name = relative_path.substr(relative_path.find_last_of('/') + 1);
         std::replace(module_name.begin(), module_name.end(), '.', '_');
-    } else module_name = import_statement->as;
+    } else
+        module_name = import_statement->as;
 
     // Determine the path for the imported source file
     std::filesystem::path gc_source_path = this->file_path.parent_path() / (relative_path + ".gc");
@@ -2411,7 +2347,9 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     compilationState::RecordFile* local_file_record = findOrCreateFileRecord(this->file_record->parent, relative_path + ".gc");
 
     // Wait until the file is compiled
-    while (!local_file_record->compiled) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+    while (!local_file_record->compiled) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
     // Read the source code from the file
     Str gc_source = Utils::readFileToString(gc_source_path.string());

@@ -1026,6 +1026,18 @@ AST::Expression* Parser::_parseArrayLiteral() {
     auto elements = std::vector<AST::Expression*>();
     bool is_new_arr_local = is_new_arr;
     is_new_arr = false;
+    if (this->_peekTokenIs(TokenType::RightBracket)) {
+        errors::raiseCompletionError(
+            this->lexer->file_path,
+            this->lexer->source,
+            this->current_token.st_line_no,
+            this->current_token.col_no + 1,
+            this->peek_token.end_line_no,
+            this->peek_token.end_col_no + 1,
+            "Can initialize Empty Array",
+            "initialize Array like `array(type, length) or vector(type)`"
+        );
+    }
     for (_nextToken(); !_currentTokenIs(TokenType::RightBracket); _nextToken()) { // [LeftBracket] -> [Element]
         LOG_TOK()
         if (_currentTokenIs(TokenType::Comma)) { continue; }  // Skip commas

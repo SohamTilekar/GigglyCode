@@ -236,7 +236,7 @@ token::Token Lexer::nextToken() {
     } else if (this->current_char == "") {
         token = this->_newToken(token::TokenType::EndOfFile, "");
     } else if (this->current_char == "#" && tokenize_coment) {
-        int st_col = this->col_no - 1;
+        int st_col = this->col_no;
         this->_readChar();
         std::string literal = "#";
         while (this->current_char != "\n" && this->current_char != "") {

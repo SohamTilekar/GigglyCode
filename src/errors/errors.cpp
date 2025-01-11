@@ -251,19 +251,17 @@ std::vector<std::tuple<int, std::string, std::string>> underline(int st_line_no,
     std::vector<std::tuple<int, std::string, std::string>> underlines;
 
     if (st_line_no == end_line_no) {
-        std::string underline = std::string(st_col_no - 1, ' ') + std::string((end_col_no - st_col_no) + 1, '^');
+        std::string underline = std::string(st_col_no - 1, ' ') + std::string(end_col_no - st_col_no, '^');
         underlines.emplace_back(st_line_no, underline, color);
     } else {
         LineIterator iter(source, st_line_no, end_line_no);
         std::string underline;
         int line_no = st_line_no;
-        int consumed = 0;
         // Process the first line
         if (iter.has_next()) {
             auto fline = iter.next();
             underline = std::string(st_col_no - 1, ' ') + std::string(fline.length() - st_col_no + 1, '^');
             underlines.emplace_back(line_no, underline, color);
-            consumed += fline.length() - st_col_no + 1;
             line_no++;
         }
 
@@ -272,14 +270,13 @@ std::vector<std::tuple<int, std::string, std::string>> underline(int st_line_no,
             auto line = iter.next();
             underline = std::string(line.length(), '^');
             underlines.emplace_back(line_no, underline, color);
-            consumed += line.length();
             line_no++;
         }
 
         // Process the last line
         if (iter.has_next()) {
             auto eline = iter.next();
-            underline = std::string(end_col_no - consumed - eline.length(), '^');
+            underline = std::string(end_col_no, '^');
             underlines.emplace_back(end_line_no, underline, color);
         }
     }
@@ -379,7 +376,7 @@ void print_source_context(
                 char c1 = (i < existing.length()) ? existing[i] : ' ';
                 char c2 = (i < underline.length()) ? underline[i] : ' ';
                 if (c1 == '^' || c2 == '^') {
-                    merged += BOLD + color + '^' + RESET;
+                    merged += '^';
                 } else {
                     merged += ' ';
                 }
@@ -405,7 +402,7 @@ void print_source_context(
         auto it = merged_underlines.find(current_line);
         if (it != merged_underlines.end()) {
             std::cerr << BLUE << "     │ " << RESET;
-            std::cerr << it->second << '\n';
+            std::cerr << BOLD << RED << it->second << RESET << '\n';
         }
 
         current_line++;
@@ -478,7 +475,7 @@ void raiseSyntaxError(const std::string& file_path, const token::Token& token, c
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.st_line_no, token.col_no, token.end_line_no, token.end_col_no, source, RED);
 
-    print_source_context(source, file_path, token.end_line_no, token.col_no, token.end_line_no, token.end_col_no, underlines);
+    print_source_context(source, file_path, token.end_line_no, token.col_no, token.end_line_no, token.end_col_no - 1, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
