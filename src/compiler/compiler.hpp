@@ -10,8 +10,9 @@
  * AST traversal, and LLVM IR generation.
  */
 
-// === LLVM Headers ===
+// === LLVM Headers ===o
 #include <filesystem>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Value.h>
 
@@ -214,6 +215,7 @@ class Compiler {
     llvm::Type* ll_str = nullptr;            ///< LLVM string type
     llvm::Type* ll_bool = nullptr;           ///< LLVM boolean type
     llvm::PointerType* ll_raw_array = nullptr;   ///< LLVM raw_array pointer type
+    llvm::StructType* ll_array = nullptr;
     // --- Garbage-Collected Struct Types ---
     RecordStructType* gc_int = nullptr;     ///< GC wrapper for int
     RecordStructType* gc_int32 = nullptr;   ///< GC wrapper for int32
@@ -258,6 +260,8 @@ class Compiler {
                                     bool isVarArg);
 
     void addBuiltinFunction(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool>>& params, RecordStructType* returnType, bool isVarArg);
+
+    void initilizeArray();
 
     // --- AST Visitor Methods ---
 

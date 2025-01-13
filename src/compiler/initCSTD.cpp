@@ -29,6 +29,9 @@ void Compiler::_initilizeCSTDLib() {
     params = {std::make_tuple("format", this->gc_str, false)};
     addBuiltinFunction("printf", "printf", llvm::FunctionType::get(this->ll_int, {this->ll_str}, true), params, this->gc_int, true);
 
+    params = {std::make_tuple("str", this->gc_str, false)};
+    addBuiltinFunction("puts", "puts", llvm::FunctionType::get(this->ll_int, {this->ll_str}, false), params, this->gc_int, false);
+
     // math.h
     auto math_module = new enviornment::RecordModule("math");
 
