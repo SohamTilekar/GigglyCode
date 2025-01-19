@@ -54,7 +54,7 @@ std::string highlight_syntax(const std::string& line) {
     while (current_token.type != token::TokenType::EndOfFile) {
         switch (current_token.type) {
             case token::TokenType::Identifier:
-            break;
+                break;
             case token::TokenType::And:
             case token::TokenType::Or:
             case token::TokenType::Not:

@@ -15,6 +15,7 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Value.h>
+#include <vector>
 
 // === Project-specific Headers ===
 #include "../compilation_state.hpp"
@@ -144,6 +145,8 @@ class Compiler {
      */
     Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
 
+    ~Compiler();
+
     // === Public Methods ===
 
     /**
@@ -228,6 +231,9 @@ class Compiler {
     RecordStructType* gc_str = nullptr;     ///< GC wrapper for string
     RecordStructType* gc_bool = nullptr;    ///< GC wrapper for boolean
     RecordStructType* gc_raw_array = nullptr;   ///< GC wrapper for raw_array
+
+    std::vector<AST::Program*> auto_free_programs;
+    std::vector<RecordStructType*> auto_free_recordStructType;
 
     // === Private Methods ===
 

@@ -2,10 +2,9 @@
 #include "../errors/errors.hpp"
 #include "token.hpp"
 
-#include <iostream>
 #include <sstream>
 
-Lexer::Lexer(const std::string& source, const std::filesystem::path& file_path, bool tokenize_coment) {
+Lexer::Lexer(const std::string& source, const std::filesystem::path& file_path, bool tokenize_coment) : tokenBuffer() {
     this->source = source;
     this->file_path = file_path;
     this->tokenize_coment = tokenize_coment;
@@ -90,6 +89,12 @@ token::TokenType Lexer::_lookupIdent(const std::string ident) {
 };
 
 token::Token Lexer::nextToken() {
+    if (!tokenBuffer.empty()) {
+        auto token = tokenBuffer.top();
+        tokenBuffer.pop();
+        return token;
+    }
+
     token::Token token;
 
     this->_skipWhitespace();

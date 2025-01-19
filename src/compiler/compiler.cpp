@@ -1,5 +1,6 @@
 // TODO: Add Meta Data to all of the Record.
 #include "compiler.hpp"
+#include <iostream>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Module.h>
@@ -35,6 +36,15 @@ Compiler::Compiler(
 
     // Initialize built-in functions and types
     _initializeBuiltins();
+}
+
+Compiler::~Compiler() {
+    for (auto ptr : this->auto_free_programs) {
+        delete ptr;
+    }
+    for (auto ptr : this->auto_free_recordStructType) {
+        delete ptr;
+    }
 }
 
 Str Compiler::extractPrefix(const Str& path_str) {
@@ -682,6 +692,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         // Create array struct type
         auto array_struct = new RecordStructType(*this->env->getStruct("raw_array"));
         array_struct->generic_sub_types.push_back(raw_array_type);
+        this->auto_free_recordStructType.push_back(array_struct);
 
         return {raw_array, raw_array, array_struct, resolveType::StructInst};
     } else if (name == "array") {
@@ -701,7 +712,8 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
 
         auto setupArrayStruct = [&](RecordStructType* element_type, llvm::Value* raw_array, llvm::Value* size_val) {
             // Set up a new environment based on the generic struct's environment
-            this->env = new Enviornment(gstruct->env);
+            auto env = Enviornment(gstruct->env);
+            this->env = &env;
             auto X = new RecordStructType(*element_type);
             X->name = "T";
             this->env->addRecord(X);
@@ -2161,6 +2173,7 @@ Compiler::ResolvedValue Compiler::_visitArrayLiteral(AST::ArrayLiteral* raw_arra
 
     // Create the raw_array struct and manage reference counting
     auto raw_array_struct = new RecordStructType(*this->env->getStruct("raw_array"));
+    this->auto_free_recordStructType.push_back(raw_array_struct);
     raw_array_struct->generic_sub_types.push_back(first_generic);
 
     return {raw_array, raw_array, raw_array_struct, resolveType::StructInst};
@@ -2324,6 +2337,7 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
     if (struct_->name == "raw_array") {
         struct_ = new RecordStructType(*struct_);
         struct_->generic_sub_types.push_back(generics[0]);
+        this->auto_free_recordStructType.push_back(struct_);
     }
     return struct_;
 }

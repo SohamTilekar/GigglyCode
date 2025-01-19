@@ -1,5 +1,6 @@
 #ifndef AST_HPP
 #define AST_HPP
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -9,7 +10,6 @@ namespace AST {
 class Node;
 class Statement;
 class Type;
-class GenericType;
 class Program;
 class FunctionParameter;
 class Expression;
@@ -38,6 +38,7 @@ class VariableAssignmentStatement;
 class TryCatchStatement;
 class StructStatement;
 class SwitchCaseStatement;
+class MacroStatement;
 
 enum class NodeType {
     Program,
@@ -62,10 +63,10 @@ enum class NodeType {
     TryCatchStatement,
     RaiseStatement,
     SwitchCaseStatement,
+    MacroStatement,
 
     // Types
     Type,
-    GenericType,
 
     // Expressions
     InfixedExpression,
@@ -144,7 +145,6 @@ class Node {
     Expression* castToExpression() { return (Expression*)(this); }
     Statement* castToStatement() { return (Statement*)(this); }
     Type* castToType() { return (Type*)(this); }
-    GenericType* castToGenericType() { return (GenericType*)(this); }
     Program* castToProgram() { return (Program*)(this); }
     FunctionParameter* castToFunctionParameter() { return (FunctionParameter*)(this); }
     // Statement Casts
@@ -164,6 +164,7 @@ class Node {
     TryCatchStatement* castToTryCatchStatement() { return (TryCatchStatement*)(this); }
     StructStatement* castToStructStatement() { return (StructStatement*)(this); }
     SwitchCaseStatement* castToSwitchCaseStatement() { return (SwitchCaseStatement*)(this); }
+    MacroStatement* castToMacroStatement() { return (MacroStatement*)(this); }
     // Expression Casts
     IdentifierLiteral* castToIdentifierLiteral() { return (IdentifierLiteral*)(this); }
     IntegerLiteral* castToIntegerLiteral() { return (IntegerLiteral*)(this); }
@@ -202,18 +203,6 @@ class Type : public Node {
 
     // Destructor Declaration
     ~Type() override;
-};
-
-class GenericType : public Node {
-  public:
-    Expression* name;
-    std::vector<Type*> generic_union;
-    inline GenericType(Expression* name, const std::vector<Type*>& generic_union) : name(name), generic_union(generic_union) {}
-    inline NodeType type() override { return NodeType::GenericType; };
-    std::string toStr() override;
-
-    // Destructor Declaration
-    ~GenericType() override;
 };
 
 class Program : public Node {
@@ -289,13 +278,13 @@ class FunctionStatement : public Statement {
     std::vector<FunctionParameter*> closure_parameters;
     Type* return_type;
     BlockStatement* body;
-    std::vector<GenericType*> generic;
+    std::vector<Type*> generic;
     inline FunctionStatement(Expression* name,
                              std::vector<FunctionParameter*> parameters,
                              std::vector<FunctionParameter*> closure_parameters,
                              Type* return_type,
                              BlockStatement* body,
-                             const std::vector<GenericType*>& generic)
+                             const std::vector<Type*>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
         this->extra_info.insert("autocast", false);
     }
@@ -533,13 +522,25 @@ class StructStatement : public Statement {
   public:
     Expression* name = nullptr;
     std::vector<Statement*> fields = {};
-    std::vector<GenericType*> generics = {};
+    std::vector<Type*> generics = {};
     inline StructStatement(Expression* name, const std::vector<Statement*>& fields) : name(name), fields(fields) {}
     inline NodeType type() override { return NodeType::StructStatement; };
     std::string toStr() override;
 
     // Destructor Declaration
     ~StructStatement() override;
+};
+
+class MacroStatement : public Statement {
+  public:
+    std::string name;
+    BlockStatement* body;
+    inline MacroStatement(std::string name, BlockStatement* body) : name(name), body(body) {}
+    inline NodeType type() override { return NodeType::MacroStatement; };
+    std::string toStr() override;
+
+    // Destructor Declaration
+    ~MacroStatement() override;
 };
 
 class ArrayLiteral : public Expression {

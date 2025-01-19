@@ -159,7 +159,7 @@ AST::Statement* Parser::_parseGenericDeco() {
     this->_expectPeek(TokenType::LeftParen); // [Identifier] -> [(]
     this->_nextToken();                      // [(] -> [Identifier | )]!
     LOG_TOK()
-    std::vector<AST::GenericType*> generics;
+    std::vector<AST::Type*> generics;
 
     while (this->current_token.type != TokenType::RightParen) {
         if (this->_currentTokenIs(TokenType::Identifier)) {
@@ -179,7 +179,7 @@ AST::Statement* Parser::_parseGenericDeco() {
                 } else break;
             }
 
-            generics.push_back(new AST::GenericType(identifier, type));
+            generics.push_back(new AST::Type(identifier, type, false));
             if (this->_peekTokenIs(TokenType::Comma)) {
                 this->_nextToken(); // [Type] -> [,]
                 LOG_TOK()
@@ -343,7 +343,7 @@ AST::FunctionStatement* Parser::_parseFunctionStatement() {
     int end_line_no = current_token.end_line_no;
     int end_col_no = current_token.col_no;
 
-    auto function_statement = new AST::FunctionStatement(name, parameters, closure_parameters, return_type, body, std::vector<AST::GenericType*>{});
+    auto function_statement = new AST::FunctionStatement(name, parameters, closure_parameters, return_type, body, std::vector<AST::Type*>{});
 
     function_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return function_statement;
@@ -594,13 +594,20 @@ AST::BlockStatement* Parser::_parseBlockStatement() {
     return block_statement;
 }
 
-AST::Statement* Parser::_parseExpressionStatement(AST::Expression* identifier, int st_line_no, int st_col_no) {
-    if (identifier == nullptr) {
+AST::Statement* Parser::_parseExpressionStatement(AST::Expression* first_token, int st_line_no, int st_col_no) {
+    if (!first_token) {
         st_line_no = current_token.st_line_no;
         st_col_no = current_token.col_no;
-        identifier = new AST::IdentifierLiteral(this->current_token);
+        if (current_token.type == TokenType::Identifier)
+            first_token = new AST::IdentifierLiteral(this->current_token);
+        else if (current_token.type == TokenType::Integer)
+            first_token = new AST::IntegerLiteral(std::atoll(this->current_token.literal.c_str()));
+        else if (current_token.type == TokenType::Float)
+            first_token = new AST::FloatLiteral(std::atof(this->current_token.literal.c_str()));
+        else if (current_token.type == TokenType::String)
+            first_token = new AST::StringLiteral(this->current_token.literal);
     }
-    auto expr = this->_parseExpression(PrecedenceType::LOWEST, identifier, st_line_no, st_col_no);                                                 // [Expression] remains unchanged
+    auto expr = this->_parseExpression(PrecedenceType::LOWEST, first_token, st_line_no, st_col_no);                                                 // [Expression] remains unchanged
     if (this->_peekTokenIs(TokenType::Equals)) return this->_parseVariableAssignment(expr, expr->meta_data.st_col_no, expr->meta_data.end_col_no); // [Variable Assignment]
     this->peek_token.col_no = this->peek_token.col_no;
     this->peek_token.end_col_no = this->peek_token.end_col_no;
@@ -835,7 +842,7 @@ AST::StructStatement* Parser::_parseStructStatement() {
 }
 
 AST::Expression* Parser::_parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression, int st_line_no, int st_col_no) {
-    if (parsed_expression == nullptr) {
+    if (!parsed_expression) {
         st_line_no = current_token.st_line_no;
         st_col_no = current_token.col_no;
         auto iter = prefix_parse_fns.find(current_token.type);

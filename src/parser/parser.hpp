@@ -12,8 +12,8 @@
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
 
-#define LOG
-#define LOG_PATH "./dump/dbg.log"
+// #define LOG
+// #define LOG_PATH "./dump/dbg.log"
 
 #ifdef LOG
 #include <fstream>
@@ -67,10 +67,6 @@ class Logger {
 };
 
 } // namespace parser
-
-#else
-// If LOG is not defined, define LOG_MSG as empty to eliminate logging overhead
-#define LOG_MSG(message)
 #endif
 
 namespace parser {

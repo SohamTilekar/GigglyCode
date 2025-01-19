@@ -127,7 +127,7 @@ while (counter < 5) {
 ### 🆕 Dynamic Memory Allocation
 ```python
 # Dynamic memory allocation for an raw_array
-arr: int[] = raw_array(int, 5); # Allocate an raw_array like this is not yet implemented
+arr: int[] = array(int, 5);
 for (i in range(0, 5)) {
     arr[i] = i * 10;
 };
@@ -183,7 +183,7 @@ def main() {
     arr: raw_array[int] = [0, 10, 20, 30, 40]; # Allocate an raw_array with elements [[0, 10, 20, 30, 40]]
 
     # Dynamic memory allocation example
-    arr: int = new int[5]; # Allocate an raw_array like this is not yet implemented
+    arr: int = array(int, 5);
     for (i in range(0, 5)) {
         arr[i] = i * 10;
     };

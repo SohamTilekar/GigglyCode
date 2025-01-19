@@ -35,6 +35,7 @@
 #define LEXER_HPP
 #include "token.hpp"
 #include <filesystem>
+#include <stack>
 
 /**
  * @brief Get the string on a specific line number from the input string.
@@ -62,6 +63,7 @@ class Lexer {
     int col_no;               ///< The current column number in the source code.
     std::string current_char; ///< The current character being processed.
     bool tokenize_coment;
+    std::stack<token::Token> tokenBuffer;
 
     /**
      * @brief Construct a new Lexer object.

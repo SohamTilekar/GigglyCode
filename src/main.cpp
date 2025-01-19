@@ -24,11 +24,11 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 
-#define DEBUG_LEXER
-#define DEBUG_PARSER
+// #define DEBUG_LEXER
+// #define DEBUG_PARSER
 
-constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
-constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
+// constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
+// constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
 
 // =======================================
 // Helper Function to Run External Commands
@@ -482,7 +482,8 @@ class Compiler {
      */
     void debugParser(const std::string& fileContent, const std::filesystem::path& file_path) const {
 #ifdef DEBUG_PARSER
-        parser::Parser debugParser(new Lexer(fileContent, file_path));
+        Lexer debug_lexer(fileContent, file_path);
+        parser::Parser debugParser(&debug_lexer);
         auto program = debugParser.parseProgram();
         std::cout << "=========== Parser Debug ===========" << std::endl;
         if (!std::filesystem::path(DEBUG_PARSER_OUTPUT_PATH).string().empty()) {

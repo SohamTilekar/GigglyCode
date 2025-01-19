@@ -15,17 +15,6 @@ Type::~Type() {
     generics.clear();
 }
 
-GenericType::~GenericType() {
-    if (name) {
-        delete name;
-        name = nullptr;
-    }
-    for (auto gen : generic_union) {
-        if (gen) { delete gen; }
-    }
-    generic_union.clear();
-}
-
 Program::~Program() {
     for (auto stmt : statements) {
         if (stmt) { delete stmt; }
@@ -298,6 +287,10 @@ StructStatement::~StructStatement() {
     generics.clear();
 }
 
+MacroStatement::~MacroStatement() {
+    delete body;
+}
+
 ArrayLiteral::~ArrayLiteral() {
     for (auto elem : elements) {
         if (elem) { delete elem; }
@@ -327,8 +320,6 @@ std::string AST::nodeTypeToString(NodeType type) {
             return "ReturnStatement";
         case NodeType::Type:
             return "Type";
-        case NodeType::GenericType:
-            return "GenericType";
         case NodeType::InfixedExpression:
             return "InfixedExpression";
         case NodeType::IntegerLiteral:
@@ -376,18 +367,6 @@ std::string Type::toStr() {
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
     for (auto& gen : generics) { out << YAML::Load(gen->toStr()); }
-    out << YAML::EndSeq;
-    out << YAML::EndMap;
-    return std::string(out.c_str());
-}
-
-std::string GenericType::toStr() {
-    YAML::Emitter out;
-    out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
-    out << YAML::Key << "name" << YAML::Value << name->toStr();
-    out << YAML::Key << "generic_union" << YAML::Value << YAML::BeginSeq;
-    for (auto& gen : generic_union) { out << YAML::Load(gen->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -799,6 +778,21 @@ std::string StructStatement::toStr() {
     out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
     for (auto& gen : generics) { out << YAML::Load(gen->toStr()); }
     out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
+}
+
+std::string MacroStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name;
+    out << YAML::Key << "body";
+    if (body) {
+        out << YAML::Value << YAML::Load(body->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
     out << YAML::EndMap;
     return std::string(out.c_str());
 }

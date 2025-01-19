@@ -23,7 +23,6 @@ this->file_path);
     auto parser_instance = parser::Parser(&lexer_instance);
     auto ast_instance = parser_instance.parseProgram();
     this->compile(ast_instance->statements[0]);
-    // delete ast_instance;
-    // TODO: Fix Memory Error, Cant Delete AST cs its 1 node is in the Struc type;
     this->ll_array = llvm::StructType::create(this->llvm_context, {this->ll_pointer, this->ll_int}, "array");
+    this->auto_free_programs.push_back(ast_instance);
 };

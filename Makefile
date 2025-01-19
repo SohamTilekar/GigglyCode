@@ -50,6 +50,9 @@ format:
 aout:
 	./dump/a.out
 
+exec:
+	./dump/exec
+
 setenv:
 	export GC_STD_OBJ="/mnt/soham/soham_code/GigglyCode/dump/std.o"
 	export GC_STD_DIR="/mnt/soham/soham_code/GigglyCode/std/src/"

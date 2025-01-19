@@ -1,4 +1,0 @@
-struct Lol {
-    x: int;
-    y: float;
-}
