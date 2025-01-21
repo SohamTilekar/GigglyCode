@@ -6,6 +6,7 @@
 
 #include "../errors/errors.hpp"
 #include "AST/ast.hpp"
+#include "macrointerpreter.hpp"
 #include "parser.hpp"
 
 using namespace parser;
@@ -44,6 +45,12 @@ Parser::Parser(Lexer* lexer) : lexer(lexer) {
     LOG_MSG("Peek token read.");
 }
 
+Parser::~Parser() {
+    for (auto pair : macros) {
+        delete pair.second;
+    }
+}
+
 AST::Program* Parser::parseProgram() {
     auto program = new AST::Program;
     int startLineNo = current_token.end_line_no;
@@ -53,6 +60,27 @@ AST::Program* Parser::parseProgram() {
 
     // Parse statements until EndOfFile token is reached
     while (current_token.type != TokenType::EndOfFile) {
+        if (current_token.type == TokenType::AtTheRate) {
+            if (peek_token.type == TokenType::Identifier && peek_token.literal == "macro") {
+                current_token = peek_token;
+                peek_token = lexer->nextToken();
+                current_token = peek_token;
+                peek_token = lexer->nextToken();
+                LOG_TOK()
+                auto name = current_token.literal;
+                LOG_MSG("Macro Name is `" + name + "`")
+                this->_expectPeek(TokenType::LeftBrace);
+                LOG_TOK()
+                auto body = this->_parseBlockStatement();
+                LOG_TOK()
+                macros[name] = new AST::MacroStatement(name, body);
+                // void _parseMacroDecleration();
+                LOG_TOK()
+                this->_nextToken(); // [stmtLT] -> [stmtFT | EOF]
+                LOG_TOK()
+                continue;
+            }
+        }
         auto statement = this->_parseStatement(); // [stmtFT] -> [stmtLT]
         if (statement) {
             program->statements.push_back(statement);
@@ -147,12 +175,28 @@ AST::Statement* Parser::_parseDeco() {
         return this->_parseGenericDeco(); // [IdentifierFT] -> [)]
     } else if (name == "autocast") {
         return this->_parseAutocastDeco(); // [IdentifierFT] -> [)]
+    } else if (name == "macros") {
+        errors::raiseSyntaxError(this->lexer->file_path,
+                                 this->current_token,
+                                 this->lexer->source,
+                                 "Macro define localy",
+                                 "Define macro globaly it cant be declared localy");
     }
     errors::raiseSyntaxError(this->lexer->file_path,
                              this->current_token,
                              this->lexer->source,
                              "Unknown Deco type: " + name,
                              "Check the deco name for case sensitivity. Valid options: `autocast` or `generic`.");
+}
+
+void Parser::_parseMacroDecleration() {
+    auto name = current_token.literal;
+    LOG_MSG("Macro Name is `" + name + "`")
+    this->_expectPeek(TokenType::LeftBrace);
+    LOG_TOK()
+    auto body = this->_parseBlockStatement();
+    LOG_TOK()
+    macros[name] = new AST::MacroStatement(name, body);
 }
 
 AST::Statement* Parser::_parseGenericDeco() {
@@ -981,6 +1025,17 @@ AST::Expression* Parser::_parseStringLiteral() {
 void Parser::_nextToken() {
     current_token = peek_token;
     peek_token = lexer->nextToken();
+    LOG_TOK()
+    if (current_token.type == TokenType::AtTheRate && peek_token.type == TokenType::Identifier && this->macros.contains(peek_token.literal)) {
+        std::cout << "Caught By _nextToken" << std::endl;
+        current_token = peek_token;
+        peek_token = lexer->nextToken();
+        MacroInterpreter(lexer, this).interpret(this->macros[current_token.literal]);
+        lexer->tokenBuffer.insert(lexer->tokenBuffer.begin(), peek_token);
+        peek_token = lexer->nextToken();
+        current_token = peek_token;
+        peek_token = lexer->nextToken();
+    }
 }
 
 bool Parser::_currentTokenIs(TokenType type) {
@@ -988,6 +1043,29 @@ bool Parser::_currentTokenIs(TokenType type) {
 }
 
 bool Parser::_peekTokenIs(TokenType type) {
+    if (peek_token.type == TokenType::AtTheRate) {
+        auto col_no = lexer->col_no;
+        auto line_no = lexer->line_no;
+        auto pos = lexer->pos;
+        auto current_char = lexer->current_char;
+        auto prev_token = peek_token;
+        peek_token = lexer->nextToken();
+        if (this->macros.contains(peek_token.literal)) {
+            std::cout << "Caught By _peekTokenIs" << std::endl;
+            auto prev_current = current_token;
+            current_token = peek_token;
+            peek_token = lexer->nextToken();
+            MacroInterpreter(lexer, this).interpret(this->macros[current_token.literal]);
+            current_token = prev_token;
+            peek_token = lexer->nextToken();
+            return peek_token.type == type;
+        }
+        peek_token = prev_token;
+        lexer->col_no = col_no;
+        lexer->line_no = line_no;
+        lexer->pos = pos;
+        lexer->current_char = current_char;
+    }
     return peek_token.type == type;
 }
 

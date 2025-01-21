@@ -2,6 +2,7 @@
 #include "../errors/errors.hpp"
 #include "token.hpp"
 
+#include <iostream>
 #include <sstream>
 
 Lexer::Lexer(const std::string& source, const std::filesystem::path& file_path, bool tokenize_coment) : tokenBuffer() {
@@ -90,13 +91,12 @@ token::TokenType Lexer::_lookupIdent(const std::string ident) {
 
 token::Token Lexer::nextToken() {
     if (!tokenBuffer.empty()) {
-        auto token = tokenBuffer.top();
-        tokenBuffer.pop();
+        auto token = tokenBuffer.back();
+        tokenBuffer.pop_back();
         return token;
     }
 
     token::Token token;
-
     this->_skipWhitespace();
 
     if (this->current_char == "+") {

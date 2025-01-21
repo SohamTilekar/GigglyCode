@@ -7,13 +7,15 @@
 #define PARSER_HPP
 
 #include <functional>
+#include <string>
+#include <unordered_map>
 
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
 
-// #define LOG
-// #define LOG_PATH "./dump/dbg.log"
+#define LOG
+#define LOG_PATH "./dump/dbg.log"
 
 #ifdef LOG
 #include <fstream>
@@ -201,6 +203,8 @@ class Parser {
         {TokenType::LeftBracket, std::bind(&Parser::_parseIndexExpression, this, std::placeholders::_1)},
     };
 
+    std::unordered_map<std::string, AST::MacroStatement*> macros;
+
     /**
      * @brief Construct a new Parser object
      *
@@ -209,6 +213,8 @@ class Parser {
      * @param lexer The lexer to use for tokenizing the input
      */
     Parser(Lexer* lexer);
+
+    ~Parser();
 
     /**
      * @brief Parse the entire program
@@ -219,7 +225,6 @@ class Parser {
      */
     AST::Program* parseProgram();
 
-  private:
     /**
      * @brief Struct to hold loop modifier statements.
      */
@@ -410,6 +415,8 @@ class Parser {
      * @return AST::Statement* The parsed decorator statement
      */
     AST::Statement* _parseDeco();
+
+    void _parseMacroDecleration();
 
     /**
      * @brief Parse a block statement
