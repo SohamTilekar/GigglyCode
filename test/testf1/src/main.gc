@@ -1,0 +1,6 @@
+
+
+def main() -> int {
+    X: int = "1"; # Sry just for the testing of the long line this is line as much a i can I am making this like long But first Fuck You, I want to make you angry compilare, wait let me make it more long as much as i can
+    return "X";
+}
