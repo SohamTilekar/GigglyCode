@@ -336,6 +336,8 @@ class Compiler {
      * @brief Visits a ForStatement node in the AST.
      * @param for_statement pointer to the ForStatement node.
      */
+    void _visitForEachStatement(AST::ForEachStatement* for_statement);
+
     void _visitForStatement(AST::ForStatement* for_statement);
 
     /**

@@ -192,6 +192,9 @@ void Compiler::compile(AST::Node* node) {
         case AST::NodeType::ForStatement:
             this->_visitForStatement(node->castToForStatement());
             break;
+        case AST::NodeType::ForEachStatement:
+            this->_visitForEachStatement(node->castToForEachStatement());
+            break;
         case AST::NodeType::BreakStatement:
             this->_visitBreakStatement(node->castToBreakStatement());
             break;
@@ -2520,6 +2523,127 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
 }
 
 void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
+    // Extract condition and body from the while statement
+    auto condition = for_statement->condition;
+    auto body = for_statement->body;
+    compile(for_statement->init);
+    // Get the current function from the LLVM IR builder
+    auto current_function = this->llvm_ir_builder.GetInsertBlock()->getParent();
+
+    // Create basic blocks for condition, body, and continuation
+    llBB* conditionBlock = llBB::Create(this->llvm_context, "cond", current_function);
+    llBB* bodyBlock = llBB::Create(this->llvm_context, "body", current_function);
+    llBB* continueBlock = llBB::Create(this->llvm_context, "cont", current_function);
+
+    // Branch to the condition block
+    this->llvm_ir_builder.CreateBr(conditionBlock);
+    this->llvm_ir_builder.SetInsertPoint(conditionBlock);
+
+    // Resolve the condition value
+    auto [condition_val, condition_alloca, condition_type_variant, condition_resolve_type] = this->_resolveValue(condition);
+
+    // Ensure the condition is of type StructInst
+    if (condition_resolve_type != resolveType::StructInst) {
+        errors::raiseWrongTypeError(this->file_path, this->source, condition, nullptr, {gc_bool}, "While loop condition cannot be a module or type.");
+    }
+
+    // Retrieve the actual condition type
+    auto conditionType = std::get<RecordStructType*>(condition_type_variant);
+
+    // Check if the condition type is bool, possibly converting if necessary
+    if (!_checkType(conditionType, gc_bool)) {
+        if (this->canConvertType(conditionType, gc_bool)) {
+            auto converted = this->convertType({condition_val, condition_alloca, conditionType}, gc_bool);
+            condition_val = converted.value;
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, condition, conditionType, {gc_bool}, "While loop condition must be of type bool.");
+        }
+    }
+
+    // Initialize break and continue blocks if provided
+    llBB* ifBreakBlock = nullptr;
+    llBB* notBreakBlock = nullptr;
+
+    if (for_statement->ifbreak) { ifBreakBlock = llBB::Create(this->llvm_context, "ifbreak", current_function); }
+
+    if (for_statement->notbreak) {
+        notBreakBlock = llBB::Create(this->llvm_context, "notbreak", current_function);
+        this->llvm_ir_builder.CreateCondBr(condition_val, bodyBlock, notBreakBlock);
+    } else {
+        this->llvm_ir_builder.CreateCondBr(condition_val, bodyBlock, continueBlock);
+    }
+
+    // Enter the loop environment
+    this->env->enterLoop(continueBlock, bodyBlock, conditionBlock, ifBreakBlock, notBreakBlock);
+
+    // Set the insertion point to the body block
+    this->llvm_ir_builder.SetInsertPoint(bodyBlock);
+
+    // Save the current environment and create a new one for the loop body
+    auto prev_env = this->env;
+    auto new_env = Enviornment(prev_env);
+    this->env = &new_env;
+
+    try {
+        // Compile the loop body
+        this->compile(body);
+        // After body execution, branch back to the condition block
+        compile(for_statement->update);
+        this->llvm_ir_builder.CreateBr(conditionBlock);
+    } catch (DoneRet) {
+        // Handle return statements within the loop body
+    } catch (DoneBr) {
+        // Handle break statements within the loop body
+    }
+
+    // Handle the ifbreak block if it exists
+    if (ifBreakBlock) {
+        // Restore the previous environment
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
+        this->llvm_ir_builder.SetInsertPoint(ifBreakBlock);
+
+        try {
+            // Compile the ifbreak statement
+            this->compile(for_statement->ifbreak);
+            // After ifbreak, branch to the continuation block
+            this->llvm_ir_builder.CreateBr(continueBlock);
+        } catch (DoneRet) {
+            // Handle return statements within the ifbreak block
+        } catch (DoneBr) {
+            // Handle break statements within the ifbreak block
+        }
+    }
+
+    // Handle the notbreak block if it exists
+    if (notBreakBlock) {
+        // Restore the previous environment
+        auto new_env = Enviornment(prev_env);
+        this->env = &new_env;
+        this->llvm_ir_builder.SetInsertPoint(notBreakBlock);
+
+        try {
+            // Compile the notbreak statement
+            this->compile(for_statement->notbreak);
+            // After notbreak, branch to the continuation block
+            this->llvm_ir_builder.CreateBr(continueBlock);
+        } catch (DoneRet) {
+            // Handle return statements within the notbreak block
+        } catch (DoneBr) {
+            // Handle break statements within the notbreak block
+        }
+    }
+
+    // Set the insertion point to the continuation block and restore the environment
+    this->llvm_ir_builder.SetInsertPoint(continueBlock);
+    this->env = prev_env;
+
+    // Exit the loop environment
+    this->env->exitLoop();
+}
+
+
+void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
     // Resolve the iterable object from the 'from' expression
     auto [iterable_value, iterable_alloca, _iterable_type, resolve_type] = this->_resolveValue(for_statement->from);
 

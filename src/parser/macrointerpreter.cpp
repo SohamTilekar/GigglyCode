@@ -36,8 +36,8 @@ void MacroInterpreter::visitStatement(AST::Statement* node) {
         visitIfElseStatement(node->castToIfElseStatement());
     } else if (node->type() == AST::NodeType::WhileStatement) {
         visitWhileStatement(node->castToWhileStatement());
-    } else if (node->type() == AST::NodeType::ForStatement) {
-        visitForStatement(node->castToForStatement());
+    } else if (node->type() == AST::NodeType::ForEachStatement) {
+        visitForEachStatement(node->castToForEachStatement());
     // } else if (node->type() == AST::NodeType::SwitchCaseStatement) {
     //     visitSwitchCaseStatement(node->castToSwitchCaseStatement());
     } else {
@@ -105,7 +105,7 @@ void MacroInterpreter::visitWhileStatement(AST::WhileStatement* node) {
     }
 };
 
-void MacroInterpreter::visitForStatement(AST::ForStatement* node) {
+void MacroInterpreter::visitForEachStatement(AST::ForEachStatement* node) {
     auto iterate_from = visitExpression(node->from);
     if (iterate_from.Type != MIObjectType::TokenVector || iterate_from.Type != MIObjectType::TokenTypeVector) {
         throw std::runtime_error("From value is not a token vector or token type vector");

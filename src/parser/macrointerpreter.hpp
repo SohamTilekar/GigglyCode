@@ -46,7 +46,7 @@ private:
     void visitReturnStatement(AST::ReturnStatement* node);
     void visitIfElseStatement(AST::IfElseStatement* node);
     void visitWhileStatement(AST::WhileStatement* node);
-    void visitForStatement(AST::ForStatement* node);
+    void visitForEachStatement(AST::ForEachStatement* node);
     // void visitSwitchCaseStatement(AST::SwitchCaseStatement* node);
 
     MIObjects visitExpression(AST::Expression* node);

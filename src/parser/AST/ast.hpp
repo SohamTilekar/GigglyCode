@@ -56,6 +56,7 @@ enum class NodeType {
     IfElseStatement,
     WhileStatement,
     ForStatement,
+    ForEachStatement,
     BreakStatement,
     ContinueStatement,
     StructStatement,
@@ -156,6 +157,7 @@ class Node {
     IfElseStatement* castToIfElseStatement() { return (IfElseStatement*)(this); }
     WhileStatement* castToWhileStatement() { return (WhileStatement*)(this); }
     ForStatement* castToForStatement() { return (ForStatement*)(this); }
+    ForEachStatement* castToForEachStatement() { return (ForEachStatement*)(this); }
     BreakStatement* castToBreakStatement() { return (BreakStatement*)(this); }
     ContinueStatement* castToContinueStatement() { return (ContinueStatement*)(this); }
     ImportStatement* castToImportStatement() { return (ImportStatement*)(this); }
@@ -338,19 +340,36 @@ class WhileStatement : public Statement {
 };
 
 class ForStatement : public Statement {
+    public:
+      Statement* init;
+      Expression* condition;
+      Statement* update;
+      Statement* body;
+      Statement* ifbreak;
+      Statement* notbreak;
+      inline ForStatement(Statement* init, Expression* condition, Statement* update, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
+          : init(init), condition(condition), update(update), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
+      inline NodeType type() override { return NodeType::ForStatement; };
+      std::string toStr() override;
+
+      // Destructor Declaration
+      ~ForStatement() override;
+};
+
+class ForEachStatement : public Statement {
   public:
     Expression* from;
     IdentifierLiteral* get;
     Statement* body;
     Statement* ifbreak;
     Statement* notbreak;
-    inline ForStatement(IdentifierLiteral* get, Expression* from, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
+    inline ForEachStatement(IdentifierLiteral* get, Expression* from, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
         : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
-    inline NodeType type() override { return NodeType::ForStatement; };
+    inline NodeType type() override { return NodeType::ForEachStatement; };
     std::string toStr() override;
 
     // Destructor Declaration
-    ~ForStatement() override;
+    ~ForEachStatement() override;
 };
 
 class BreakStatement : public Statement {

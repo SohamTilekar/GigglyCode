@@ -137,7 +137,7 @@ WhileStatement::~WhileStatement() {
     }
 }
 
-ForStatement::~ForStatement() {
+ForEachStatement::~ForEachStatement() {
     if (get) {
         delete get;
         get = nullptr;
@@ -145,6 +145,33 @@ ForStatement::~ForStatement() {
     if (from) {
         delete from;
         from = nullptr;
+    }
+    if (body) {
+        delete body;
+        body = nullptr;
+    }
+    if (ifbreak) {
+        delete ifbreak;
+        ifbreak = nullptr;
+    }
+    if (notbreak) {
+        delete notbreak;
+        notbreak = nullptr;
+    }
+}
+
+ForStatement::~ForStatement() {
+    if (init) {
+        delete init;
+        init = nullptr;
+    }
+    if (condition) {
+        delete condition;
+        condition = nullptr;
+    }
+    if (update) {
+        delete update;
+        update = nullptr;
     }
     if (body) {
         delete body;
@@ -336,7 +363,7 @@ std::string AST::nodeTypeToString(NodeType type) {
             return "IfElseStatement";
         case NodeType::WhileStatement:
             return "WhileStatement";
-        case NodeType::ForStatement:
+        case NodeType::ForEachStatement:
             return "ForStatement";
         case NodeType::BreakStatement:
             return "BreakStatement";
@@ -545,6 +572,50 @@ std::string WhileStatement::toStr() {
 }
 
 std::string ForStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "init";
+    if (init) {
+        out << YAML::Value << YAML::Load(init->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "condition";
+    if (condition) {
+        out << YAML::Value << YAML::Load(condition->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "update";
+    if (update) {
+        out << YAML::Value << YAML::Load(update->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "body";
+    if (body) {
+        out << YAML::Value << YAML::Load(body->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "ifbreak";
+    if (ifbreak) {
+        out << YAML::Value << YAML::Load(ifbreak->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::Key << "notbreak";
+    if (notbreak) {
+        out << YAML::Value << YAML::Load(notbreak->toStr());
+    } else {
+        out << YAML::Value << "null";
+    }
+    out << YAML::EndMap;
+    return std::string(out.c_str());
+}
+
+std::string ForEachStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
@@ -777,6 +848,18 @@ std::string StructStatement::toStr() {
     out << YAML::EndSeq;
     out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
     for (auto& gen : generics) { out << YAML::Load(gen->toStr()); }
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return std::string(out.c_str());
+}
+
+std::string EnumStatement::toStr() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "name" << YAML::Value << name->toStr();
+    out << YAML::Key << "fields" << YAML::Value << YAML::BeginSeq;
+    for (auto& field : fields) { out << YAML::Load(field); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());

@@ -420,34 +420,46 @@ AST::WhileStatement* Parser::_parseWhileStatement() {
     return while_statement;
 }
 
-AST::ForStatement* Parser::_parseForStatement() {
+AST::Statement* Parser::_parseForStatement() {
     int st_line_no = current_token.st_line_no;
     int st_col_no = current_token.col_no;
 
-    _expectPeek(TokenType::LeftParen);  // Expect '(' after 'for'
-    _expectPeek(TokenType::Identifier); // Expect identifier in 'for (identifier in ...)
-
+    if (_peekTokenIs(TokenType::LeftParen)) {
+        _nextToken();
+        LOG_TOK()
+        _nextToken();
+        LOG_TOK()
+        auto init = _parseStatement();
+        _nextToken();
+        LOG_TOK()
+        auto condition = _parseExpression(PrecedenceType::LOWEST);
+        _expectPeek(TokenType::Semicolon);
+        _nextToken();
+        LOG_TOK()
+        auto updater = _parseStatement();
+        _nextToken();
+        LOG_TOK()
+        auto body = _parseStatement(); // Parse the loop body
+        LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
+        int end_line_no = current_token.end_line_no;
+        int end_col_no = current_token.col_no;
+        auto for_statement = new AST::ForStatement(init, condition, updater, body, modifiers.ifbreak, modifiers.notbreak);
+        for_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+        return for_statement;
+    }
+    _expectPeek(TokenType::Identifier); // Expect identifier in 'for identifier in ...
     auto get = new AST::IdentifierLiteral(current_token);
-
     _expectPeek(TokenType::In); // Expect 'in' keyword
     _nextToken();               // Move to the 'from' expression
     LOG_TOK()
-
     auto from = _parseExpression(PrecedenceType::LOWEST); // Parse 'from' expression
-
-    _expectPeek(TokenType::RightParen); // Expect ')' after 'in' expression
     _nextToken();                       // Move to loop body
     LOG_TOK()
-
     auto body = _parseStatement(); // Parse the loop body
-
     LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
-
     int end_line_no = current_token.end_line_no;
     int end_col_no = current_token.col_no;
-
-    auto for_statement = new AST::ForStatement(get, from, body, modifiers.ifbreak, modifiers.notbreak);
-
+    auto for_statement = new AST::ForEachStatement(get, from, body, modifiers.ifbreak, modifiers.notbreak);
     for_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return for_statement;
 }
