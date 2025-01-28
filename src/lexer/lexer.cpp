@@ -2,7 +2,6 @@
 #include "../errors/errors.hpp"
 #include "token.hpp"
 
-#include <iostream>
 #include <sstream>
 
 Lexer::Lexer(const std::string& source, const std::filesystem::path& file_path, bool tokenize_coment) : tokenBuffer() {
@@ -418,36 +417,59 @@ std::string Lexer::_readString(const std::string& quote) {
         } else if (this->current_char == "\\") {
             this->_readChar();
             // Handle escape sequences
-            if (this->current_char == "\"") {
-                str += "\"";
-                literal += "\\\"";
-            } else if (this->current_char == "'") {
-                str += "'";
-                literal += "\\'";
-            } else if (this->current_char == "n") {
-                str += "\n";
-                literal += "\\n";
-            } else if (this->current_char == "t") {
-                str += "\t";
-                literal += "\\t";
-            } else if (this->current_char == "r") {
-                str += "\r";
-                literal += "\\r";
-            } else if (this->current_char == "b") {
-                str += "\b";
-                literal += "\\b";
-            } else if (this->current_char == "f") {
-                str += "\f";
-                literal += "\\f";
-            } else if (this->current_char == "v") {
-                str += "\v";
-                literal += "\\v";
-            } else if (this->current_char == "\\") {
-                str += "\\";
-                literal += "\\\\";
-            } else {
-                str += "\\" + this->current_char;
-                literal += "\\" + this->current_char;
+            switch (this->current_char[0]) {
+                case '"':
+                    str += "\""; literal += "\\\""; break;
+                case '\'':
+                    str += "'"; literal += "\\'"; break;
+                case 'n':
+                    str += "\n"; literal += "\\n"; break;
+                case 't':
+                    str += "\t"; literal += "\\t"; break;
+                case 'r':
+                    str += "\r"; literal += "\\r"; break;
+                case 'b':
+                    str += "\b"; literal += "\\b"; break;
+                case 'f':
+                    str += "\f"; literal += "\\f"; break;
+                case 'v':
+                    str += "\v"; literal += "\\v"; break;
+                case '\\':
+                    str += "\\"; literal += "\\\\"; break;
+                case 'x': { // Hexadecimal escape sequence \xHH
+                    std::string hex_str = "";
+                    this->_readChar();
+                    if (!_isHexDigit(current_char)) {
+                        errors::raiseSyntaxError(this->file_path,
+                            token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
+                            this->source,
+                            "Invalid hexadecimal escape sequence",
+                            "Expected two hexadecimal digits after \\x");
+                    }
+                    hex_str += current_char;
+                    this->_readChar();
+                    if (!_isHexDigit(current_char)) {
+                        errors::raiseSyntaxError(this->file_path,
+                            token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
+                            this->source,
+                            "Invalid hexadecimal escape sequence",
+                            "Expected two hexadecimal digits after \\x");
+                    }
+                    hex_str += current_char;
+                    char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
+                    str += char_val;
+                    literal += "\\x" + hex_str;
+                    break;
+                }
+                case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.  \uHHHH
+                case 'U': // \UHHHHHHHH
+                    // For simplicity and consistency with how other unhandled escapes are dealt with, we treat
+                    // these as literal characters for now
+                    [[fallthrough]];
+                default: // If not a recognized escape sequence, treat literally.
+                    str += "\\" + this->current_char;
+                    literal += "\\" + this->current_char;
+                    break;
             }
         } else if ((this->current_char == quote)) {
             this->_readChar();
@@ -469,4 +491,8 @@ std::string Lexer::_readString(const std::string& quote) {
         }
     }
     return str;
+}
+
+bool Lexer::_isHexDigit(const std::string& character) {
+    return (character >= "0" && character <= "9") || (character >= "a" && character <= "f") || (character >= "A" && character <= "F");
 }

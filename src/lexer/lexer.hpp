@@ -160,5 +160,6 @@ class Lexer {
      * @return The string.
      */
     std::string _readString(const std::string& quote);
+    bool _isHexDigit(const std::string& character);
 };
 #endif
