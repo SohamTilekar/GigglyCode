@@ -86,9 +86,14 @@ using token::TokenType;
 enum class PrecedenceType {
     LOWEST,        ///< Lowest precedence
     ASSIGN,        ///< Assignment operators (=, +=, -=, *=, /=, %=)
+    AND,           ///< Logical AND operator (and)
+    OR,            ///< Logical OR operator (or)
     COMPARISION,   ///< Comparison operators (>, <, >=, <=, ==, !=)
+    BITWISE_AND,   ///< Bitwise AND operator (&)
+    BITWISE_XOR,   ///< Bitwise XOR operator (^)
+    BITWISE_OR,    ///< Bitwise OR operator (|)
     SUM,           ///< Addition and subtraction (+, -)
-    PRODUCT,       ///< Multiplication and division (*, /, %)
+    PRODUCT,       ///< Multiplication, division, and modulo (*, /, %)
     Exponent,      ///< Exponentiation (**)
     PREFIX,        ///< Prefix operators (-X, !X)
     CALL,          ///< Function calls (myFunction(X))
@@ -122,13 +127,15 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
     {TokenType::LessThanOrEqual, PrecedenceType::COMPARISION},
     {TokenType::EqualEqual, PrecedenceType::COMPARISION},
     {TokenType::NotEquals, PrecedenceType::COMPARISION},
-    {TokenType::BitwiseAnd, PrecedenceType::COMPARISION},
-    {TokenType::BitwiseOr, PrecedenceType::COMPARISION},
-    {TokenType::BitwiseXor, PrecedenceType::COMPARISION},
-    {TokenType::LeftShift, PrecedenceType::COMPARISION},
-    {TokenType::RightShift, PrecedenceType::COMPARISION},
-    {TokenType::Or, PrecedenceType::COMPARISION},
-    {TokenType::And, PrecedenceType::COMPARISION},
+
+    // Bitwise operators
+    {TokenType::BitwiseAnd, PrecedenceType::BITWISE_AND},
+    {TokenType::BitwiseXor, PrecedenceType::BITWISE_XOR},
+    {TokenType::BitwiseOr, PrecedenceType::BITWISE_OR},
+
+    // Logical operators
+    {TokenType::And, PrecedenceType::AND},
+    {TokenType::Or, PrecedenceType::OR},
 
     // Addition and subtraction
     {TokenType::Plus, PrecedenceType::SUM},
@@ -452,7 +459,7 @@ class Parser {
      *
      * @return AST::ForStatement* The parsed for statement
      */
-    AST::ForStatement* _parseForStatement();
+    AST::Statement* _parseForStatement();
 
     /**
      * @brief Parse a break statement

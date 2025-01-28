@@ -975,7 +975,7 @@ AST::Expression* Parser::_parseIndexExpression(AST::Expression* leftNode) {
     index_expr->meta_data.more_data.insert("index_end_col_no", this->current_token.end_col_no);
     this->_nextToken(); // [LeftBracket] -> [Index Expression]
     LOG_TOK()
-    index_expr->index = this->_parseExpression(PrecedenceType::INDEX); // [Index Expression] remains unchanged
+    index_expr->index = this->_parseExpression(PrecedenceType::LOWEST);
     int end_line_no = index_expr->index->meta_data.end_line_no;
     int end_col_no = index_expr->index->meta_data.end_col_no;
     index_expr->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
