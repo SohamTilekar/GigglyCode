@@ -54,8 +54,8 @@ bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2, s
         if (!_checkType(subtype1, subtype2, checked)) { return false; }
     }
 
-    // Final check to ensure stand-alone types match
-    return type1->stand_alone_type == type2->stand_alone_type || (type1->stand_alone_type->getTypeID() == type2->stand_alone_type->getTypeID());
+    if (type1->stand_alone_type == type2->stand_alone_type) return true;
+    return type1->name == type2->name;
 }
 
 // Helper function to verify if function parameters match
@@ -148,7 +148,7 @@ bool RecordModule::isFunction(const std::string& name, const std::vector<RecordS
     // Iterate through all records in the module
     for (const auto& [func_name, func_record] : record_map) {
         // Only consider function records
-        if (func_record->type == RecordType::RecordFunction) {
+        if (func_record->type == RecordType::Function) {
             auto func = (RecordFunction*)func_record;
             bool name_matches = (func->name == name);
             bool params_match = _checkFunctionParameterType(func, params_types, exact);
@@ -164,7 +164,7 @@ bool RecordModule::isFunction(const std::string& name, const std::vector<RecordS
 bool RecordModule::is_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     // Iterate through all records in the module
     for (const auto& [struct_name, struct_record] : record_map) {
-        if (struct_record->type == RecordType::RecordStructInst) {
+        if (struct_record->type == RecordType::StructInst) {
             auto struct_type = (RecordStructType*)struct_record;
             if (struct_type->name == name) {
                 bool all_types_match = true;
@@ -186,7 +186,7 @@ bool RecordModule::is_struct(const std::string& name, std::vector<RecordStructTy
 bool RecordModule::is_module(const std::string& name) {
     // Iterate through all records in the module
     for (const auto& [module_name, module_record] : record_map) {
-        if (module_record->type == RecordType::RecordModule) {
+        if (module_record->type == RecordType::Module) {
             auto module = (RecordModule*)module_record;
             if (module->name == name) { return true; }
         }
@@ -197,7 +197,7 @@ bool RecordModule::is_module(const std::string& name) {
 // Checks if a module contains a specific generic function by name
 bool RecordModule::isGenericFunc(const std::string& name) {
     for (const auto& [Gfunc_name, Gfunc_record] : record_map) {
-        if (Gfunc_record->type == RecordType::RecordGenericFunction) {
+        if (Gfunc_record->type == RecordType::GenericFunction) {
             auto Gfunc = (RecordGenericFunction*)Gfunc_record;
             if (Gfunc->name == name) { return true; }
         }
@@ -208,7 +208,7 @@ bool RecordModule::isGenericFunc(const std::string& name) {
 // Checks if a module contains a specific generic struct by name
 bool RecordModule::isGenericStruct(const std::string& name) {
     for (const auto& [Gstruct_name, Gstruct_record] : record_map) {
-        if (Gstruct_record->type == RecordType::RecordGStructType) {
+        if (Gstruct_record->type == RecordType::GStructType) {
             auto Gstruct = (RecordGenericStructType*)Gstruct_record;
             if (Gstruct->name == name) { return true; }
         }
@@ -219,7 +219,7 @@ bool RecordModule::isGenericStruct(const std::string& name) {
 // Retrieves a function from the module that matches the given criteria
 RecordFunction* RecordModule::getFunction(const std::string& name, const std::vector<RecordStructType*>& params_types, bool exact) {
     for (const auto& [func_name, func_record] : record_map) {
-        if (func_record->type == RecordType::RecordFunction) {
+        if (func_record->type == RecordType::Function) {
             auto func = (RecordFunction*)func_record;
             if (func->name == name && _checkFunctionParameterType(func, params_types, exact)) { return func; }
         }
@@ -230,7 +230,7 @@ RecordFunction* RecordModule::getFunction(const std::string& name, const std::ve
 // Retrieves a struct from the module that matches the given name and generic parameters
 RecordStructType* RecordModule::get_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     for (const auto& [struct_name, struct_record] : record_map) {
-        if (struct_record->type == RecordType::RecordStructInst) {
+        if (struct_record->type == RecordType::StructInst) {
             auto struct_type = (RecordStructType*)struct_record;
             if (struct_type->name == name) {
                 bool types_match = true;
@@ -251,7 +251,7 @@ RecordStructType* RecordModule::get_struct(const std::string& name, std::vector<
 // Retrieves a module by name from the current module
 RecordModule* RecordModule::get_module(const std::string& name) {
     for (const auto& [module_name, module_record] : record_map) {
-        if (module_record->type == RecordType::RecordModule) {
+        if (module_record->type == RecordType::Module) {
             auto module = (RecordModule*)module_record;
             if (module->name == name) { return module; }
         }
@@ -263,7 +263,7 @@ RecordModule* RecordModule::get_module(const std::string& name) {
 std::vector<RecordGenericFunction*> RecordModule::get_GenericFunc(const std::string& name) {
     std::vector<RecordGenericFunction*> matching_gfuncs;
     for (const auto& [Gf_name, Gf_record] : record_map) {
-        if (Gf_record->type == RecordType::RecordGenericFunction) {
+        if (Gf_record->type == RecordType::GenericFunction) {
             auto Gf = (RecordGenericFunction*)Gf_record;
             if (Gf->name == name) { matching_gfuncs.push_back(Gf); }
         }
@@ -275,7 +275,7 @@ std::vector<RecordGenericFunction*> RecordModule::get_GenericFunc(const std::str
 std::vector<RecordGenericStructType*> RecordModule::getGenericStruct(const std::string& name) {
     std::vector<RecordGenericStructType*> matching_gstructs;
     for (const auto& [Gs_name, Gs_record] : record_map) {
-        if (Gs_record->type == RecordType::RecordGStructType) {
+        if (Gs_record->type == RecordType::GStructType) {
             auto Gs = (RecordGenericStructType*)Gs_record;
             if (Gs->name == name) { matching_gstructs.push_back(Gs); }
         }
@@ -291,7 +291,7 @@ void Enviornment::addRecord(Record* record) {
 // Checks if a variable exists in the environment
 bool Enviornment::isVariable(const std::string& name, bool limit2current_scope) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordVariable && record->name == name) { return true; }
+        if (record->type == RecordType::Variable && record->name == name) { return true; }
     }
     // If not found and not limited to current scope, check parent environments
     return (parent != nullptr && !limit2current_scope) ? parent->isVariable(name) : false;
@@ -300,7 +300,7 @@ bool Enviornment::isVariable(const std::string& name, bool limit2current_scope) 
 // Checks if a function exists in the environment with matching parameters
 bool Enviornment::isFunction(const std::string& name, std::vector<RecordStructType*> params_types, bool limit2current_scope, bool exact) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordFunction && record->name == name) {
+        if (record->type == RecordType::Function && record->name == name) {
             auto func = (RecordFunction*)record;
             if (_checkFunctionParameterType(func, params_types, exact)) { return true; }
         }
@@ -312,7 +312,7 @@ bool Enviornment::isFunction(const std::string& name, std::vector<RecordStructTy
 // Checks if a struct exists in the environment with matching generic parameters
 bool Enviornment::isStruct(const std::string& name, bool limit2current_scope, std::vector<RecordStructType*> gens) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordStructInst && record->name == name) {
+        if (record->type == RecordType::StructInst && record->name == name) {
             bool all_types_match = true;
             // Verify each generic type parameter
             for (const auto& [gen, expected_gen] : llvm::zip(gens, ((RecordStructType*)record)->generic_sub_types)) {
@@ -331,7 +331,7 @@ bool Enviornment::isStruct(const std::string& name, bool limit2current_scope, st
 // Checks if a module with the specified name exists in the environment
 bool Enviornment::isModule(const std::string& name, bool limit2current_scope) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordModule && record->name == name) { return true; }
+        if (record->type == RecordType::Module && record->name == name) { return true; }
     }
     // If not found and not limited to current scope, check parent environments
     return this->parent ? this->parent->isModule(name) : false;
@@ -340,7 +340,7 @@ bool Enviornment::isModule(const std::string& name, bool limit2current_scope) {
 // Checks if a generic function exists in the environment
 bool Enviornment::isGenericFunc(const std::string& name) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordGenericFunction && record->name == name) { return true; }
+        if (record->type == RecordType::GenericFunction && record->name == name) { return true; }
     }
     // If not found, check parent environments
     return this->parent ? this->parent->isGenericFunc(name) : false;
@@ -349,7 +349,7 @@ bool Enviornment::isGenericFunc(const std::string& name) {
 // Checks if a generic struct exists in the environment
 bool Enviornment::isGenericStruct(const std::string& name) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordGStructType && record->name == name) { return true; }
+        if (record->type == RecordType::GStructType && record->name == name) { return true; }
     }
     // If not found, check parent environments
     return this->parent ? this->parent->isGenericStruct(name) : false;
@@ -358,7 +358,7 @@ bool Enviornment::isGenericStruct(const std::string& name) {
 // Retrieves a variable from the environment
 RecordVariable* Enviornment::getVariable(const std::string& name, bool limit2current_scope) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordVariable && record->name == name) { return (RecordVariable*)record; }
+        if (record->type == RecordType::Variable && record->name == name) { return (RecordVariable*)record; }
     }
     // If not found and not limited to current scope, check parent environments
     return (parent != nullptr && !limit2current_scope) ? parent->getVariable(name) : nullptr;
@@ -367,7 +367,7 @@ RecordVariable* Enviornment::getVariable(const std::string& name, bool limit2cur
 // Retrieves a function from the environment that matches the given criteria
 RecordFunction* Enviornment::getFunction(const std::string& name, std::vector<RecordStructType*> params_types, bool limit2current_scope, bool exact) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordFunction && record->name == name) {
+        if (record->type == RecordType::Function && record->name == name) {
             auto func = (RecordFunction*)record;
             if (_checkFunctionParameterType(func, params_types, exact)) { return func; }
         }
@@ -379,7 +379,7 @@ RecordFunction* Enviornment::getFunction(const std::string& name, std::vector<Re
 // Retrieves a struct from the environment that matches the given name and generic parameters
 RecordStructType* Enviornment::getStruct(const std::string& name, bool limit2current_scope, std::vector<RecordStructType*> gens) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordStructInst && record->name == name) {
+        if (record->type == RecordType::StructInst && record->name == name) {
             bool types_match = true;
             // Verify each generic type parameter
             for (const auto& [gen, expected_gen] : llvm::zip(gens, ((RecordStructType*)record)->generic_sub_types)) {
@@ -398,7 +398,7 @@ RecordStructType* Enviornment::getStruct(const std::string& name, bool limit2cur
 // Retrieves a module from the environment by name
 RecordModule* Enviornment::getModule(const std::string& name, bool limit2current_scope) {
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordModule && record->name == name) { return (RecordModule*)record; }
+        if (record->type == RecordType::Module && record->name == name) { return (RecordModule*)record; }
     }
     // If not found and not limited to current scope, check parent environments
     return (parent != nullptr && !limit2current_scope) ? parent->getModule(name) : nullptr;
@@ -408,7 +408,7 @@ RecordModule* Enviornment::getModule(const std::string& name, bool limit2current
 std::vector<RecordGenericFunction*> Enviornment::getGenericFunc(const std::string& name) {
     std::vector<RecordGenericFunction*> matching_gfuncs;
     for (const auto& [Gf_name, Gf_record] : record_map) {
-        if (Gf_record->type == RecordType::RecordGenericFunction) {
+        if (Gf_record->type == RecordType::GenericFunction) {
             auto Gf = (RecordGenericFunction*)Gf_record;
             if (Gf->name == name) { matching_gfuncs.push_back(Gf); }
         }
@@ -421,7 +421,7 @@ std::vector<RecordGenericFunction*> Enviornment::getGenericFunc(const std::strin
 std::vector<RecordGenericStructType*> Enviornment::getGenericStruct(const std::string& name) {
     std::vector<RecordGenericStructType*> matching_gstructs;
     for (const auto& [Gs_name, Gs_record] : record_map) {
-        if (Gs_record->type == RecordType::RecordGStructType) {
+        if (Gs_record->type == RecordType::GStructType) {
             auto Gs = (RecordGenericStructType*)Gs_record;
             if (Gs->name == name) { matching_gstructs.push_back(Gs); }
         }
@@ -434,7 +434,7 @@ std::vector<RecordGenericStructType*> Enviornment::getGenericStruct(const std::s
 std::vector<RecordVariable*> Enviornment::getCurrentFuncVars() {
     std::vector<RecordVariable*> vars;
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordVariable) { vars.push_back(((RecordVariable*)record)); }
+        if (record->type == RecordType::Variable) { vars.push_back(((RecordVariable*)record)); }
     }
     if (this->parent && this->parent->current_function) {
         auto parent_vars = this->parent->getCurrentFuncVars();
@@ -446,7 +446,7 @@ std::vector<RecordVariable*> Enviornment::getCurrentFuncVars() {
 std::vector<RecordFunction*> Enviornment::getFunc(const Str& name) {
     std::vector<RecordFunction*> jadu;
     for (const auto& [record_name, record] : record_map) {
-        if (record->type == RecordType::RecordFunction && record->name == name) { jadu.push_back((RecordFunction*)record); }
+        if (record->type == RecordType::Function && record->name == name) { jadu.push_back((RecordFunction*)record); }
     }
     return this->parent && jadu.size() == 0 ? this->parent->getFunc(name) : jadu;
 }

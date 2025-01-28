@@ -257,7 +257,7 @@ class Compiler {
 
     void _initilizeCSTDLib();
 
-    void addBuiltinFunctionToModule(RecordModule* module,
+    void addFunc2Mod(RecordModule* module,
                                     const Str& name,
                                     const Str& llvm_name,
                                     llvm::FunctionType* funcType,
@@ -265,7 +265,7 @@ class Compiler {
                                     RecordStructType* returnType,
                                     bool isVarArg);
 
-    void addBuiltinFunction(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool>>& params, RecordStructType* returnType, bool isVarArg);
+    void addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool>>& params, RecordStructType* returnType, bool isVarArg);
 
     void initilizeArray();
 

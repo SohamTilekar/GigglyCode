@@ -670,8 +670,8 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         // Second param is the size
         auto [size_val, size_alloca, _size_param_type, size_resolve_type] = this->_resolveValue(param[1]);
         auto size_type = std::get<RecordStructType*>(_size_param_type);
-        if (!_checkType(size_type, this->env->getStruct("int"))) {
-            errors::raiseWrongTypeError(this->file_path, this->source, param[1], size_type, {this->env->getStruct("int")}, "Second argument must be an integer size");
+        if (!_checkType(size_type, gc_int) && !_checkType(size_type, gc_int32)) {
+            errors::raiseWrongTypeError(this->file_path, this->source, param[1], size_type, {gc_int, gc_int32}, "Second argument must be an integer size");
         }
 
         llvm::Value* raw_array;
@@ -683,7 +683,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             llvm::Value* alloc_size = this->llvm_ir_builder.CreateMul(this->llvm_ir_builder.CreatePtrToInt(element_size, this->ll_int), size_val);
 
             // Allocate memory for array
-            auto malloc_fn = this->env->getFunction("malloc", {this->env->getStruct("int")});
+            auto malloc_fn = this->env->getFunction("malloc", {gc_int});
             raw_array = this->llvm_ir_builder.CreateCall(malloc_fn->function, {alloc_size});
         } else {
             // Create the LLVM raw_array type
@@ -798,7 +798,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                 if (call_expression->_new) {
                     llvm::Value* gep = this->llvm_ir_builder.CreateGEP(raw_array_type, llvm::ConstantPointerNull::get(this->ll_pointer), llConstInt::get(this->ll_int, 1));
                     llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->ll_int);
-                    raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {this->env->getStruct("int")})->function, {size});
+                    raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {gc_int})->function, {size});
                 } else {
                     raw_array = this->llvm_ir_builder.CreateAlloca(raw_array_type);
                 }
@@ -836,8 +836,8 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
 
             if (first_resolve_type == resolveType::StructType) {
                 // Type + size constructor pattern
-                if (!_checkType(second_type, this->env->getStruct("int"))) {
-                    errors::raiseWrongTypeError(this->file_path, this->source, call_expression->arguments[1], second_type, {this->env->getStruct("int")}, "Second argument must be an integer size");
+                if (!_checkType(second_type, gc_int)) {
+                    errors::raiseWrongTypeError(this->file_path, this->source, call_expression->arguments[1], second_type, {gc_int}, "Second argument must be an integer size");
                 }
 
                 llvm::Value* raw_array;
@@ -847,7 +847,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                     llvm::Value* element_size = this->llvm_ir_builder.CreateGEP(element_type, llvm::ConstantPointerNull::get(element_type->getPointerTo()), llConstInt::get(this->ll_int, 1));
                     llvm::Value* alloc_size = this->llvm_ir_builder.CreateMul(this->llvm_ir_builder.CreatePtrToInt(element_size, this->ll_int), second_val);
 
-                    auto malloc_fn = this->env->getFunction("malloc", {this->env->getStruct("int")});
+                    auto malloc_fn = this->env->getFunction("malloc", {gc_int});
                     raw_array = this->llvm_ir_builder.CreateCall(malloc_fn->function, {alloc_size});
                 } else {
                     raw_array = this->llvm_ir_builder.CreateAlloca(
@@ -865,7 +865,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                 if (call_expression->_new) {
                     llvm::Value* gep = this->llvm_ir_builder.CreateGEP(raw_array_type, llvm::ConstantPointerNull::get(this->ll_pointer), llConstInt::get(this->ll_int, 1));
                     llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->ll_int);
-                    raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {this->env->getStruct("int")})->function, {size});
+                    raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {gc_int})->function, {size});
                 } else {
                     raw_array = this->llvm_ir_builder.CreateAlloca(raw_array_type);
                 }
@@ -891,7 +891,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             if (call_expression->_new) {
                 llvm::Value* gep = this->llvm_ir_builder.CreateGEP(raw_array_type, llvm::ConstantPointerNull::get(this->ll_pointer), llConstInt::get(this->ll_int, 1));
                 llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->ll_int);
-                raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {this->env->getStruct("int")})->function, {size});
+                raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {gc_int})->function, {size});
             } else {
                 raw_array = this->llvm_ir_builder.CreateAlloca(raw_array_type);
             }
@@ -981,7 +981,7 @@ Compiler::ResolvedValue Compiler::_callStruct(RecordStructType* struct_record, A
         llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llConstInt::get(llvm::Type::getInt64Ty(this->llvm_context), 1));
         llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(this->llvm_context));
 
-        alloca = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {this->env->getStruct("int")})->function, {size});
+        alloca = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {gc_int})->function, {size});
     };
 
     // Initialize based on whether it's a new struct instance
@@ -1466,124 +1466,164 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
     auto [fromloadedval, fromalloca, _fromtype, struct_type] = from;
     auto fromtype = std::get<RecordStructType*>(_fromtype);
     // If Types are Same
-    if (_checkType(fromtype, to)) { return {fromloadedval, fromalloca, fromtype, resolveType::StructInst}; }
-
-    if (fromtype->name == "int32" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateSExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                         this->env->getStruct("int")->stand_alone_type,
-                                                         "int32_to_int");
-        return {int_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "int" && to->name == "int32") {
-        auto int32_type = this->llvm_ir_builder.CreateTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                            this->env->getStruct("int32")->stand_alone_type,
-                                                            "int_to_int32");
-        return {int32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "uint32" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                          this->env->getStruct("uint")->stand_alone_type,
-                                                          "uint32_to_uint");
-        return {uint_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "uint" && to->name == "uint32") {
-        auto uint32_type = this->llvm_ir_builder.CreateTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("uint32")->stand_alone_type,
-                                                             "uint_to_uint32");
-        return {uint32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "float32" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateFPExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                            this->env->getStruct("float")->stand_alone_type,
-                                                            "float32_to_float");
-        return {float_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "float" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateFPTrunc(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                                this->env->getStruct("float32")->stand_alone_type,
-                                                                "float_to_float32");
-        return {float32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "int" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateSIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("float")->stand_alone_type,
-                                                             "int_to_float");
-        return {float_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "int32" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateSIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                               this->env->getStruct("float32")->stand_alone_type,
-                                                               "int32_to_float32");
-        return {float32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "uint" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("float")->stand_alone_type,
-                                                             "uint_to_float");
-        return {float_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "uint32" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                               this->env->getStruct("float32")->stand_alone_type,
-                                                               "uint32_to_float32");
-        return {float32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "float" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateFPToSI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                           this->env->getStruct("int")->stand_alone_type,
-                                                           "float_to_int");
-        return {int_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "float32" && to->name == "int32") {
-        auto int32_type = this->llvm_ir_builder.CreateFPToSI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("int32")->stand_alone_type,
-                                                             "float32_to_int32");
-        return {int32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "float" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateFPToUI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                            this->env->getStruct("uint")->stand_alone_type,
-                                                            "float_to_uint");
-        return {uint_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "float32" && to->name == "uint32") {
-        auto uint32_type = this->llvm_ir_builder.CreateFPToUI(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                              this->env->getStruct("uint32")->stand_alone_type,
-                                                              "float32_to_uint32");
-        return {uint32_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "bool" && to->name == "int") {
-        auto int_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                         this->env->getStruct("int")->stand_alone_type,
-                                                         "bool_to_int");
-        return {int_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "bool" && to->name == "uint") {
-        auto uint_type = this->llvm_ir_builder.CreateZExt(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                          this->env->getStruct("uint")->stand_alone_type,
-                                                          "bool_to_uint");
-        return {uint_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "bool" && to->name == "float") {
-        auto float_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                             this->env->getStruct("float")->stand_alone_type,
-                                                             "bool_to_float");
-        return {float_type, fromalloca, to, resolveType::StructInst};
-    } else if (fromtype->name == "bool" && to->name == "float32") {
-        auto float32_type = this->llvm_ir_builder.CreateUIToFP(fromloadedval ? fromloadedval : this->llvm_ir_builder.CreateLoad(fromtype->stand_alone_type, fromalloca),
-                                                               this->env->getStruct("float32")->stand_alone_type,
-                                                               "bool_to_float32");
-        return {float32_type, fromalloca, to, resolveType::StructInst};
-    } else if ((fromtype->name == "int" || fromtype->name == "float" || fromtype->name == "str") && to->name == "bool") {
-        errors::raiseCompletionError(this->file_path,
-                                     this->source,
-                                     fromtype->meta_data.st_line_no,
-                                     fromtype->meta_data.st_col_no,
-                                     fromtype->meta_data.end_line_no,
-                                     fromtype->meta_data.end_col_no,
-                                     "Conversion from int, float, or str to bool is not yet implemented",
-                                     "Fix the conversion logic for int, float, or str to bool.");
-    } else if (fromtype->struct_type) { // If struct & it is mark as auto cast
-        if (fromtype->is_method("", {fromtype}, AST::MoreData(std::unordered_map<std::string, bool>{{"autocast", true}}), to)) {
-            auto method = fromtype->get_method("", {fromtype}, AST::MoreData(std::unordered_map<std::string, bool>{{"autocast", true}}), to);
-            auto returnValue = this->llvm_ir_builder.CreateCall(method->function, {fromalloca}, fromtype->name + "_to_" + to->name);
-            return {returnValue, nullptr, method->return_type, resolveType::StructInst};
-        }
+    if (_checkType(fromtype, to)) {
+        return {fromloadedval, fromalloca, fromtype, resolveType::StructInst};
     }
 
-    RecordModule* x = nullptr;
-    return {nullptr, nullptr, x, resolveType::Module};
-};
+    if (_checkType(fromtype, gc_int)) {
+        auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_int, fromalloca) : fromloadedval;
+        if (_checkType(to, gc_int32)) {
+            return {.value=llvm_ir_builder.CreateTrunc(from, ll_int32), .variant=to, .type=resolveType::StructType};
+        } else if (_checkType(to, gc_uint32)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_uint32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_uint), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float)) {
+            return {.value = llvm_ir_builder.CreateSIToFP(from, ll_float), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float32)) {
+            return {.value = llvm_ir_builder.CreateSIToFP(from, ll_float32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_bool)) {
+            return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, 0))), .variant = to, .type = resolveType::StructType};
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert int to " + to->name);
+        }
+    } else if (_checkType(fromtype, gc_int32)) {
+        auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_int32, fromalloca) : fromloadedval;
+        if (_checkType(to, gc_int)) {
+            return {.value = llvm_ir_builder.CreateSExt(from, ll_int), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint32)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_uint32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_uint), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float)) {
+            return {.value = llvm_ir_builder.CreateSIToFP(from, ll_float), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float32)) {
+            return {.value = llvm_ir_builder.CreateSIToFP(from, ll_float32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_bool)) {
+            return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(32, 0))), .variant = to, .type = resolveType::StructType};
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert int32 to " + to->name);
+        }
+    } else if (_checkType(fromtype, gc_uint)) {
+        auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_uint, fromalloca) : fromloadedval;
+        if (_checkType(to, gc_int)) {
+            return {.value = llvm_ir_builder.CreateUIToFP(from, ll_int), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_int32)) {
+            return {.value = llvm_ir_builder.CreateTrunc(from, ll_int32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint32)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_uint32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float)) {
+            return {.value = llvm_ir_builder.CreateUIToFP(from, ll_float), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float32)) {
+            return {.value = llvm_ir_builder.CreateUIToFP(from, ll_float32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_bool)) {
+            return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, 0))), .variant = to, .type = resolveType::StructType};
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert uint to " + to->name);
+        }
+    } else if (_checkType(fromtype, gc_uint32)) {
+        auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_uint32, fromalloca) : fromloadedval;
+        if (_checkType(to, gc_int)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_int), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_int32)) {
+            return {.value = llvm_ir_builder.CreateTrunc(from, ll_int32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint)) {
+            return {.value = llvm_ir_builder.CreateZExt(from, ll_uint), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float)) {
+            return {.value = llvm_ir_builder.CreateUIToFP(from, ll_float), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float32)) {
+            return {.value = llvm_ir_builder.CreateUIToFP(from, ll_float32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_bool)) {
+            return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(32, 0))), .variant = to, .type = resolveType::StructType};
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert uint32 to " + to->name);
+        }
+    } else if (_checkType(fromtype, gc_float)) {
+        auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_float, fromalloca) : fromloadedval;
+        if (_checkType(to, gc_int)) {
+            return {.value = llvm_ir_builder.CreateFPToSI(from, ll_int), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_int32)) {
+            return {.value = llvm_ir_builder.CreateFPToSI(from, ll_int32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint)) {
+            return {.value = llvm_ir_builder.CreateFPToUI(from, ll_uint), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint32)) {
+            return {.value = llvm_ir_builder.CreateFPToUI(from, ll_uint32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float32)) {
+            return {.value = llvm_ir_builder.CreateFPTrunc(from, ll_float32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_bool)) {
+            return {.value = llvm_ir_builder.CreateFCmpONE(from, llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(0.0))), .variant = to, .type = resolveType::StructType};
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert float to " + to->name);
+        }
+    } else if (_checkType(fromtype, gc_float32)) {
+        auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_float32, fromalloca) : fromloadedval;
+        if (_checkType(to, gc_int)) {
+            return {.value = llvm_ir_builder.CreateFPToSI(from, ll_int), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_int32)) {
+            return {.value = llvm_ir_builder.CreateFPToSI(from, ll_int32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint)) {
+            return {.value = llvm_ir_builder.CreateFPToUI(from, ll_uint), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_uint32)) {
+            return {.value = llvm_ir_builder.CreateFPToUI(from, ll_uint32), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_float)) {
+            return {.value = llvm_ir_builder.CreateFPExt(from, ll_float), .variant = to, .type = resolveType::StructType};
+        } else if (_checkType(to, gc_bool)) {
+            return {.value = llvm_ir_builder.CreateFCmpONE(from, llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(0.0))), .variant = to, .type = resolveType::StructType};
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert float32 to " + to->name);
+        }
+    } else if (_checkType(fromtype, gc_str)) {
+        // TODO
+        std::cout << "Converting str to something (not implemented)" << std::endl;
+    }
+    errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert " + fromtype->name + " to " + to->name);
+}
 
 bool Compiler::canConvertType(RecordStructType* from, RecordStructType* to) {
-    const vector<std::pair<Str, Str>> convertibleTypes = {{"int32", "int"},  {"int", "int32"},      {"uint32", "uint"}, {"uint", "uint32"},    {"float32", "float"}, {"float", "float32"},
-                                                          {"int", "float"},  {"int32", "float32"},  {"uint", "float"},  {"uint32", "float32"}, {"float", "int"},     {"float32", "int32"},
-                                                          {"float", "uint"}, {"float32", "uint32"}, {"bool", "int"},    {"bool", "uint"},      {"bool", "float"},    {"bool", "float32"},
-                                                          {"int", "bool"},   {"float", "bool"},     {"str", "bool"}};
+    const vector<std::pair<Str, Str>> convertibleTypes = {
+        {"int", "int32"},
+        {"int", "uint"},
+        {"int", "uint32"},
+        {"int", "float"},
+        {"int", "float32"},
+        {"int", "bool"},
+
+        {"int32", "int"},
+        {"int32", "uint"},
+        {"int32", "uint32"},
+        {"int32", "float"},
+        {"int32", "float32"},
+        {"int32", "bool"},
+
+        {"uint", "uint32"},
+        {"uint", "int32"},
+        {"uint", "int"},
+        {"uint", "float"},
+        {"uint", "float32"},
+        {"uint", "bool"},
+
+        {"uint32", "uint"},
+        {"uint32", "int32"},
+        {"uint32", "int"},
+        {"uint32", "float"},
+        {"uint32", "float32"},
+        {"uint32", "bool"},
+
+        {"float", "float32"},
+        {"float", "int"},
+        {"float", "int32"},
+        {"float", "uint"},
+        {"float", "uint32"},
+        {"float", "bool"},
+
+        {"float32", "float"},
+        {"float32", "int"},
+        {"float32", "int32"},
+        {"float32", "uint"},
+        {"float32", "uint32"},
+        {"float32", "bool"},
+        {"str", "bool"},
+    };
 
     for (const auto& [fromType, toType] : convertibleTypes) {
         if (from->name == fromType && to->name == toType) { return true; }
@@ -1608,23 +1648,9 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto right_val = right_value;
     auto left_type = std::get<RecordStructType*>(_left_type);
     auto right_type = std::get<RecordStructType*>(_right_type);
-    if (!_checkType(left_type, right_type) && (this->canConvertType(left_type, right_type) || this->canConvertType(right_type, left_type)) && left_type->stand_alone_type &&
-        right_type->stand_alone_type) {
-        if (this->conversionPrecidence(left_type, right_type)) {
-            auto x = this->convertType({left_val, left_alloca, left_type}, right_type);
-            right_val = x.value;
-            right_alloca = x.alloca;
-            right_type = std::get<RecordStructType*>(x.variant);
-        } else {
-            auto x = this->convertType({right_val, right_alloca, right_type}, left_type);
-            left_val = x.value;
-            left_alloca = x.alloca;
-            left_type = std::get<RecordStructType*>(x.variant);
-        }
-    }
-    vector<RecordStructType*> params_type1{left_type, right_type};
-    vector<RecordStructType*> params_type2{right_type, left_type};
     if (left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
+        vector<RecordStructType*> params_type1{left_type, right_type};
+        vector<RecordStructType*> params_type2{right_type, left_type};
         switch (op) {
             case token::TokenType::Plus: {
                 return this->_StructInfixCall("__add__", "add", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
@@ -1644,30 +1670,30 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             case token::TokenType::EqualEqual: {
                 if (left_type->name == "nullptr" && right_type->name == "nullptr") {
                     auto inst = llvm::ConstantInt::getTrue(this->llvm_context);
-                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                    return {inst, nullptr, gc_bool, resolveType::StructInst};
                 } else if (left_type->name == "nullptr") {
                     auto inst = this->llvm_ir_builder.CreateICmpEQ(right_value ? right_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, right_alloca),
                                                                    llvm::Constant::getNullValue(this->ll_pointer));
-                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                    return {inst, nullptr, gc_bool, resolveType::StructInst};
                 } else if (right_type->name == "nullptr") {
                     auto inst =
                         this->llvm_ir_builder.CreateICmpEQ(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
-                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                    return {inst, nullptr, gc_bool, resolveType::StructInst};
                 }
                 return this->_StructInfixCall("__eq__", "compare equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::NotEquals: {
                 if (left_type->name == "nullptr" && right_type->name == "nullptr") {
                     auto inst = llvm::ConstantInt::getFalse(this->llvm_context);
-                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                    return {inst, nullptr, gc_bool, resolveType::StructInst};
                 } else if (left_type->name == "nullptr") {
                     auto inst = this->llvm_ir_builder.CreateICmpNE(right_value ? right_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, right_alloca),
                                                                    llvm::Constant::getNullValue(this->ll_pointer));
-                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                    return {inst, nullptr, gc_bool, resolveType::StructInst};
                 } else if (right_type->name == "nullptr") {
                     auto inst =
                         this->llvm_ir_builder.CreateICmpNE(left_value ? left_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca), llvm::Constant::getNullValue(this->ll_pointer));
-                    return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                    return {inst, nullptr, gc_bool, resolveType::StructInst};
                 }
                 return this->_StructInfixCall("__neq__", "compare not equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
@@ -1694,17 +1720,21 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     llvm::Value* left_val_converted = left_val ? left_val : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, left_alloca);
     llvm::Value* right_val_converted = right_val ? right_val : this->llvm_ir_builder.CreateLoad(right_type->stand_alone_type, right_alloca);
     auto common_type = left_type;
+    std::string str;
     if (left_type != right_type) {
         if (this->conversionPrecidence(left_type, right_type)) {
             auto lct = this->convertType({left_val, left_alloca, left_type}, right_type);
-            left_val_converted = lct.value ? lct.value : this->llvm_ir_builder.CreateLoad(right_type->stand_alone_type, lct.alloca);
+            left_val_converted = lct.value;
             common_type = right_type;
+            str = "l2r";
         } else if (this->conversionPrecidence(right_type, left_type)) {
             auto rct = this->convertType({right_val, right_alloca, right_type}, left_type);
-            right_val_converted = rct.value ? rct.value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, rct.alloca);
+            right_val_converted = rct.value;
+            str = "r2l";
         } else {
             auto rct = this->convertType({right_val, right_alloca, right_type}, left_type);
-            right_val_converted = rct.value ? rct.value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, rct.alloca);
+            right_val_converted = rct.value;
+            str = "!l2r";
         }
     }
 
@@ -1712,59 +1742,73 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
         switch (op) {
             case (token::TokenType::Plus): {
                 auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("int"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::Dash): {
                 auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("int"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::Asterisk): {
                 auto inst = this->llvm_ir_builder.CreateMul(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("int"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::ForwardSlash): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateSDiv(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("int"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::Percent): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("int"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::EqualEqual): {
                 auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::NotEquals): {
                 auto inst = this->llvm_ir_builder.CreateICmpNE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::LessThan): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSLT(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateICmpULT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::GreaterThan): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSGT(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateICmpUGT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::LessThanOrEqual): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSLE(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateICmpULE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::GreaterThanOrEqual): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSGE(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateICmpUGE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::And): {
+                if (left_type->name != "bool" || right_type->name != "bool") {
+                    errors::raiseWrongTypeError(this->file_path, this->source, left, left_type, {gc_bool}, "Operands must be of type bool for & operator");
+                }
+                auto inst = this->llvm_ir_builder.CreateAnd(left_val_converted, right_val_converted);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::Or): {
+                if (left_type->name != "bool" || right_type->name != "bool") {
+                    errors::raiseWrongTypeError(this->file_path, this->source, left, left_type, {gc_bool}, "Operands must be of type bool for | operator");
+                }
+                auto inst = this->llvm_ir_builder.CreateOr(left_val_converted, right_val_converted);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
                 errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Power operator not supported for int");
@@ -1773,47 +1817,50 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op));
             }
         }
-    } else if (common_type->stand_alone_type->isDoubleTy()) {
+    } else if (common_type->stand_alone_type->isDoubleTy() || common_type->stand_alone_type->isFloatTy()) {
         switch (op) {
             case (token::TokenType::Plus): {
                 auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("float"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::Dash): {
                 auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("float"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::Asterisk): {
+                if (left_val_converted->getType()->getTypeID() != right_val_converted->getType()->getTypeID()) {
+                    std::cout << left_type->name << right_type->name << common_type->name << str << std::endl;
+                }
                 auto inst = this->llvm_ir_builder.CreateFMul(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("float"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::ForwardSlash): {
                 auto inst = this->llvm_ir_builder.CreateFDiv(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("float"), resolveType::StructInst};
+                return {inst, nullptr, common_type, resolveType::StructInst};
             }
             case (token::TokenType::EqualEqual): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOEQ(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::NotEquals): {
                 auto inst = this->llvm_ir_builder.CreateFCmpONE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::LessThan): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOLT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::GreaterThan): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOGT(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::LessThanOrEqual): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOLE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::GreaterThanOrEqual): {
                 auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
-                return {inst, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
                 errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Power operator not supported for float");
@@ -1827,7 +1874,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                                     this->source,
                                     infixed_expression,
                                     common_type,
-                                    {this->env->getStruct("int"), this->env->getStruct("float")},
+                                    {gc_int, this->env->getStruct("float")},
                                     "Unknown Type",
                                     "Check the types of the operands.");
     }
@@ -1857,7 +1904,8 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(AST::IndexExpr
 
 Compiler::ResolvedValue Compiler::_handleraw_arrayIndexing(llvm::Value* left, RecordStructType* left_generic, llvm::Value* index, RecordStructType* index_generic, AST::IndexExpression* index_expression) {
     // Validate that the index is of type 'int'
-    if (!_checkType(index_generic, this->env->getStruct("int"))) {
+    if (!_checkType(index_generic, gc_int) && !_checkType(index_generic, this->env->getStruct("int32")) &&
+        !_checkType(index_generic, this->env->getStruct("uint")) && !_checkType(index_generic, this->env->getStruct("uint32"))) {
         errors::raiseCantIndexError(this->file_path, this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.");
     }
 
@@ -1893,7 +1941,24 @@ Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* in
                                       index_alloca ? this->llvm_ir_builder.CreateLoad(index_generic->stand_alone_type, index_alloca) : index,
                                       index_generic,
                                       index_expression);
-    }
+        } else if (left_generic->name == "str") {
+            // Validate that the index is of type 'int' or convertible types
+            if (!_checkType(index_generic, gc_int) && !_checkType(index_generic, this->env->getStruct("int32")) &&
+                !_checkType(index_generic, this->env->getStruct("uint")) && !_checkType(index_generic, this->env->getStruct("uint32"))) {
+                errors::raiseCantIndexError(this->file_path, this->source, index_expression, true, "Index must be an integer (int, int32, uint, uint32) not `" + index_generic->name + "`", "Ensure the index is an integer.");
+            }
+
+            // Get the element type (char)
+            auto element_type = this->env->getStruct("char");
+            auto element_ptr_type = element_type->stand_alone_type;
+
+            // Calculate the element pointer
+            auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left_alloca ? this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca) : left, index, "element");
+            // Load the element value
+            llvm::Value* load = this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
+
+            return {load, element, element_type, resolveType::StructInst};
+        }
 
     // Handle struct indexing via __index__ method
     return _handleStructIndexing(left_alloca ? this->llvm_ir_builder.CreateLoad(ll_pointer, left_alloca) : left,
@@ -2034,7 +2099,7 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
 
 Compiler::ResolvedValue Compiler::_resolveIntegerLiteral(AST::IntegerLiteral* integer_literal) {
     auto value = llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, integer_literal->value));
-    return {value, nullptr, this->env->getStruct("int"), resolveType::StructInst};
+    return {value, nullptr, gc_int, resolveType::StructInst};
 }
 
 Compiler::ResolvedValue Compiler::_resolveFloatLiteral(AST::FloatLiteral* float_literal) {
@@ -2086,9 +2151,9 @@ Compiler::ResolvedValue Compiler::_resolveCallExpression(AST::CallExpression* ca
 
 Compiler::ResolvedValue Compiler::_resolveBooleanLiteral(AST::BooleanLiteral* boolean_literal) {
     auto value = boolean_literal->value ? llvm::ConstantInt::getTrue(this->llvm_context) : llvm::ConstantInt::getFalse(this->llvm_context);
-    auto alloca = this->llvm_ir_builder.CreateAlloca(this->env->getStruct("bool")->stand_alone_type);
+    auto alloca = this->llvm_ir_builder.CreateAlloca(gc_bool->stand_alone_type);
     this->llvm_ir_builder.CreateStore(value, alloca);
-    return {value, nullptr, this->env->getStruct("bool"), resolveType::StructInst};
+    return {value, nullptr, gc_bool, resolveType::StructInst};
 }
 
 Compiler::ResolvedValue Compiler::_resolveArrayLiteral(AST::ArrayLiteral* raw_array_literal) {
@@ -2162,7 +2227,7 @@ Compiler::ResolvedValue Compiler::_visitArrayLiteral(AST::ArrayLiteral* raw_arra
     if (raw_array_literal->_new) {
         llvm::Value* gep = this->llvm_ir_builder.CreateGEP(raw_array_type, llvm::ConstantPointerNull::get(this->ll_pointer), llConstInt::get(this->ll_int, 1));
         llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, this->ll_int);
-        raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {this->env->getStruct("int")})->function, {size});
+        raw_array = this->llvm_ir_builder.CreateCall(this->env->getFunction("malloc", {gc_int})->function, {size});
     } else {
         raw_array = this->llvm_ir_builder.CreateAlloca(raw_array_type);
     }
@@ -2351,12 +2416,12 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
 
     // Ensure the condition is of type StructInst and can be converted to bool if necessary
     if (resolved_cond.type != resolveType::StructInst) {
-        errors::raiseWrongTypeError(this->file_path, this->source, if_statement->condition, nullptr, {this->env->getStruct("bool")}, "If-else condition can't be module or type");
-    } else if (!_checkType(std::get<RecordStructType*>(resolved_cond.variant), this->env->getStruct("bool"))) {
-        if (!this->canConvertType(std::get<RecordStructType*>(resolved_cond.variant), this->env->getStruct("bool"))) {
-            errors::raiseWrongTypeError(this->file_path, this->source, if_statement->condition, nullptr, {this->env->getStruct("bool")}, "If-else condition can't be module or type");
+        errors::raiseWrongTypeError(this->file_path, this->source, if_statement->condition, nullptr, {gc_bool}, "If-else condition can't be module or type");
+    } else if (!_checkType(std::get<RecordStructType*>(resolved_cond.variant), gc_bool)) {
+        if (!this->canConvertType(std::get<RecordStructType*>(resolved_cond.variant), gc_bool)) {
+            errors::raiseWrongTypeError(this->file_path, this->source, if_statement->condition, nullptr, {gc_bool}, "If-else condition can't be module or type");
         } else {
-            resolved_cond = this->convertType(resolved_cond, this->env->getStruct("bool"));
+            resolved_cond = this->convertType(resolved_cond, gc_bool);
         }
     }
 
@@ -2425,19 +2490,19 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
 
     // Ensure the condition is of type StructInst
     if (condition_resolve_type != resolveType::StructInst) {
-        errors::raiseWrongTypeError(this->file_path, this->source, condition, nullptr, {this->env->getStruct("bool")}, "While loop condition cannot be a module or type.");
+        errors::raiseWrongTypeError(this->file_path, this->source, condition, nullptr, {gc_bool}, "While loop condition cannot be a module or type.");
     }
 
     // Retrieve the actual condition type
     auto conditionType = std::get<RecordStructType*>(condition_type_variant);
 
     // Check if the condition type is bool, possibly converting if necessary
-    if (!_checkType(conditionType, this->env->getStruct("bool"))) {
-        if (this->canConvertType(conditionType, this->env->getStruct("bool"))) {
-            auto converted = this->convertType({condition_val, condition_alloca, conditionType}, this->env->getStruct("bool"));
+    if (!_checkType(conditionType, gc_bool)) {
+        if (this->canConvertType(conditionType, gc_bool)) {
+            auto converted = this->convertType({condition_val, condition_alloca, conditionType}, gc_bool);
             condition_val = converted.value;
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, condition, conditionType, {this->env->getStruct("bool")}, "While loop condition must be of type bool.");
+            errors::raiseWrongTypeError(this->file_path, this->source, condition, conditionType, {gc_bool}, "While loop condition must be of type bool.");
         }
     }
 
@@ -2661,7 +2726,7 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
 
         // Ensure the iterator has both __next__ and __done__ methods
         bool has_next = iterable_type->is_method("__next__", {iterable_type, iterator_type});
-        bool has_done = iterable_type->is_method("__done__", {iterable_type, iterator_type}, {}, this->env->getStruct("bool"));
+        bool has_done = iterable_type->is_method("__done__", {iterable_type, iterator_type}, {}, gc_bool);
         if (!has_next) {
             errors::raiseNotDefinedError(this->file_path, this->source, for_statement->from, "__next__ method not defined in struct `" + iterable_type->name + "`");
         } else if (!has_done) {

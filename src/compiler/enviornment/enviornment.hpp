@@ -43,12 +43,13 @@ using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuple
  * @brief Enumeration of different types of records.
  */
 enum class RecordType {
-    RecordGStructType,    ///< Represents a generic struct type record.
-    RecordStructInst,     ///< Represents a struct instance record.
-    RecordVariable,       ///< Represents a variable record.
-    RecordFunction,       ///< Represents a function record.
-    RecordModule,         ///< Represents a module record.
-    RecordGenericFunction ///< Represents a generic function record.
+    GStructType,    ///< Represents a generic struct type record.
+    StructInst,     ///< Represents a struct instance record.
+    Variable,       ///< Represents a variable record.
+    Enum,
+    Function,       ///< Represents a function record.
+    Module,         ///< Represents a module record.
+    GenericFunction ///< Represents a generic function record.
 };
 
 /**
@@ -121,7 +122,7 @@ class RecordFunction : public Record {
      * @brief Constructs a RecordFunction with the given name.
      * @param name The name of the function.
      */
-    RecordFunction(const Str& name) : Record(RecordType::RecordFunction, name) {}
+    RecordFunction(const Str& name) : Record(RecordType::Function, name) {}
 
     /**
      * @brief Constructs a RecordFunction with detailed parameters.
@@ -138,7 +139,7 @@ class RecordFunction : public Record {
                    std::vector<std::tuple<Str, RecordStructType*, bool>> arguments,
                    RecordStructType* returnInst,
                    const AST::MoreData& extraInfo = {})
-        : Record(RecordType::RecordFunction, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst) {}
+        : Record(RecordType::Function, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst) {}
 
     /**
      * @brief Constructs a RecordFunction with variable arguments support.
@@ -151,7 +152,7 @@ class RecordFunction : public Record {
      */
     RecordFunction(
         const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool>> arguments, RecordStructType* returnInst, bool isVarArg)
-        : Record(RecordType::RecordFunction, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg) {}
+        : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg) {}
 
     /**
      * @brief Copy constructor for RecordFunction.
@@ -239,7 +240,7 @@ class RecordGenericFunction : public Record {
      * @param func Pointer to the AST FunctionStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericFunction(const Str& name, AST::FunctionStatement* func, Enviornment* env) : Record(RecordType::RecordGenericFunction, name), func(func), env(env) {}
+    RecordGenericFunction(const Str& name, AST::FunctionStatement* func, Enviornment* env) : Record(RecordType::GenericFunction, name), func(func), env(env) {}
 
     /**
      * @brief Copy constructor for RecordGenericFunction.
@@ -286,7 +287,7 @@ class RecordGenericStructType : public Record {
      * @param structAST Pointer to the AST StructStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, Enviornment* env) : Record(RecordType::RecordGStructType, name), structAST(structAST), env(env) {};
+    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, Enviornment* env) : Record(RecordType::GStructType, name), structAST(structAST), env(env) {};
 
     /**
      * @brief Copy constructor for RecordGenericStructType.
@@ -342,14 +343,14 @@ class RecordStructType : public Record {
      * @brief Constructs a RecordStructType with the specified name.
      * @param name The name of the struct type.
      */
-    RecordStructType(const Str& name) : Record(RecordType::RecordStructInst, name) {}
+    RecordStructType(const Str& name) : Record(RecordType::StructInst, name) {}
 
     /**
      * @brief Constructs a RecordStructType with the specified name and standalone type.
      * @param name The name of the struct type.
      * @param stand_alone_type Pointer to the standalone LLVM Type.
      */
-    RecordStructType(const Str& name, llvm::Type* stand_alone_type) : Record(RecordType::RecordStructInst, name), stand_alone_type(stand_alone_type) {}
+    RecordStructType(const Str& name, llvm::Type* stand_alone_type) : Record(RecordType::StructInst, name), stand_alone_type(stand_alone_type) {}
 
     /**
      * @brief Copy constructor for RecordStructType.
@@ -451,7 +452,7 @@ class RecordVariable : public Record {
      * @brief Constructs a RecordVariable with the specified name.
      * @param name The name of the variable.
      */
-    RecordVariable(const Str& name) : Record(RecordType::RecordVariable, name) {}
+    RecordVariable(const Str& name) : Record(RecordType::Variable, name) {}
 
     /**
      * @brief Constructs a RecordVariable with detailed parameters.
@@ -461,7 +462,7 @@ class RecordVariable : public Record {
      * @param generic Pointer to the struct type of the variable.
      */
     RecordVariable(const Str& name, llvm::Value* value, llvm::Value* allocainst, RecordStructType* generic)
-        : Record(RecordType::RecordVariable, name), value(value), allocainst(allocainst), variable_type(generic) {}
+        : Record(RecordType::Variable, name), value(value), allocainst(allocainst), variable_type(generic) {}
 
     /**
      * @brief Copy constructor for RecordVariable.
@@ -512,7 +513,7 @@ class RecordModule : public Record {
      * @param name The name of the module.
      * @param record_map The map of records within the module.
      */
-    RecordModule(const Str& name, const StrRecordMap& record_map) : Record(RecordType::RecordModule, name), record_map(record_map) {}
+    RecordModule(const Str& name, const StrRecordMap& record_map) : Record(RecordType::Module, name), record_map(record_map) {}
 
     /**
      * @brief Copy constructor for RecordModule.
@@ -526,27 +527,27 @@ class RecordModule : public Record {
     ~RecordModule() {
         for (auto& [_, record] : record_map) {
             switch (record->type) {
-                case RecordType::RecordVariable: {
+                case RecordType::Variable: {
                     delete (RecordVariable*)(record);
                     break;
                 }
-                case RecordType::RecordFunction: {
+                case RecordType::Function: {
                     delete (RecordFunction*)(record);
                     break;
                 }
-                case RecordType::RecordStructInst: {
+                case RecordType::StructInst: {
                     delete (RecordStructType*)(record);
                     break;
                 }
-                case RecordType::RecordModule: {
+                case RecordType::Module: {
                     delete (RecordModule*)(record);
                     break;
                 }
-                case RecordType::RecordGenericFunction: {
+                case RecordType::GenericFunction: {
                     delete (RecordGenericFunction*)(record);
                     break;
                 }
-                case RecordType::RecordGStructType: {
+                case RecordType::GStructType: {
                     delete (RecordGenericStructType*)(record);
                     break;
                 }
@@ -562,7 +563,7 @@ class RecordModule : public Record {
      * @brief Constructs a RecordModule with the specified name.
      * @param name The name of the module.
      */
-    RecordModule(const Str& name) : Record(RecordType::RecordModule, name) {}
+    RecordModule(const Str& name) : Record(RecordType::Module, name) {}
 
     /**
      * @brief Adds a record to the module.
@@ -700,27 +701,27 @@ class Enviornment {
     ~Enviornment() {
         for (auto _record : record_map) {
             switch (std::get<1>(_record)->type) {
-                case RecordType::RecordVariable: {
+                case RecordType::Variable: {
                     delete (RecordVariable*)(std::get<1>(_record));
                     break;
                 }
-                case RecordType::RecordFunction: {
+                case RecordType::Function: {
                     delete (RecordFunction*)(std::get<1>(_record));
                     break;
                 }
-                case RecordType::RecordStructInst: {
+                case RecordType::StructInst: {
                     delete (RecordStructType*)(std::get<1>(_record));
                     break;
                 }
-                case RecordType::RecordModule: {
+                case RecordType::Module: {
                     delete (RecordModule*)(std::get<1>(_record));
                     break;
                 }
-                case RecordType::RecordGenericFunction: {
+                case RecordType::GenericFunction: {
                     delete (RecordGenericFunction*)(std::get<1>(_record));
                     break;
                 }
-                case RecordType::RecordGStructType: {
+                case RecordType::GStructType: {
                     delete (RecordGenericStructType*)(std::get<1>(_record));
                     break;
                 }
