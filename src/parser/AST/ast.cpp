@@ -314,6 +314,10 @@ StructStatement::~StructStatement() {
     generics.clear();
 }
 
+EnumStatement::~EnumStatement() {
+    delete name;
+}
+
 MacroStatement::~MacroStatement() {
     delete body;
 }

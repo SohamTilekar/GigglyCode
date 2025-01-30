@@ -498,6 +498,15 @@ class Parser {
     AST::StructStatement* _parseStructStatement();
 
     /**
+     * @brief Parse a enum statement
+     *
+     * Handles the declaration of enums, including their members and methods.
+     *
+     * @return AST::EnumStatement* The parsed enum statement
+     */
+    AST::EnumStatement* _parseEnumStatement();
+
+    /**
      * @brief Parse a try-catch statement
      *
      * Handles error handling constructs with try and catch blocks.

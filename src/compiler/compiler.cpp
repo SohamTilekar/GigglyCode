@@ -1,11 +1,14 @@
 // TODO: Add Meta Data to all of the Record.
 #include "compiler.hpp"
+#include <cmath>
 #include <iostream>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Value.h>
 #include <thread>
+#include <unordered_map>
 
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
@@ -203,6 +206,9 @@ void Compiler::compile(AST::Node* node) {
             break;
         case AST::NodeType::StructStatement:
             this->_visitStructStatement(node->castToStructStatement());
+            break;
+        case AST::NodeType::EnumStatement:
+            this->_visitEnumStatement(node->castToEnumStatement());
             break;
         case AST::NodeType::ImportStatement:
             this->_visitImportStatement(node->castToImportStatement());
@@ -1263,6 +1269,34 @@ void Compiler::_visitStructStatement(AST::StructStatement* struct_statement) {
     this->_createStructRecord(struct_statement, nullptr);
 }
 
+void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
+    auto name = enum_statement->name->castToIdentifierLiteral()->value;
+    std::unordered_map<std::string, uint32_t> fields;
+    auto int_bits = std::bit_width(enum_statement->fields.size());
+    auto int_type = llvm_ir_builder.getIntNTy(int_bits);
+    auto func_type = llvm::FunctionType::get(ll_str, {int_type}, false);
+    auto func = llvm::Function::Create(func_type, llvm::GlobalValue::LinkageTypes::ExternalLinkage, name + "..getName", llvm_module.get());
+    auto entry_block = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
+    llvm_ir_builder.SetInsertPoint(entry_block);
+    auto dump_block = llvm::BasicBlock::Create(this->llvm_context, "dump", func);
+    llvm::SwitchInst* switch_inst = llvm_ir_builder.CreateSwitch(func->args().begin(), dump_block, fields.size());
+    uint32_t value = 0;
+    for (const auto& field_name : enum_statement->fields) {
+        fields[field_name] = value;
+        llvm::BasicBlock* case_block = llvm::BasicBlock::Create(llvm_context, "case", func);
+        switch_inst->addCase(llvm::ConstantInt::get(this->llvm_context, llvm::APInt(int_bits, value)), case_block);
+        llvm_ir_builder.SetInsertPoint(case_block);
+        llvm_ir_builder.CreateRet(llvm_ir_builder.CreateGlobalStringPtr(field_name, "", 0, llvm_module.get()));
+        value++;
+    }
+    auto enum_struct = new RecordStructType(name, int_type, fields);
+    llvm_ir_builder.SetInsertPoint(dump_block);
+    llvm_ir_builder.CreateUnreachable();
+
+    enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true));
+    this->env->addRecord(enum_struct);
+}
+
 Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_expression) {
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
@@ -1287,6 +1321,13 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             }
         } else if (ltt == resolveType::StructInst) {
             auto left_type = std::get<RecordStructType*>(_left_type);
+            if (left_type->is_enum_kind) {
+                errors::raiseDoesntContainError(this->file_path,
+                                                this->source,
+                                                right->castToIdentifierLiteral(),
+                                                left,
+                                                "Cant access the enum varient from its varient " + left_type->name);
+            }
             if (left_type->sub_types.contains(right->castToIdentifierLiteral()->value)) {
                 unsigned short idx = 0;
                 for (auto field : left_type->getFields()) {
@@ -1303,6 +1344,20 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                                                 left,
                                                 "no member `" + right->castToIdentifierLiteral()->value + "` not found in struct " + left_type->name,
                                                 "Check the Member Name in the struct is correct");
+            }
+        } else if (ltt == resolveType::StructType) {
+            auto left_type = std::get<RecordStructType*>(_left_type);
+            if (left_type->is_enum_kind) {
+                if (left_type->KW_int_map.contains(right->castToIdentifierLiteral()->value)) {
+                    return {llvm::ConstantInt::get(this->llvm_context, llvm::APInt(left_type->stand_alone_type->getIntegerBitWidth(), left_type->KW_int_map[right->castToIdentifierLiteral()->value])), nullptr, left_type, resolveType::StructInst};
+                } else {
+                    errors::raiseDoesntContainError(this->file_path,
+                                                    this->source,
+                                                    right->castToIdentifierLiteral(),
+                                                    left,
+                                                    "no member `" + right->castToIdentifierLiteral()->value + "` not found in enum " + left_type->name,
+                                                    "Check the Member Name in the enum is correct");
+                }
             }
         }
     } else if (right->type() == AST::NodeType::CallExpression) {
@@ -1376,6 +1431,16 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             }
         } else if (ltt == resolveType::StructInst) {
             auto left_type = std::get<RecordStructType*>(_left_type);
+            if (left_type->is_enum_kind) {
+                if (name == "getName") {
+                    if (params.size() != 0) {
+                        // TODO Raise Error
+                    }
+                    auto method = left_type->get_method("getName", {});
+                    auto param = left_alloca ? llvm_ir_builder.CreateLoad(left_type->stand_alone_type,  left_alloca) : left_value;
+                    return {llvm_ir_builder.CreateCall(method->function, {param}), nullptr, gc_str, resolveType::StructInst};
+                }
+            }
             params_types.insert(params_types.begin(), left_type);
             args.insert(args.begin(), left_value ? left_value : left_alloca);
             arg_allocas.insert(arg_allocas.begin(), left_value ? left_value : left_alloca);
@@ -1406,7 +1471,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                                  right->meta_data.st_col_no,
                                  right->meta_data.end_line_no,
                                  right->meta_data.end_col_no,
-                                 "Member access should be identifier of method not " + AST::nodeTypeToString(right->type()));
+                                 "Member access should be identifier or method not " + AST::nodeTypeToString(right->type()));
 };
 
 Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
@@ -1643,11 +1708,54 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
         (rtt != resolveType::StructInst && !(rtt == resolveType::StructType && std::get<RecordStructType*>(_right_type)->name == "nullptr"))) {
         errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules");
     }
-    // Handle type conversion
     auto left_val = left_value;
     auto right_val = right_value;
     auto left_type = std::get<RecordStructType*>(_left_type);
     auto right_type = std::get<RecordStructType*>(_right_type);
+    if (left_type->is_enum_kind && right_type->is_enum_kind) {
+        if (!_checkType(left_type, right_type)) {
+            errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 diffrent types enums");
+        }
+        auto left_val = left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, left_alloca);
+        auto right_val = right_value ? right_value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, right_alloca);
+        switch (op) {
+            case (token::TokenType::EqualEqual): {
+                auto inst = this->llvm_ir_builder.CreateICmpEQ(left_val, right_val);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::NotEquals): {
+                auto inst = this->llvm_ir_builder.CreateICmpNE(left_val, right_val);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::LessThan): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSLT(left_val, right_val);
+                else inst = this->llvm_ir_builder.CreateICmpULT(left_val, right_val);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::GreaterThan): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSGT(left_val, right_val);
+                else inst = this->llvm_ir_builder.CreateICmpUGT(left_val, right_val);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::LessThanOrEqual): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSLE(left_val, right_val);
+                else inst = this->llvm_ir_builder.CreateICmpULE(left_val, right_val);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            case (token::TokenType::GreaterThanOrEqual): {
+                llvm::Value* inst;
+                if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateICmpSGE(left_val, right_val);
+                else inst = this->llvm_ir_builder.CreateICmpUGE(left_val, right_val);
+                return {inst, nullptr, gc_bool, resolveType::StructInst};
+            }
+            default: {
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op));
+            }
+        }
+    }
     if (left_type->struct_type != nullptr || right_type->struct_type != nullptr) {
         vector<RecordStructType*> params_type1{left_type, right_type};
         vector<RecordStructType*> params_type2{right_type, left_type};

@@ -29,6 +29,7 @@ class RaiseStatement;
 class FunctionStatement;
 class IfElseStatement;
 class WhileStatement;
+class ForEachStatement;
 class ForStatement;
 class BreakStatement;
 class ContinueStatement;
@@ -37,6 +38,7 @@ class VariableDeclarationStatement;
 class VariableAssignmentStatement;
 class TryCatchStatement;
 class StructStatement;
+class EnumStatement;
 class SwitchCaseStatement;
 class MacroStatement;
 
@@ -60,6 +62,7 @@ enum class NodeType {
     BreakStatement,
     ContinueStatement,
     StructStatement,
+    EnumStatement,
     ImportStatement,
     TryCatchStatement,
     RaiseStatement,
@@ -165,6 +168,7 @@ class Node {
     VariableAssignmentStatement* castToVariableAssignmentStatement() { return (VariableAssignmentStatement*)(this); }
     TryCatchStatement* castToTryCatchStatement() { return (TryCatchStatement*)(this); }
     StructStatement* castToStructStatement() { return (StructStatement*)(this); }
+    EnumStatement* castToEnumStatement() { return (EnumStatement*)(this); }
     SwitchCaseStatement* castToSwitchCaseStatement() { return (SwitchCaseStatement*)(this); }
     MacroStatement* castToMacroStatement() { return (MacroStatement*)(this); }
     // Expression Casts
@@ -548,6 +552,16 @@ class StructStatement : public Statement {
 
     // Destructor Declaration
     ~StructStatement() override;
+};
+
+class EnumStatement : public Statement {
+  public:
+    Expression* name = nullptr;
+    std::vector<std::string> fields = {};
+    inline EnumStatement(Expression* name, const std::vector<std::string>& fields) : name(name), fields(fields) {}
+    ~EnumStatement() override;
+    inline NodeType type() override { return NodeType::EnumStatement; };
+    std::string toStr() override;
 };
 
 class MacroStatement : public Statement {

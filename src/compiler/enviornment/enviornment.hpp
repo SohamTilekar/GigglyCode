@@ -11,8 +11,10 @@
  */
 
 #include <cstdio>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "../../parser/AST/ast.hpp"
@@ -46,7 +48,6 @@ enum class RecordType {
     GStructType,    ///< Represents a generic struct type record.
     StructInst,     ///< Represents a struct instance record.
     Variable,       ///< Represents a variable record.
-    Enum,
     Function,       ///< Represents a function record.
     Module,         ///< Represents a module record.
     GenericFunction ///< Represents a generic function record.
@@ -332,12 +333,9 @@ class RecordStructType : public Record {
     llvm::StructType* struct_type = nullptr;                   ///< Pointer to the LLVM StructType.
     std::unordered_map<Str, RecordStructType*> sub_types = {}; ///< Map of subtypes by field name.
     std::vector<RecordStructType*> generic_sub_types = {};     ///< Vector of generic subtypes.
-    /**
-     * @brief Vector of methods where each method is a tuple containing:
-     * - Method name.
-     * - Pointer to the function record.
-     */
+    std::unordered_map<std::string, uint32_t> KW_int_map;
     std::vector<std::tuple<Str, RecordFunction*>> methods = {};
+    bool is_enum_kind = false;
 
     /**
      * @brief Constructs a RecordStructType with the specified name.
@@ -364,11 +362,14 @@ class RecordStructType : public Record {
         }
     }
 
+    RecordStructType(std::string& name, llvm::IntegerType* ll_enum_underthe_hood_type, std::unordered_map<std::string, uint32_t> KW_int_map) : Record(RecordType::StructInst, name), stand_alone_type(ll_enum_underthe_hood_type), KW_int_map(KW_int_map), is_enum_kind(true) {};
+
     /**
      * @brief Destructor for RecordStructType.
      */
     ~RecordStructType() {
         for (auto& [_, method] : methods) { delete method; }
+        // for (auto& [_, field] : KW_int_map) { delete field; }
     }
 
     /**
@@ -382,6 +383,8 @@ class RecordStructType : public Record {
      */
     bool is_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
 
+    bool isVal(std::string name);
+
     /**
      * @brief Retrieves the method with the given name and parameters.
      * @param name The name of the method.
@@ -392,6 +395,8 @@ class RecordStructType : public Record {
      * @return Pointer to the FunctionRecord if found, nullptr otherwise.
      */
     RecordFunction* get_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
+
+    uint32_t getVal(std::string name);
 
     /**
      * @brief Sets the standalone LLVM Type.

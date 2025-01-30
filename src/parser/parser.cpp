@@ -127,6 +127,8 @@ AST::Statement* Parser::_parseStatement() {
             return this->_parseImportStatement(); // [importFT] -> [;]
         case TokenType::Struct:
             return this->_parseStructStatement(); // [structFT] -> [}]
+        case TokenType::Enum:
+            return this->_parseEnumStatement();  // [enumFT] -> [}]
         case TokenType::Try:
             return this->_parseTryCatchStatement(); // [tryFT] -> [;]
         case TokenType::Switch:
@@ -948,6 +950,42 @@ AST::Statement* Parser::_parseIfElseStatement() {
     if_else_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return if_else_statement;
 }
+
+AST::EnumStatement* Parser::_parseEnumStatement() {
+    int st_line_no = current_token.st_line_no;
+    int st_col_no = current_token.col_no;
+
+    this->_expectPeek(TokenType::Identifier); // [enumFT] -> [Identifier]
+    AST::Expression* name = new AST::IdentifierLiteral(this->current_token);
+
+    this->_expectPeek(TokenType::LeftBrace); // [Identifier] -> [{]
+    this->_nextToken();                      // [{] -> [Enum Body]
+    LOG_TOK()
+    std::vector<std::string> fields;
+
+    while (!this->_currentTokenIs(TokenType::RightBrace) && !this->_currentTokenIs(TokenType::EndOfFile)) {
+        if (this->_currentTokenIs(TokenType::Identifier)) {
+            fields.push_back(current_token.literal);
+            this->_nextToken();              // [;] -> [} | Ident]
+            LOG_TOK()
+        } else {
+            this->_currentTokenError(current_token.type, {TokenType::Identifier});
+            return nullptr;
+        }
+        this->_nextToken(); // [StatementLT] -> [Next Statement or }]
+        LOG_TOK()
+    }
+    if (this->peek_token.type == TokenType::Semicolon) {
+        this->_nextToken();
+        LOG_TOK()
+    } // [}] -> [;]
+    int end_line_no = current_token.end_line_no;
+    int end_col_no = current_token.col_no;
+
+    auto enum_stmt = new AST::EnumStatement(name, fields);
+    enum_stmt->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    return enum_stmt;
+};
 
 AST::Expression* Parser::_parseInfixExpression(AST::Expression* leftNode) {
     int st_line_no = leftNode->meta_data.st_line_no;

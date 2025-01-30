@@ -43,7 +43,7 @@ using llBB = llvm::BasicBlock;                                                  
  * @enum resolveType
  * @brief Enumeration of different types used during type resolution.
  */
-enum class resolveType {
+enum class resolveType : char {
     Module,      ///< Represents a module
     StructInst,  ///< Represents a struct instance
     StructType,  ///< Represents a struct type
@@ -345,6 +345,8 @@ class Compiler {
      * @param struct_statement pointer to the StructStatement node.
      */
     void _visitStructStatement(AST::StructStatement* struct_statement);
+
+    void _visitEnumStatement(AST::EnumStatement* enum_statement);
 
     /**
      * @brief Visits a SwitchCaseStatement node in the AST.

@@ -1,5 +1,6 @@
 #include "enviornment.hpp"
 #include "../compiler.hpp"
+#include <cstdint>
 #include <iostream>
 #include <llvm/ADT/STLExtras.h>
 
@@ -35,16 +36,14 @@ bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2, s
     const auto& fields1 = type1->getFields();
     const auto& fields2 = type2->getFields();
 
-    if (fields1.size() != fields2.size()) {
-        return false; // Different number of fields implies different types
-    }
+    if (fields1.size() != fields2.size()) return false;
 
     for (size_t i = 0; i < fields1.size(); ++i) {
         const std::string& field_name1 = fields1[i];
         const std::string& field_name2 = fields2[i];
 
         // If field names differ, types do not match
-        if (field_name1 != field_name2) { return false; }
+        if (field_name1 != field_name2) return false;
 
         // Retrieve subtypes
         RecordStructType* subtype1 = type1->sub_types.at(field_name1);
@@ -52,6 +51,11 @@ bool enviornment::_checkType(RecordStructType* type1, RecordStructType* type2, s
 
         // Recursively check subtypes
         if (!_checkType(subtype1, subtype2, checked)) { return false; }
+    }
+
+    if (type1->KW_int_map != type2->KW_int_map) return false;
+    for (auto [field1, field2] : llvm::zip(type1->KW_int_map, type2->KW_int_map)) {
+        if (field1 != field2) return false;
     }
 
     if (type1->stand_alone_type == type2->stand_alone_type) return true;
@@ -450,3 +454,12 @@ std::vector<RecordFunction*> Enviornment::getFunc(const Str& name) {
     }
     return this->parent && jadu.size() == 0 ? this->parent->getFunc(name) : jadu;
 }
+
+
+uint32_t RecordStructType::getVal(std::string name) {
+    return KW_int_map.contains(name) ? KW_int_map[name] : INT32_MAX;
+}
+
+bool RecordStructType::isVal(std::string name) {
+    return KW_int_map.contains(name);
+};
