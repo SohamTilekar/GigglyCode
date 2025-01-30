@@ -2061,10 +2061,21 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
     // Resolve the condition value
     ResolvedValue condition_value = _resolveValue(switch_statement->condition);
 
+    // Check for null condition value and raise error if necessary
+    if (!condition_value.value && !condition_value.alloca) {
+        errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, nullptr, {}, "Switch condition cannot be a module or type");
+    }
+
+    if (std::get<RecordStructType*>(condition_value.variant)->struct_type) {
+        errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, std::get<RecordStructType*>(condition_value.variant), {}, "Switch condition cannot be a struct type");
+    }
+
+    // Load from alloca if available, otherwise use the value directly
+    llvm::Value* condition_val = condition_value.alloca ? this->llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(condition_value.variant)->stand_alone_type, condition_value.alloca) : condition_value.value;
+    auto condition_type = std::get<RecordStructType*>(condition_value.variant)->stand_alone_type;
+
     // Create the switch instruction
-    llvm::SwitchInst* switch_inst = llvm_ir_builder.CreateSwitch(condition_value.value, default_block, switch_statement->cases.size());
-    llvm::BasicBlock* garbage_block = llvm::BasicBlock::Create(llvm_context, "garbage", function);
-    llvm_ir_builder.SetInsertPoint(garbage_block);
+    llvm::SwitchInst* switch_inst = llvm_ir_builder.CreateSwitch(condition_val, default_block, switch_statement->cases.size());
     // Create basic blocks for each case
     std::vector<llvm::BasicBlock*> case_blocks;
     for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
@@ -2076,10 +2087,23 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
     for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
         auto [case_expr, case_stmt] = switch_statement->cases[i];
         ResolvedValue case_value = _resolveValue(case_expr);
-        switch_inst->addCase(llvm::cast<llvm::ConstantInt>(case_value.value), case_blocks[i]);
+        if (!case_value.value && !case_value.alloca) {
+            errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case cannot be a module or type");
+        }
+        if (std::get<RecordStructType*>(case_value.variant)->struct_type) {
+            errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, std::get<RecordStructType*>(case_value.variant), {}, "Switch case cannot be a struct type");
+        }
+        llvm::Value* case_val = case_value.value ? case_value.value : (case_value.alloca ? this->llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(case_value.variant)->stand_alone_type, case_value.alloca) : nullptr);
+        if(!enviornment::_checkType(std::get<RecordStructType*>(case_value.variant), std::get<RecordStructType*>(condition_value.variant))){
+            errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case type mismatch");
+        }
+        if (llvm::isa<llvm::ConstantInt>(case_val)) {
+            switch_inst->addCase(llvm::cast<llvm::ConstantInt>(case_val), case_blocks[i]);
+        } else {
+            errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case value must be a constant integer");
+        }
     }
 
-    llvm_ir_builder.CreateUnreachable();
     // Visit each case block
     for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
         llvm_ir_builder.SetInsertPoint(case_blocks[i]);
@@ -2121,11 +2145,9 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
         auto currentStructType = variable->variable_type;
         currentStructType->meta_data = identifier_literal->meta_data;
         if (currentStructType->struct_type || currentStructType->name == "raw_array") {
-            auto loadInst = this->llvm_ir_builder.CreateLoad(this->ll_pointer, variable->allocainst);
-            return {loadInst, variable->allocainst, currentStructType, resolveType::StructInst};
+            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
         } else {
-            auto loadInst = this->llvm_ir_builder.CreateLoad(currentStructType->stand_alone_type, variable->allocainst);
-            return {loadInst, variable->allocainst, currentStructType, resolveType::StructInst};
+            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
         }
     } else if (this->env->isModule(identifier_literal->value)) {
         return {nullptr, nullptr, this->env->getModule(identifier_literal->value), resolveType::Module};
