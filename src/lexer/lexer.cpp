@@ -419,41 +419,59 @@ std::string Lexer::_readString(const std::string& quote) {
             // Handle escape sequences
             switch (this->current_char[0]) {
                 case '"':
-                    str += "\""; literal += "\\\""; break;
+                    str += "\"";
+                    literal += "\\\"";
+                    break;
                 case '\'':
-                    str += "'"; literal += "\\'"; break;
+                    str += "'";
+                    literal += "\\'";
+                    break;
                 case 'n':
-                    str += "\n"; literal += "\\n"; break;
+                    str += "\n";
+                    literal += "\\n";
+                    break;
                 case 't':
-                    str += "\t"; literal += "\\t"; break;
+                    str += "\t";
+                    literal += "\\t";
+                    break;
                 case 'r':
-                    str += "\r"; literal += "\\r"; break;
+                    str += "\r";
+                    literal += "\\r";
+                    break;
                 case 'b':
-                    str += "\b"; literal += "\\b"; break;
+                    str += "\b";
+                    literal += "\\b";
+                    break;
                 case 'f':
-                    str += "\f"; literal += "\\f"; break;
+                    str += "\f";
+                    literal += "\\f";
+                    break;
                 case 'v':
-                    str += "\v"; literal += "\\v"; break;
+                    str += "\v";
+                    literal += "\\v";
+                    break;
                 case '\\':
-                    str += "\\"; literal += "\\\\"; break;
+                    str += "\\";
+                    literal += "\\\\";
+                    break;
                 case 'x': { // Hexadecimal escape sequence \xHH
                     std::string hex_str = "";
                     this->_readChar();
                     if (!_isHexDigit(current_char)) {
                         errors::raiseSyntaxError(this->file_path,
-                            token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
-                            this->source,
-                            "Invalid hexadecimal escape sequence",
-                            "Expected two hexadecimal digits after \\x");
+                                                 token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
+                                                 this->source,
+                                                 "Invalid hexadecimal escape sequence",
+                                                 "Expected two hexadecimal digits after \\x");
                     }
                     hex_str += current_char;
                     this->_readChar();
                     if (!_isHexDigit(current_char)) {
                         errors::raiseSyntaxError(this->file_path,
-                            token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
-                            this->source,
-                            "Invalid hexadecimal escape sequence",
-                            "Expected two hexadecimal digits after \\x");
+                                                 token::Token(token::TokenType::String, literal, this->line_no, this->line_no, st_col_no, this->col_no - 2),
+                                                 this->source,
+                                                 "Invalid hexadecimal escape sequence",
+                                                 "Expected two hexadecimal digits after \\x");
                     }
                     hex_str += current_char;
                     char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
@@ -461,10 +479,11 @@ std::string Lexer::_readString(const std::string& quote) {
                     literal += "\\x" + hex_str;
                     break;
                 }
-                case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.  \uHHHH
+                case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.
+                          // \uHHHH
                 case 'U': // \UHHHHHHHH
-                    // For simplicity and consistency with how other unhandled escapes are dealt with, we treat
-                    // these as literal characters for now
+                    // For simplicity and consistency with how other unhandled escapes are
+                    // dealt with, we treat these as literal characters for now
                     [[fallthrough]];
                 default: // If not a recognized escape sequence, treat literally.
                     str += "\\" + this->current_char;

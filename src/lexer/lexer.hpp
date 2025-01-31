@@ -1,12 +1,15 @@
 /**
  * @file lexer.hpp
- * @brief This file contains the declaration of the Lexer class and related functions.
+ * @brief This file contains the declaration of the Lexer class and related
+ * functions.
  *
- * The Lexer class is responsible for tokenizing the source code. It reads the source code
- * character by character and generates tokens that represent the different elements of the code.
+ * The Lexer class is responsible for tokenizing the source code. It reads the
+ * source code character by character and generates tokens that represent the
+ * different elements of the code.
  *
  * Functions:
- * - getStringOnLineNumber: Get the string on a specific line number from the input string.
+ * - getStringOnLineNumber: Get the string on a specific line number from the
+ * input string.
  * - getNumberOfLines: Get the number of lines in the input string.
  *
  * Class Lexer:

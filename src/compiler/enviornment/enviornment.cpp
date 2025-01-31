@@ -164,7 +164,8 @@ bool RecordModule::isFunction(const std::string& name, const std::vector<RecordS
     return false;
 }
 
-// Checks if a module contains a specific struct with matching generic parameters
+// Checks if a module contains a specific struct with matching generic
+// parameters
 bool RecordModule::is_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     // Iterate through all records in the module
     for (const auto& [struct_name, struct_record] : record_map) {
@@ -231,7 +232,8 @@ RecordFunction* RecordModule::getFunction(const std::string& name, const std::ve
     return nullptr;
 }
 
-// Retrieves a struct from the module that matches the given name and generic parameters
+// Retrieves a struct from the module that matches the given name and generic
+// parameters
 RecordStructType* RecordModule::get_struct(const std::string& name, std::vector<RecordStructType*> gens) {
     for (const auto& [struct_name, struct_record] : record_map) {
         if (struct_record->type == RecordType::StructInst) {
@@ -380,7 +382,8 @@ RecordFunction* Enviornment::getFunction(const std::string& name, std::vector<Re
     return (parent != nullptr && !limit2current_scope) ? parent->getFunction(name, params_types, exact) : nullptr;
 }
 
-// Retrieves a struct from the environment that matches the given name and generic parameters
+// Retrieves a struct from the environment that matches the given name and
+// generic parameters
 RecordStructType* Enviornment::getStruct(const std::string& name, bool limit2current_scope, std::vector<RecordStructType*> gens) {
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::StructInst && record->name == name) {
@@ -454,7 +457,6 @@ std::vector<RecordFunction*> Enviornment::getFunc(const Str& name) {
     }
     return this->parent && jadu.size() == 0 ? this->parent->getFunc(name) : jadu;
 }
-
 
 uint32_t RecordStructType::getVal(std::string name) {
     return KW_int_map.contains(name) ? KW_int_map[name] : INT32_MAX;

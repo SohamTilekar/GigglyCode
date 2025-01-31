@@ -3,11 +3,12 @@
 
 /**
  * @file compiler.hpp
- * @brief Defines the Compiler class responsible for compiling the AST into LLVM IR.
+ * @brief Defines the Compiler class responsible for compiling the AST into LLVM
+ * IR.
  *
  * This header file declares the Compiler class within the `compiler` namespace.
- * The Compiler class handles the compilation process, including type conversion,
- * AST traversal, and LLVM IR generation.
+ * The Compiler class handles the compilation process, including type
+ * conversion, AST traversal, and LLVM IR generation.
  */
 
 // === LLVM Headers ===o
@@ -32,12 +33,14 @@ using namespace enviornment;
 // === Type Aliases ===
 
 using std::vector;
-using GenericStructTypeVector = vector<RecordGenericStructType*>;                                     ///< Vector of generic struct type pointers
-using ResolvedValueVariant = std::variant<GenericStructTypeVector, RecordModule*, RecordStructType*>; ///< Variant type for resolved values
-using LLVMValueVector = vector<llvm::Value*>;                                                         ///< Vector of LLVM values
-using StructTypeVector = vector<RecordStructType*>;                                                   ///< Vector of struct type pointers
-using GenericFunctionVector = vector<RecordGenericFunction*>;                                         ///< Vector of generic function pointers
-using llBB = llvm::BasicBlock;                                                                        ///< Alias for LLVM BasicBlock
+using GenericStructTypeVector = vector<RecordGenericStructType*>; ///< Vector of generic struct type
+                                                                  ///< pointers
+using ResolvedValueVariant = std::variant<GenericStructTypeVector, RecordModule*,
+                                          RecordStructType*>; ///< Variant type for resolved values
+using LLVMValueVector = vector<llvm::Value*>;                 ///< Vector of LLVM values
+using StructTypeVector = vector<RecordStructType*>;           ///< Vector of struct type pointers
+using GenericFunctionVector = vector<RecordGenericFunction*>; ///< Vector of generic function pointers
+using llBB = llvm::BasicBlock;                                ///< Alias for LLVM BasicBlock
 
 /**
  * @enum resolveType
@@ -90,7 +93,10 @@ class DoneRet : public std::exception {
      * @brief Retrieves the error message.
      * @return C-string containing the error message.
      */
-    const char* what() const noexcept override { return "Return should be caught in if-else & while, but it was not (InternalCompilationError)."; }
+    const char* what() const noexcept override {
+        return "Return should be caught in if-else & while, but it was not "
+               "(InternalCompilationError).";
+    }
 };
 
 /**
@@ -108,15 +114,20 @@ class DoneBr : public std::exception {
      * @brief Retrieves the error message.
      * @return C-string containing the error message.
      */
-    const char* what() const noexcept override { return "Branching should be caught in if-else & while, but it was not (InternalCompilationError)."; }
+    const char* what() const noexcept override {
+        return "Branching should be caught in if-else & while, but it was not "
+               "(InternalCompilationError).";
+    }
 };
 
 /**
  * @class Compiler
- * @brief Main class responsible for compiling the abstract syntax tree (AST) into LLVM IR.
+ * @brief Main class responsible for compiling the abstract syntax tree (AST)
+ * into LLVM IR.
  *
- * The Compiler class traverses the AST, performs type checking and conversion, manages
- * the LLVM context and module, and generates the corresponding LLVM IR code.
+ * The Compiler class traverses the AST, performs type checking and conversion,
+ * manages the LLVM context and module, and generates the corresponding LLVM IR
+ * code.
  */
 class Compiler {
   public:
@@ -172,7 +183,8 @@ class Compiler {
     static bool canConvertType(RecordStructType* from, RecordStructType* to);
 
     /**
-     * @brief Determines the precedence of type conversion between two struct types.
+     * @brief Determines the precedence of type conversion between two struct
+     * types.
      * @param from The source struct type.
      * @param to The target struct type.
      * @return Boolean indicating the precedence.
@@ -195,7 +207,6 @@ class Compiler {
     std::filesystem::path relativePath; ///< Relative path of the source file
     std::filesystem::path file_path;    ///< Full path of the source file
 
-
     // --- Naming Prefixes ---
     Str fc_st_name_prefix; ///< Prefix for function and struct names
 
@@ -206,31 +217,31 @@ class Compiler {
     vector<llBB*> function_entry_block; ///< Entry blocks for functions
 
     // --- LLVM Type Pointers ---
-    llvm::PointerType* ll_pointer = nullptr; ///< LLVM pointer type
-    llvm::Type* ll_int = nullptr;            ///< LLVM integer type
-    llvm::Type* ll_int32 = nullptr;          ///< LLVM 32-bit integer type
-    llvm::Type* ll_void = nullptr;           ///< LLVM void type
-    llvm::Type* ll_uint = nullptr;           ///< LLVM unsigned integer type
-    llvm::Type* ll_uint32 = nullptr;         ///< LLVM 32-bit unsigned integer type
-    llvm::Type* ll_float = nullptr;          ///< LLVM float type
-    llvm::Type* ll_float32 = nullptr;        ///< LLVM 32-bit float type
-    llvm::Type* ll_char = nullptr;           ///< LLVM char type
-    llvm::Type* ll_str = nullptr;            ///< LLVM string type
-    llvm::Type* ll_bool = nullptr;           ///< LLVM boolean type
-    llvm::PointerType* ll_raw_array = nullptr;   ///< LLVM raw_array pointer type
+    llvm::PointerType* ll_pointer = nullptr;   ///< LLVM pointer type
+    llvm::Type* ll_int = nullptr;              ///< LLVM integer type
+    llvm::Type* ll_int32 = nullptr;            ///< LLVM 32-bit integer type
+    llvm::Type* ll_void = nullptr;             ///< LLVM void type
+    llvm::Type* ll_uint = nullptr;             ///< LLVM unsigned integer type
+    llvm::Type* ll_uint32 = nullptr;           ///< LLVM 32-bit unsigned integer type
+    llvm::Type* ll_float = nullptr;            ///< LLVM float type
+    llvm::Type* ll_float32 = nullptr;          ///< LLVM 32-bit float type
+    llvm::Type* ll_char = nullptr;             ///< LLVM char type
+    llvm::Type* ll_str = nullptr;              ///< LLVM string type
+    llvm::Type* ll_bool = nullptr;             ///< LLVM boolean type
+    llvm::PointerType* ll_raw_array = nullptr; ///< LLVM raw_array pointer type
     llvm::StructType* ll_array = nullptr;
     // --- Garbage-Collected Struct Types ---
-    RecordStructType* gc_int = nullptr;     ///< GC wrapper for int
-    RecordStructType* gc_int32 = nullptr;   ///< GC wrapper for int32
-    RecordStructType* gc_void = nullptr;    ///< GC wrapper for void
-    RecordStructType* gc_uint = nullptr;    ///< GC wrapper for uint
-    RecordStructType* gc_uint32 = nullptr;  ///< GC wrapper for uint32
-    RecordStructType* gc_float = nullptr;   ///< GC wrapper for float
-    RecordStructType* gc_float32 = nullptr; ///< GC wrapper for float32
-    RecordStructType* gc_char = nullptr;    ///< GC wrapper for char
-    RecordStructType* gc_str = nullptr;     ///< GC wrapper for string
-    RecordStructType* gc_bool = nullptr;    ///< GC wrapper for boolean
-    RecordStructType* gc_raw_array = nullptr;   ///< GC wrapper for raw_array
+    RecordStructType* gc_int = nullptr;       ///< GC wrapper for int
+    RecordStructType* gc_int32 = nullptr;     ///< GC wrapper for int32
+    RecordStructType* gc_void = nullptr;      ///< GC wrapper for void
+    RecordStructType* gc_uint = nullptr;      ///< GC wrapper for uint
+    RecordStructType* gc_uint32 = nullptr;    ///< GC wrapper for uint32
+    RecordStructType* gc_float = nullptr;     ///< GC wrapper for float
+    RecordStructType* gc_float32 = nullptr;   ///< GC wrapper for float32
+    RecordStructType* gc_char = nullptr;      ///< GC wrapper for char
+    RecordStructType* gc_str = nullptr;       ///< GC wrapper for string
+    RecordStructType* gc_bool = nullptr;      ///< GC wrapper for boolean
+    RecordStructType* gc_raw_array = nullptr; ///< GC wrapper for raw_array
 
     std::vector<AST::Program*> auto_free_programs;
     std::vector<RecordStructType*> auto_free_recordStructType;
@@ -258,12 +269,12 @@ class Compiler {
     void _initilizeCSTDLib();
 
     void addFunc2Mod(RecordModule* module,
-                                    const Str& name,
-                                    const Str& llvm_name,
-                                    llvm::FunctionType* funcType,
-                                    vector<std::tuple<Str, RecordStructType*, bool>>& params,
-                                    RecordStructType* returnType,
-                                    bool isVarArg);
+                     const Str& name,
+                     const Str& llvm_name,
+                     llvm::FunctionType* funcType,
+                     vector<std::tuple<Str, RecordStructType*, bool>>& params,
+                     RecordStructType* returnType,
+                     bool isVarArg);
 
     void addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool>>& params, RecordStructType* returnType, bool isVarArg);
 
@@ -285,13 +296,15 @@ class Compiler {
 
     /**
      * @brief Visits a VariableDeclarationStatement node in the AST.
-     * @param variable_declaration_statement pointer to the VariableDeclarationStatement node.
+     * @param variable_declaration_statement pointer to the
+     * VariableDeclarationStatement node.
      */
-    void _visitVariableDeclarationStatement(AST::VariableDeclarationStatement* variable_declaration_statement);
+    void _visitVariableDeclarationStatement(AST::VariableDeclarationStatement* variable_declaration_statement, bool global = false);
 
     /**
      * @brief Visits a VariableAssignmentStatement node in the AST.
-     * @param variable_assignment_statement pointer to the VariableAssignmentStatement node.
+     * @param variable_assignment_statement pointer to the
+     * VariableAssignmentStatement node.
      */
     void _visitVariableAssignmentStatement(AST::VariableAssignmentStatement* variable_assignment_statement);
 
@@ -303,7 +316,8 @@ class Compiler {
 
     /**
      * @brief Visits a FunctionDeclarationStatement node in the AST.
-     * @param function_declaration_statement pointer to the FunctionDeclarationStatement node.
+     * @param function_declaration_statement pointer to the
+     * FunctionDeclarationStatement node.
      * @param struct_ Optional struct type if the function is a method.
      */
     void _visitFunctionDeclarationStatement(AST::FunctionStatement* function_declaration_statement, RecordStructType* struct_ = nullptr);
@@ -418,7 +432,8 @@ class Compiler {
 
     /**
      * @brief Handles member access expressions in the AST.
-     * @param infix_expression pointer to the InfixExpression node representing member access.
+     * @param infix_expression pointer to the InfixExpression node representing
+     * member access.
      * @return The resolved value after member access.
      */
     ResolvedValue _memberAccess(AST::InfixExpression* infix_expression);
@@ -427,7 +442,8 @@ class Compiler {
 
     /**
      * @brief Imports a function declaration into a module.
-     * @param function_declaration_statement pointer to the FunctionDeclarationStatement node.
+     * @param function_declaration_statement pointer to the
+     * FunctionDeclarationStatement node.
      * @param module Pointer to the target module.
      * @param ir_gc_map_json Reference to the IR-GC map JSON object.
      */
@@ -487,7 +503,8 @@ class Compiler {
      * @brief Checks the types of arguments in a function call.
      * @param func_record Pointer to the function record.
      * @param func_call pointer to the CallExpression node.
-     * @param args Reference to the vector of LLVM values representing the arguments.
+     * @param args Reference to the vector of LLVM values representing the
+     * arguments.
      * @param params_types Vector of struct types representing parameter types.
      */
     void _checkAndConvertCallType(std::vector<RecordFunction*> func_record, AST::CallExpression* func_call, LLVMValueVector& args, const StructTypeVector& params_types);
@@ -531,9 +548,11 @@ class Compiler {
 
     /**
      * @brief Creates a function record in the compiler environment.
-     * @param function_declaration_statement pointer to the FunctionDeclarationStatement node.
+     * @param function_declaration_statement pointer to the
+     * FunctionDeclarationStatement node.
      * @param struct_ Optional struct type if the function is a method.
-     * @param module Optional pointer to the module where the function is declared.
+     * @param module Optional pointer to the module where the function is
+     * declared.
      * @param ir_gc_map_json Optional JSON object for IR-GC mapping.
      */
     void _createFunctionRecord(AST::FunctionStatement* function_declaration_statement,
@@ -624,7 +643,8 @@ class Compiler {
     ResolvedValue _handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, RecordStructType* index_generic, RecordStructType* left_generic, AST::IndexExpression* index_expression);
 
     /**
-     * @brief Raises a NoOverload error indicating the absence of the `__index__` method.
+     * @brief Raises a NoOverload error indicating the absence of the `__index__`
+     * method.
      * @param left_generic RecordStructType* of the struct being indexed.
      * @param index_expression pointer to the IndexExpression node.
      */
@@ -721,7 +741,8 @@ class Compiler {
     /**
      * @brief Resolves and validates the return value.
      * @param value pointer to the expression representing the return value.
-     * @return A tuple containing the LLVM return value, allocation, and the RecordStructType*.
+     * @return A tuple containing the LLVM return value, allocation, and the
+     * RecordStructType*.
      */
     ResolvedValue _resolveAndValidateReturnValue(AST::Expression* value);
 

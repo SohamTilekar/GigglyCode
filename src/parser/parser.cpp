@@ -24,7 +24,8 @@ bool is_new_arr = false;
 
 /*
 Conventions for Token Representation:
-- `-i`: Represents an integer, indicating a specific instance or count, appended after declaration.
+- `-i`: Represents an integer, indicating a specific instance or count, appended
+after declaration.
 - `[TokenType]`: Encloses the current token type within square brackets.
 - `stmt`: Represents a statement token.
 - `exp`: Represents an expression token.
@@ -32,7 +33,8 @@ Conventions for Token Representation:
 - `FT`: First Token in a sequence.
 - `LT`: Last Token in a sequence.
 - `|`: Denotes alternative tokens or outcomes.
-- `->`: Indicates the transition from the previous state to the new state after processing the current line.
+- `->`: Indicates the transition from the previous state to the new state after
+processing the current line.
 - `stmtLT`: Typically represents a semicolon (`;`).
 - `!` after `]`: Indicates that the token could also be unknown or optional.
 */
@@ -46,9 +48,7 @@ Parser::Parser(Lexer* lexer) : lexer(lexer) {
 }
 
 Parser::~Parser() {
-    for (auto pair : macros) {
-        delete pair.second;
-    }
+    for (auto pair : macros) { delete pair.second; }
 }
 
 AST::Program* Parser::parseProgram() {
@@ -128,7 +128,7 @@ AST::Statement* Parser::_parseStatement() {
         case TokenType::Struct:
             return this->_parseStructStatement(); // [structFT] -> [}]
         case TokenType::Enum:
-            return this->_parseEnumStatement();  // [enumFT] -> [}]
+            return this->_parseEnumStatement(); // [enumFT] -> [}]
         case TokenType::Try:
             return this->_parseTryCatchStatement(); // [tryFT] -> [;]
         case TokenType::Switch:
@@ -136,7 +136,8 @@ AST::Statement* Parser::_parseStatement() {
         case TokenType::Volatile:
             this->_nextToken(); // [volatileFT] -> [Identifier!]
             LOG_TOK()
-            return this->_parseVariableDeclaration(nullptr, -1, -1, true); // [Identifier!FT] -> [;]
+            return this->_parseVariableDeclaration(nullptr, -1, -1,
+                                                   true); // [Identifier!FT] -> [;]
         default:
             return this->_parseExpressionStatement(); // [ExpressionFT] -> [;]
     }
@@ -178,17 +179,14 @@ AST::Statement* Parser::_parseDeco() {
     } else if (name == "autocast") {
         return this->_parseAutocastDeco(); // [IdentifierFT] -> [)]
     } else if (name == "macros") {
-        errors::raiseSyntaxError(this->lexer->file_path,
-                                 this->current_token,
-                                 this->lexer->source,
-                                 "Macro define localy",
-                                 "Define macro globaly it cant be declared localy");
+        errors::raiseSyntaxError(this->lexer->file_path, this->current_token, this->lexer->source, "Macro define localy", "Define macro globaly it cant be declared localy");
     }
     errors::raiseSyntaxError(this->lexer->file_path,
                              this->current_token,
                              this->lexer->source,
                              "Unknown Deco type: " + name,
-                             "Check the deco name for case sensitivity. Valid options: `autocast` or `generic`.");
+                             "Check the deco name for case sensitivity. Valid "
+                             "options: `autocast` or `generic`.");
 }
 
 void Parser::_parseMacroDecleration() {
@@ -441,7 +439,7 @@ AST::Statement* Parser::_parseForStatement() {
         auto updater = _parseStatement();
         _nextToken();
         LOG_TOK()
-        auto body = _parseStatement(); // Parse the loop body
+        auto body = _parseStatement();                   // Parse the loop body
         LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
         int end_line_no = current_token.end_line_no;
         int end_col_no = current_token.col_no;
@@ -455,9 +453,9 @@ AST::Statement* Parser::_parseForStatement() {
     _nextToken();               // Move to the 'from' expression
     LOG_TOK()
     auto from = _parseExpression(PrecedenceType::LOWEST); // Parse 'from' expression
-    _nextToken();                       // Move to loop body
+    _nextToken();                                         // Move to loop body
     LOG_TOK()
-    auto body = _parseStatement(); // Parse the loop body
+    auto body = _parseStatement();                   // Parse the loop body
     LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
     int end_line_no = current_token.end_line_no;
     int end_col_no = current_token.col_no;
@@ -498,7 +496,7 @@ AST::BreakStatement* Parser::_parseBreakStatement() {
         loopNum = std::stoi(current_token.literal); // [IntegerFT] -> [Next Token]
         idx_stcol_no = current_token.col_no;
         idx_endcol_no = current_token.end_col_no;
-        this->_nextToken();                         // [Next Token] remains unchanged
+        this->_nextToken(); // [Next Token] remains unchanged
         LOG_TOK()
     }
     int end_line_no = current_token.end_line_no;
@@ -656,20 +654,18 @@ AST::Statement* Parser::_parseExpressionStatement(AST::Expression* first_token, 
     if (!first_token) {
         st_line_no = current_token.st_line_no;
         st_col_no = current_token.col_no;
-        if (current_token.type == TokenType::Identifier)
-            first_token = new AST::IdentifierLiteral(this->current_token);
-        else if (current_token.type == TokenType::Integer)
-            first_token = new AST::IntegerLiteral(std::atoll(this->current_token.literal.c_str()));
-        else if (current_token.type == TokenType::Float)
-            first_token = new AST::FloatLiteral(std::atof(this->current_token.literal.c_str()));
-        else if (current_token.type == TokenType::String)
-            first_token = new AST::StringLiteral(this->current_token.literal);
+        if (current_token.type == TokenType::Identifier) first_token = new AST::IdentifierLiteral(this->current_token);
+        else if (current_token.type == TokenType::Integer) first_token = new AST::IntegerLiteral(std::atoll(this->current_token.literal.c_str()));
+        else if (current_token.type == TokenType::Float) first_token = new AST::FloatLiteral(std::atof(this->current_token.literal.c_str()));
+        else if (current_token.type == TokenType::String) first_token = new AST::StringLiteral(this->current_token.literal);
     }
-    auto expr = this->_parseExpression(PrecedenceType::LOWEST, first_token, st_line_no, st_col_no);                                                 // [Expression] remains unchanged
-    if (this->_peekTokenIs(TokenType::Equals)) return this->_parseVariableAssignment(expr, expr->meta_data.st_col_no, expr->meta_data.end_col_no); // [Variable Assignment]
+    auto expr = this->_parseExpression(PrecedenceType::LOWEST, first_token, st_line_no,
+                                       st_col_no); // [Expression] remains unchanged
+    if (this->_peekTokenIs(TokenType::Equals)) return this->_parseVariableAssignment(expr, expr->meta_data.st_col_no,
+                                                                                     expr->meta_data.end_col_no); // [Variable Assignment]
     this->peek_token.col_no = this->peek_token.col_no;
     this->peek_token.end_col_no = this->peek_token.end_col_no;
-    this->_expectPeek(TokenType::Semicolon);                                                                                                       // [ExpressionLT] -> [;]
+    this->_expectPeek(TokenType::Semicolon); // [ExpressionLT] -> [;]
     auto stmt = new AST::ExpressionStatement(expr);
     int end_line_no = current_token.end_line_no;
     int end_col_no = current_token.col_no;
@@ -801,7 +797,8 @@ AST::Expression* Parser::_parseInfixIdenifier() {
     LOG_TOK()
     this->_nextToken(); // [.] -> [Next Identifier]
     LOG_TOK()
-    return new AST::InfixExpression(li, TokenType::Dot, ".", this->_parseInfixIdenifier()); // [Next Identifier] remains unchanged
+    return new AST::InfixExpression(li, TokenType::Dot, ".",
+                                    this->_parseInfixIdenifier()); // [Next Identifier] remains unchanged
 }
 
 AST::Type* Parser::_parseType() {
@@ -875,7 +872,8 @@ AST::StructStatement* Parser::_parseStructStatement() {
             auto stmt = this->_parseFunctionStatement(); // [defFT] -> [Function Statement]
             if (stmt) statements.push_back(stmt);
         } else if (this->_currentTokenIs(TokenType::Identifier)) {
-            auto stmt = this->_parseVariableDeclaration(); // [Identifier] -> [Variable Declaration]
+            auto stmt = this->_parseVariableDeclaration(); // [Identifier] ->
+                                                           // [Variable Declaration]
             if (stmt) statements.push_back(stmt);
         } else if (this->_currentTokenIs(TokenType::AtTheRate)) {
             auto stmt = this->_parseDeco(); // [@FT] -> [Decorator Statement]
@@ -905,7 +903,7 @@ AST::Expression* Parser::_parseExpression(PrecedenceType precedence, AST::Expres
         st_col_no = current_token.col_no;
         auto iter = prefix_parse_fns.find(current_token.type);
         if (iter == prefix_parse_fns.end()) {
-            errors::raiseNoPrefixParseFnError(this->lexer->file_path, current_token, this->lexer->source, "No prefix parse function for "+ token::tokenTypeString(current_token.type));
+            errors::raiseNoPrefixParseFnError(this->lexer->file_path, current_token, this->lexer->source, "No prefix parse function for " + token::tokenTypeString(current_token.type));
             return nullptr;
         }
         auto prefix_fn = iter->second;
@@ -966,7 +964,7 @@ AST::EnumStatement* Parser::_parseEnumStatement() {
     while (!this->_currentTokenIs(TokenType::RightBrace) && !this->_currentTokenIs(TokenType::EndOfFile)) {
         if (this->_currentTokenIs(TokenType::Identifier)) {
             fields.push_back(current_token.literal);
-            this->_nextToken();              // [;] -> [} | Ident]
+            this->_nextToken(); // [;] -> [} | Ident]
             LOG_TOK()
         } else {
             this->_currentTokenError(current_token.type, {TokenType::Identifier});
@@ -1026,7 +1024,8 @@ AST::Expression* Parser::_parseGroupedExpression() {
     LOG_TOK()
     int st_line_no = this->current_token.end_line_no;
     int st_col_no = this->current_token.col_no;
-    auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Grouped ExpressionFT] -> [Grouped ExpressionLT]
+    auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Grouped ExpressionFT] -> [Grouped
+                                                                // ExpressionLT]
     this->_expectPeek(TokenType::RightParen);                   // [Grouped Expression] -> [RightParen]
     int end_line_no = this->current_token.end_line_no;
     int end_col_no = this->current_token.end_col_no;
@@ -1162,16 +1161,14 @@ AST::Expression* Parser::_parseArrayLiteral() {
     bool is_new_arr_local = is_new_arr;
     is_new_arr = false;
     if (this->_peekTokenIs(TokenType::RightBracket)) {
-        errors::raiseCompletionError(
-            this->lexer->file_path,
-            this->lexer->source,
-            this->current_token.st_line_no,
-            this->current_token.col_no + 1,
-            this->peek_token.end_line_no,
-            this->peek_token.end_col_no + 1,
-            "Can initialize Empty Array",
-            "initialize Array like `array(type, length) or vector(type)`"
-        );
+        errors::raiseCompletionError(this->lexer->file_path,
+                                     this->lexer->source,
+                                     this->current_token.st_line_no,
+                                     this->current_token.col_no + 1,
+                                     this->peek_token.end_line_no,
+                                     this->peek_token.end_col_no + 1,
+                                     "Can initialize Empty Array",
+                                     "initialize Array like `array(type, length) or vector(type)`");
     }
     for (_nextToken(); !_currentTokenIs(TokenType::RightBracket); _nextToken()) { // [LeftBracket] -> [Element]
         LOG_TOK()

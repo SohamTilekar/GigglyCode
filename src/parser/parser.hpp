@@ -1,7 +1,7 @@
 /**
  * @file parser.hpp
- * @brief This file contains the definition of the Parser class and related components for parsing tokens into an
- * abstract syntax tree (AST).
+ * @brief This file contains the definition of the Parser class and related
+ * components for parsing tokens into an abstract syntax tree (AST).
  */
 #ifndef PARSER_HPP
 #define PARSER_HPP
@@ -169,7 +169,8 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
 
 /**
  * @class Parser
- * @brief Class responsible for parsing tokens into an abstract syntax tree (AST).
+ * @brief Class responsible for parsing tokens into an abstract syntax tree
+ * (AST).
  */
 class Parser {
   public:
@@ -215,7 +216,8 @@ class Parser {
     /**
      * @brief Construct a new Parser object
      *
-     * Initializes the parser with the provided lexer and reads the first two tokens.
+     * Initializes the parser with the provided lexer and reads the first two
+     * tokens.
      *
      * @param lexer The lexer to use for tokenizing the input
      */
@@ -226,7 +228,8 @@ class Parser {
     /**
      * @brief Parse the entire program
      *
-     * Iteratively parses statements until the EndOfFile token is encountered, constructing the AST.
+     * Iteratively parses statements until the EndOfFile token is encountered,
+     * constructing the AST.
      *
      * @return AST::Program* The parsed program
      */
@@ -251,7 +254,8 @@ class Parser {
     /**
      * @brief Advance to the next token
      *
-     * Updates the current and peek tokens by reading the next token from the lexer.
+     * Updates the current and peek tokens by reading the next token from the
+     * lexer.
      */
     void _nextToken();
 
@@ -274,7 +278,8 @@ class Parser {
     bool _peekTokenIs(TokenType type);
 
     /**
-     * @brief Assert that the next token is one of the expected types and advance to it
+     * @brief Assert that the next token is one of the expected types and advance
+     * to it
      *
      * @param types A vector of acceptable token types
      * @param suggestedFix An optional suggestion for correcting the error
@@ -294,7 +299,8 @@ class Parser {
     bool _expectPeek(TokenType type, std::string suggestedFix = "");
 
     /**
-     * @brief Handle a peek token error by reporting unexpected token and expected types
+     * @brief Handle a peek token error by reporting unexpected token and expected
+     * types
      *
      * @param type The actual token type encountered
      * @param expected_types A vector of expected token types
@@ -303,7 +309,8 @@ class Parser {
     [[noreturn]] void _peekTokenError(TokenType type, std::vector<TokenType> expected_types, std::string suggestedFix = "");
 
     /**
-     * @brief Handle a current token error by reporting unexpected token and expected types
+     * @brief Handle a current token error by reporting unexpected token and
+     * expected types
      *
      * @param type The actual token type encountered
      * @param expected_types A vector of expected token types
@@ -337,9 +344,11 @@ class Parser {
     AST::Statement* _parseStatement();
 
     /**
-     * @brief Parse an expression statement, optionally starting with an identifier
+     * @brief Parse an expression statement, optionally starting with an
+     * identifier
      *
-     * Handles expressions that may represent variable assignments or general expressions.
+     * Handles expressions that may represent variable assignments or general
+     * expressions.
      *
      * @param identifier Optional identifier expression to start with
      * @param st_line_no Optional start line number for metadata
@@ -351,7 +360,8 @@ class Parser {
     /**
      * @brief Parse a variable declaration statement
      *
-     * Handles both initialized and uninitialized variable declarations, with optional volatility.
+     * Handles both initialized and uninitialized variable declarations, with
+     * optional volatility.
      *
      * @param identifier Optional identifier expression
      * @param st_line_no Optional start line number for metadata
@@ -394,7 +404,8 @@ class Parser {
     /**
      * @brief Parse a function statement
      *
-     * Handles the declaration of functions, including parameters, return types, and function bodies.
+     * Handles the declaration of functions, including parameters, return types,
+     * and function bodies.
      *
      * @return AST::FunctionStatement* The parsed function statement
      */
@@ -403,14 +414,16 @@ class Parser {
     /**
      * @brief Parse function parameters.
      *
-     * @return std::vector<AST::FunctionParameter*> The list of parsed function parameters.
+     * @return std::vector<AST::FunctionParameter*> The list of parsed function
+     * parameters.
      */
     std::vector<AST::FunctionParameter*> _parseFunctionParameters();
 
     /**
      * @brief Parse closure parameters in function definitions.
      *
-     * @return std::vector<AST::FunctionParameter*> The list of parsed closure parameters.
+     * @return std::vector<AST::FunctionParameter*> The list of parsed closure
+     * parameters.
      */
     std::vector<AST::FunctionParameter*> _parseClosureParameters();
 
@@ -527,7 +540,8 @@ class Parser {
      *
      * Handles the invocation of functions with arguments.
      *
-     * @param identifier Optional identifier expression representing the function name
+     * @param identifier Optional identifier expression representing the function
+     * name
      * @param st_line_no Optional start line number for metadata
      * @param st_col_no Optional start column number for metadata
      * @return AST::Expression* The parsed function call expression
@@ -654,9 +668,11 @@ class Parser {
     // Helpers
 
     /**
-     * @brief Parses an identifier and determines its context (declaration, assignment, function call, etc.)
+     * @brief Parses an identifier and determines its context (declaration,
+     * assignment, function call, etc.)
      *
-     * @return AST::Statement* The parsed statement based on the identifier context
+     * @return AST::Statement* The parsed statement based on the identifier
+     * context
      */
     AST::Statement* _interpretIdentifier();
 

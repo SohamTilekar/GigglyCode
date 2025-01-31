@@ -2,10 +2,10 @@
  * @file token.hpp
  * @brief This file contains the definition of tokens used in the lexer.
  *
- * It includes the TokenType enum class which represents different types of tokens,
- * and the Token class which represents a token in the source code.
- * Additionally, it provides utility functions for converting TokenType to string
- * and printing tokens.
+ * It includes the TokenType enum class which represents different types of
+ * tokens, and the Token class which represents a token in the source code.
+ * Additionally, it provides utility functions for converting TokenType to
+ * string and printing tokens.
  */
 #ifndef TOKENS_HPP
 #define TOKENS_HPP
@@ -157,7 +157,8 @@ class Token {
     inline Token(TokenType type, int lineNo, int colNo, int endColNo) : type(type), st_line_no(lineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
 
     /**
-     * @brief Constructor for Token with type, literal, line number, and column number.
+     * @brief Constructor for Token with type, literal, line number, and column
+     * number.
      *
      * @param type The type of the token.
      * @param literal The literal value of the token.

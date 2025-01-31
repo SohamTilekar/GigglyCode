@@ -390,7 +390,6 @@ std::string AST::nodeTypeToString(NodeType type) {
     }
 };
 
-
 std::string Type::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;

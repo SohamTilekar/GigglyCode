@@ -285,12 +285,8 @@ class FunctionStatement : public Statement {
     Type* return_type;
     BlockStatement* body;
     std::vector<Type*> generic;
-    inline FunctionStatement(Expression* name,
-                             std::vector<FunctionParameter*> parameters,
-                             std::vector<FunctionParameter*> closure_parameters,
-                             Type* return_type,
-                             BlockStatement* body,
-                             const std::vector<Type*>& generic)
+    inline FunctionStatement(
+        Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, BlockStatement* body, const std::vector<Type*>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
         this->extra_info.insert("autocast", false);
     }
@@ -344,20 +340,20 @@ class WhileStatement : public Statement {
 };
 
 class ForStatement : public Statement {
-    public:
-      Statement* init;
-      Expression* condition;
-      Statement* update;
-      Statement* body;
-      Statement* ifbreak;
-      Statement* notbreak;
-      inline ForStatement(Statement* init, Expression* condition, Statement* update, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
-          : init(init), condition(condition), update(update), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
-      inline NodeType type() override { return NodeType::ForStatement; };
-      std::string toStr() override;
+  public:
+    Statement* init;
+    Expression* condition;
+    Statement* update;
+    Statement* body;
+    Statement* ifbreak;
+    Statement* notbreak;
+    inline ForStatement(Statement* init, Expression* condition, Statement* update, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
+        : init(init), condition(condition), update(update), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
+    inline NodeType type() override { return NodeType::ForStatement; };
+    std::string toStr() override;
 
-      // Destructor Declaration
-      ~ForStatement() override;
+    // Destructor Declaration
+    ~ForStatement() override;
 };
 
 class ForEachStatement : public Statement {

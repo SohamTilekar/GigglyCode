@@ -3,7 +3,8 @@
 
 /**
  * @file enviornment.hpp
- * @brief Defines the environment classes for managing compilation records and scopes.
+ * @brief Defines the environment classes for managing compilation records and
+ * scopes.
  *
  * This header file declares several classes within the `enviornment` namespace
  * that are responsible for managing records of variables, functions, structs,
@@ -38,7 +39,8 @@ class RecordGenericStructType;
 class RecordModule;
 
 using Str = std::string;                                    ///< Alias for std::string.
-using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuples mapping strings to records.
+using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuples mapping
+                                                            ///< strings to records.
 
 /**
  * @enum RecordType
@@ -117,7 +119,8 @@ class RecordFunction : public Record {
      */
     std::vector<std::tuple<Str, RecordStructType*, bool>> arguments = {};
     RecordStructType* return_type; ///< Pointer to the struct type of the return value.
-    bool is_var_arg = false;       ///< Indicates if the function accepts a variable number of arguments.
+    bool is_var_arg = false;       ///< Indicates if the function accepts a variable
+                                   ///< number of arguments.
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -236,7 +239,8 @@ class RecordGenericFunction : public Record {
     Enviornment* env;                       ///< Pointer to the environment.
 
     /**
-     * @brief Constructs a RecordGenericFunction with the specified name, function, and environment.
+     * @brief Constructs a RecordGenericFunction with the specified name,
+     * function, and environment.
      * @param name The name of the generic function.
      * @param func Pointer to the AST FunctionStatement.
      * @param env Pointer to the environment.
@@ -283,7 +287,8 @@ class RecordGenericStructType : public Record {
     Enviornment* env;                          ///< Pointer to the environment.
 
     /**
-     * @brief Constructs a RecordGenericStructType with the specified name, struct AST, and environment.
+     * @brief Constructs a RecordGenericStructType with the specified name, struct
+     * AST, and environment.
      * @param name The name of the generic struct type.
      * @param structAST Pointer to the AST StructStatement.
      * @param env Pointer to the environment.
@@ -344,7 +349,8 @@ class RecordStructType : public Record {
     RecordStructType(const Str& name) : Record(RecordType::StructInst, name) {}
 
     /**
-     * @brief Constructs a RecordStructType with the specified name and standalone type.
+     * @brief Constructs a RecordStructType with the specified name and standalone
+     * type.
      * @param name The name of the struct type.
      * @param stand_alone_type Pointer to the standalone LLVM Type.
      */
@@ -362,7 +368,8 @@ class RecordStructType : public Record {
         }
     }
 
-    RecordStructType(std::string& name, llvm::IntegerType* ll_enum_underthe_hood_type, std::unordered_map<std::string, uint32_t> KW_int_map) : Record(RecordType::StructInst, name), stand_alone_type(ll_enum_underthe_hood_type), KW_int_map(KW_int_map), is_enum_kind(true) {};
+    RecordStructType(std::string& name, llvm::IntegerType* ll_enum_underthe_hood_type, std::unordered_map<std::string, uint32_t> KW_int_map)
+        : Record(RecordType::StructInst, name), stand_alone_type(ll_enum_underthe_hood_type), KW_int_map(KW_int_map), is_enum_kind(true) {};
 
     /**
      * @brief Destructor for RecordStructType.
@@ -373,7 +380,8 @@ class RecordStructType : public Record {
     }
 
     /**
-     * @brief Checks if a method with the given name and parameters exists in the struct.
+     * @brief Checks if a method with the given name and parameters exists in the
+     * struct.
      * @param name The name of the method.
      * @param params_types Vector of parameter struct types.
      * @param ex_info Extra information map.
@@ -577,7 +585,8 @@ class RecordModule : public Record {
     void addRecord(Record* record) { record_map.push_back({record->name, record}); }
 
     /**
-     * @brief Checks if a function with the given name and parameters exists in the module.
+     * @brief Checks if a function with the given name and parameters exists in
+     * the module.
      * @param name The name of the function.
      * @param params_types Vector of parameter struct types.
      * @param exact If true, performs an exact match.
@@ -586,7 +595,8 @@ class RecordModule : public Record {
     bool isFunction(const Str& name, const std::vector<RecordStructType*>& params_types, bool exact = false);
 
     /**
-     * @brief Retrieves a function with the given name and parameters from the module.
+     * @brief Retrieves a function with the given name and parameters from the
+     * module.
      * @param name The name of the function.
      * @param params_types Vector of parameter struct types.
      * @param exact If true, performs an exact match.
@@ -595,7 +605,8 @@ class RecordModule : public Record {
     RecordFunction* getFunction(const Str& name, const std::vector<RecordStructType*>& params_types, bool exact = false);
 
     /**
-     * @brief Checks if a generic function with the given name exists in the module.
+     * @brief Checks if a generic function with the given name exists in the
+     * module.
      * @param name The name of the generic function.
      * @return True if the generic function exists, false otherwise.
      */
@@ -681,7 +692,8 @@ class Enviornment {
     std::vector<Enviornment*> childes = {}; ///< Vector of child environments.
 
     /**
-     * @brief Constructs an Enviornment with an optional parent, records, and name.
+     * @brief Constructs an Enviornment with an optional parent, records, and
+     * name.
      * @param parent Pointer to the parent environment (default: nullptr).
      * @param records Vector of records to initialize the environment.
      * @param name Name of the environment (default: "unnamed").
@@ -762,7 +774,8 @@ class Enviornment {
     RecordVariable* getVariable(const Str& name, bool limit2current_scope = false);
 
     /**
-     * @brief Checks if a function with the given name and parameters exists in the environment.
+     * @brief Checks if a function with the given name and parameters exists in
+     * the environment.
      * @param name The name of the function.
      * @param params_types Vector of parameter struct types.
      * @param limit2current_scope If true, limits the search to the current scope.
@@ -772,7 +785,8 @@ class Enviornment {
     bool isFunction(const Str& name, std::vector<RecordStructType*> params_types, bool limit2current_scope = false, bool exact = false);
 
     /**
-     * @brief Retrieves a function with the given name and parameters from the environment.
+     * @brief Retrieves a function with the given name and parameters from the
+     * environment.
      * @param name The name of the function.
      * @param params_types Vector of parameter struct types.
      * @param limit2current_scope If true, limits the search to the current scope.
@@ -816,7 +830,8 @@ class Enviornment {
     RecordModule* getModule(const Str& name, bool limit2current_scope = false);
 
     /**
-     * @brief Checks if a generic function with the given name exists in the environment.
+     * @brief Checks if a generic function with the given name exists in the
+     * environment.
      * @param name The name of the generic function.
      * @return True if the generic function exists, false otherwise.
      */
@@ -825,21 +840,24 @@ class Enviornment {
     std::vector<RecordFunction*> getFunc(const Str& name);
 
     /**
-     * @brief Retrieves all generic functions with the given name from the environment.
+     * @brief Retrieves all generic functions with the given name from the
+     * environment.
      * @param name The name of the generic function.
      * @return Vector of pointers to generic function records.
      */
     std::vector<RecordGenericFunction*> getGenericFunc(const Str& name);
 
     /**
-     * @brief Checks if a generic struct with the given name exists in the environment.
+     * @brief Checks if a generic struct with the given name exists in the
+     * environment.
      * @param name The name of the generic struct.
      * @return True if the generic struct exists, false otherwise.
      */
     bool isGenericStruct(const Str& name);
 
     /**
-     * @brief Retrieves all generic structs with the given name from the environment.
+     * @brief Retrieves all generic structs with the given name from the
+     * environment.
      * @param name The name of the generic struct.
      * @return Vector of pointers to generic struct type records.
      */

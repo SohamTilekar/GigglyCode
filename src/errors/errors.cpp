@@ -40,9 +40,7 @@ int get_terminal_width() {
 }
 
 std::string truncate_line(const std::string& line, size_t max_width, int inc) {
-    if ((line.length() - inc) <= max_width) {
-        return line;
-    }
+    if ((line.length() - inc) <= max_width) { return line; }
     return line.substr(0, max_width + inc - 14) + "...";
 }
 
@@ -94,7 +92,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } case token::TokenType::Integer:
+            }
+            case token::TokenType::Integer:
             case token::TokenType::Float: {
                 auto temp = highlighted_line;
                 temp = highlighted_line.substr(0, current_token.col_no + inc);
@@ -103,7 +102,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } case token::TokenType::Dot:
+            }
+            case token::TokenType::Dot:
             case token::TokenType::Plus:
             case token::TokenType::Dash:
             case token::TokenType::Colon:
@@ -129,7 +129,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } case token::TokenType::Increment:
+            }
+            case token::TokenType::Increment:
             case token::TokenType::Decrement:
             case token::TokenType::PlusEqual:
             case token::TokenType::DashEqual:
@@ -160,7 +161,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } case token::TokenType::Illegal: {
+            }
+            case token::TokenType::Illegal: {
                 auto temp = highlighted_line;
                 temp = highlighted_line.substr(0, current_token.col_no + inc);
                 temp = temp + RED + highlighted_line.substr(current_token.col_no + inc, current_token.end_col_no - current_token.col_no);
@@ -168,7 +170,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } case token::TokenType::String:{
+            }
+            case token::TokenType::String: {
                 auto temp = highlighted_line;
                 temp = highlighted_line.substr(0, current_token.col_no + inc);
                 temp = temp + MAGENTA + highlighted_line.substr(current_token.col_no + inc, current_token.end_col_no - current_token.col_no);
@@ -176,7 +179,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } case token::TokenType::Coment: {
+            }
+            case token::TokenType::Coment: {
                 auto temp = highlighted_line;
                 temp = highlighted_line.substr(0, current_token.col_no + inc);
                 temp = temp + DARK_GRAY + highlighted_line.substr(current_token.col_no + inc);
@@ -184,7 +188,8 @@ std::string highlight_syntax(const std::string& line) {
                 inc += 11;
                 highlighted_line = temp;
                 break;
-            } default:
+            }
+            default:
                 break;
         }
         current_token = lex.nextToken();
@@ -312,22 +317,20 @@ void print_suggested_fix(const std::string& suggestedFix) {
 }
 
 void print_funny_message(int line_no, const std::string& line, const std::vector<std::tuple<int, std::string, std::string>>& underlines) {
-    std::vector<std::string> messages = {
-        "😡: Why is this line so long? Why? You silly goose!",
-        "😡: Why is this line so long? Why? You code monster!",
-        "😡: Why is this line so long? Why? You code gremlin!",
-        "😡: Why is this line so long? Why? You code wizard!",
-        "😡: This line is longer than my patience!",
-        "😡: Are you trying to write a novel in one line?",
-        "😡: This line is longer than a Monday morning meeting!",
-        "😡: This line is longer than a giraffe's neck!",
-        "😡: This line is longer than a CVS receipt!",
-        "😡: This line is longer than a summer day!",
-        "😡: This line is longer than a traffic jam!",
-        "😡: This line is longer than a horror movie sequel!",
-        "😡: This line is longer than a never-ending story!",
-        "😡: This line is longer than a politician's speech!"
-    };
+    std::vector<std::string> messages = {"😡: Why is this line so long? Why? You silly goose!",
+                                         "😡: Why is this line so long? Why? You code monster!",
+                                         "😡: Why is this line so long? Why? You code gremlin!",
+                                         "😡: Why is this line so long? Why? You code wizard!",
+                                         "😡: This line is longer than my patience!",
+                                         "😡: Are you trying to write a novel in one line?",
+                                         "😡: This line is longer than a Monday morning meeting!",
+                                         "😡: This line is longer than a giraffe's neck!",
+                                         "😡: This line is longer than a CVS receipt!",
+                                         "😡: This line is longer than a summer day!",
+                                         "😡: This line is longer than a traffic jam!",
+                                         "😡: This line is longer than a horror movie sequel!",
+                                         "😡: This line is longer than a never-ending story!",
+                                         "😡: This line is longer than a politician's speech!"};
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -550,7 +553,8 @@ void raiseWrongInfixError(
     print_banner("Invalid Operator Usage");
     print_error_message(message);
 
-    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(left->meta_data.st_line_no, left->meta_data.st_col_no, right->meta_data.end_line_no, right->meta_data.end_col_no, source, RED);
+    std::vector<std::tuple<int, std::string, std::string>> underlines =
+        underline(left->meta_data.st_line_no, left->meta_data.st_col_no, right->meta_data.end_line_no, right->meta_data.end_col_no, source, RED);
 
     print_source_context(source, file_path, left->meta_data.st_line_no, left->meta_data.st_col_no, right->meta_data.end_line_no, right->meta_data.end_col_no, underlines);
     print_suggested_fix(suggestedFix);
@@ -573,7 +577,7 @@ void raiseWrongTypeError(const std::string& file_path,
             expected_types += expected[i]->name;
             if (i < expected.size() - 1) { expected_types += " or "; }
         }
-        std::cerr << "Expected type: " << GREEN << expected_types << RESET  << " but got " << RED << (got ? got->name : "Module or Type") << RESET << "\n\n";
+        std::cerr << "Expected type: " << GREEN << expected_types << RESET << " but got " << RED << (got ? got->name : "Module or Type") << RESET << "\n\n";
     }
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(exp, source, RED);
@@ -675,7 +679,8 @@ void raiseGenericStructResolutionError(const std::string& file_path, const std::
     print_error_message(message);
 
     // Provide general advice as specific context might not be available
-    print_suggested_fix("Ensure that all generic parameters are correctly specified and resolved.");
+    print_suggested_fix("Ensure that all generic parameters are correctly "
+                        "specified and resolved.");
 
     std::cerr << BOLD << DARK_GRAY << file_path << RESET << "\n";
     std::cerr << std::string(50, '=') << "\n";
