@@ -1,0 +1,48 @@
+def main() -> int {
+    A: float32 = 0;
+    B: float32 = 0;
+    i: float32;
+    j: float32;
+    z := raw_array(float32, 1760);
+    b := raw_array(char, 1760);
+    printf("\x1b[2J");
+    while (True) {
+        memset(b,32,1760);
+        memset(z,0,7040);
+        for(j=0; 6.28 > j; j = j + 0.07) {
+            for(i=0; 6.28 > i; i = i + 0.02) {
+                sini: float32 = math.sin(i);
+                cosj: float32 = math.cos(j);
+                sinA: float32 = math.sin(A);
+                sinj: float32 = math.sin(j);
+                cosA: float32 = math.cos(A);
+                cosj2: float32 = cosj+2;
+                mess: float32 = 1/(sini*cosj2*sinA+sinj*cosA+5);
+                cosi: float32 = math.cos(i);
+                cosB: float32 = math.cos(B);
+                sinB: float32 = math.sin(B);
+                t: float32 = sini*cosj2*cosA-sinj* sinA;
+                x: int32 = 40+30*mess*(cosi*cosj2*cosB-t*sinB);
+                y: int32 = 12+15*mess*(cosi*cosj2*sinB +t*cosB);
+                o: int32 = x+80*y;
+                N: int32 = 8*((sinj*sinA-sini*cosj*cosA)*cosB-sini*cosj*sinA-sinj*cosA-cosi *cosj*sinB);
+                if(22>y and y>0 and x>0 and 80>x and mess>z[o]){
+                    z[o] = mess;
+                    if (N > 0)
+                        b[o] = ".,-~:;=!*#$@"[N];
+                    else
+                        b[o] = '.'[0];
+                }
+            }
+        }
+        printf("\x1b[d");
+        for(k:=0; 1761>k; k = k + 1)
+            if (k%80)
+                putchar(b[k]);
+            else
+                putchar('\n'[0]);
+        usleep(30000);
+        A = A + 0.04;
+        B = B + 0.02;
+    }
+};
