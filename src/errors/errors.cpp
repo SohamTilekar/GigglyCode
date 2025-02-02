@@ -567,7 +567,8 @@ void raiseWrongTypeError(const std::string& file_path,
                          enviornment::RecordStructType* got,
                          const std::vector<enviornment::RecordStructType*>& expected,
                          const std::string& message,
-                         const std::string& suggestedFix) {
+                         const std::string& suggestedFix,
+                         bool is_const) {
     print_banner("Type Mismatch");
     print_error_message(message);
 
@@ -577,7 +578,7 @@ void raiseWrongTypeError(const std::string& file_path,
             expected_types += expected[i]->name;
             if (i < expected.size() - 1) { expected_types += " or "; }
         }
-        std::cerr << "Expected type: " << GREEN << expected_types << RESET << " but got " << RED << (got ? got->name : "Module or Type") << RESET << "\n\n";
+        std::cerr << "Expected type: " << GREEN << expected_types << RESET << " but got " << RED << (is_const ? "const " : "") << (got ? got->name : "Module or Type") << RESET << "\n\n";
     }
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(exp, source, RED);

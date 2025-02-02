@@ -2156,6 +2156,9 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
 
     auto [_, alloca, _var_type, att] = this->_resolveValue(variable_assignment_statement->name);
     auto var_type = std::get<RecordStructType*>(_var_type);
+    if (!alloca) {
+        errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true);
+    }
 
     if (!_checkType(var_type, assignmentType)) {
         if (this->canConvertType(assignmentType, var_type)) {

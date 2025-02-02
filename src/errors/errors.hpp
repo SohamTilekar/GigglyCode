@@ -119,7 +119,8 @@ raiseNodeOutsideError(const std::string& file_path, const std::string& source, c
                                       enviornment::RecordStructType* got,
                                       const std::vector<enviornment::RecordStructType*>& expected,
                                       const std::string& message = "",
-                                      const std::string& suggestedFix = "");
+                                      const std::string& suggestedFix = "",
+                                      bool is_const = false);
 
 /**
  * @brief Raise an indexing error.
