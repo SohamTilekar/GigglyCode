@@ -269,7 +269,8 @@ class FunctionParameter : public Node {
   public:
     Expression* name;
     Type* value_type;
-    inline FunctionParameter(Expression* name, Type* type) : name(name), value_type(type) {}
+    bool constant;
+    inline FunctionParameter(Expression* name, Type* type, bool constant) : name(name), value_type(type), constant(constant) {}
     inline NodeType type() override { return NodeType::FunctionParameter; };
     std::string toStr() override;
 
@@ -283,11 +284,12 @@ class FunctionStatement : public Statement {
     std::vector<FunctionParameter*> parameters;
     std::vector<FunctionParameter*> closure_parameters;
     Type* return_type;
+    bool return_const;
     BlockStatement* body;
     std::vector<Type*> generic;
     inline FunctionStatement(
-        Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, BlockStatement* body, const std::vector<Type*>& generic)
-        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), body(body), generic(generic) {
+        Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, bool return_const, BlockStatement* body, const std::vector<Type*>& generic)
+        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), return_const(return_const), body(body), generic(generic) {
         this->extra_info.insert("autocast", false);
     }
     inline NodeType type() override { return NodeType::FunctionStatement; };
@@ -403,7 +405,8 @@ class VariableDeclarationStatement : public Statement {
     Type* value_type;
     Expression* value;
     bool is_volatile = false;
-    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = true) : name(name), value_type(type), value(value), is_volatile(is_volatile) {}
+    bool is_const = false;
+    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = false, bool is_const = false) : name(name), value_type(type), value(value), is_volatile(is_volatile), is_const(is_const) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
     std::string toStr() override;
 

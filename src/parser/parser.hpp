@@ -369,7 +369,7 @@ class Parser {
      * @param is_volatile Optional flag indicating if the variable is volatile
      * @return AST::Statement* The parsed variable declaration statement
      */
-    AST::Statement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false);
+    AST::Statement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false, bool is_const = false);
 
     /**
      * @brief Parse a variable assignment statement

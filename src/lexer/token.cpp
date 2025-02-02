@@ -192,6 +192,8 @@ std::string token::tokenTypeString(TokenType type) {
             return "Enum";
         case TokenType::Volatile:
             return "Volatile";
+        case TokenType::Const:
+            return "Const";
         case TokenType::Use:
             return "Use";
         // case TokenType::Maybe:

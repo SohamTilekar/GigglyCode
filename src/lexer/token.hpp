@@ -105,6 +105,7 @@ enum class TokenType {
     Struct,   // Struct keyword 'struct'
     Enum,     // Enum keyword 'enum'
     Volatile, // Volatile keyword 'volatile'
+    Const, // Constant keyword 'const'
     Use,      // Use keyword 'use'
     Import,   // Import keyword 'import'
     As,       // As keyword 'as'

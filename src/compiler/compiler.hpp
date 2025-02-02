@@ -49,6 +49,7 @@ using llBB = llvm::BasicBlock;                                ///< Alias for LLV
 enum class resolveType : char {
     Module,      ///< Represents a module
     StructInst,  ///< Represents a struct instance
+    ConstStructInst,  ///< Represents a const struct instance
     StructType,  ///< Represents a struct type
     GStructType, ///< Represents a generic struct type
 };
@@ -272,11 +273,11 @@ class Compiler {
                      const Str& name,
                      const Str& llvm_name,
                      llvm::FunctionType* funcType,
-                     vector<std::tuple<Str, RecordStructType*, bool>>& params,
+                     vector<std::tuple<Str, RecordStructType*, bool, bool>>& params,
                      RecordStructType* returnType,
                      bool isVarArg);
 
-    void addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool>>& params, RecordStructType* returnType, bool isVarArg);
+    void addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool isVarArg);
 
     void initilizeArray();
 
@@ -507,7 +508,7 @@ class Compiler {
      * arguments.
      * @param params_types Vector of struct types representing parameter types.
      */
-    void _checkAndConvertCallType(std::vector<RecordFunction*> func_record, AST::CallExpression* func_call, LLVMValueVector& args, const StructTypeVector& params_types);
+    void _checkAndConvertCallType(RecordFunction* func_record, AST::CallExpression* func_call, LLVMValueVector& args, const StructTypeVector& params_types);
 
     /**
      * @brief Calls a generic function.

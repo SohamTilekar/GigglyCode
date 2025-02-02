@@ -310,34 +310,40 @@ void Compiler::_visitBlockStatement(AST::BlockStatement* block_statement) {
     for (const auto& stmt : block_statement->statements) { this->compile(stmt); }
 }
 
-void Compiler::_checkAndConvertCallType(std::vector<RecordFunction*> func_records, AST::CallExpression* func_call, vector<llvm::Value*>& args, const vector<RecordStructType*>& params_types) {
-    for (auto func_record : func_records)
-        if (func_record->is_var_arg) return;
-    vector<vector<unsigned short>> mismatches;
-    for (auto func_record : func_records) {
-        vector<unsigned short> mismatch_indices;
-        size_t limit = std::min(func_record->arguments.size(), params_types.size());
-        for (size_t idx = 0; idx < limit; ++idx) {
-            auto pt = func_record->arguments[idx];
-            auto pst = params_types[idx];
-            auto expected_type = std::get<1>(pt);
-            if (_checkType(expected_type, pst)) {
-                // Type Is Same So No need to do any thing
-            } else if (this->canConvertType(pst, expected_type)) {
-                args[idx] = this->convertType({args[idx], nullptr, pst}, expected_type).value;
-            } else {
-                mismatch_indices.push_back(idx);
+void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallExpression* func_call, vector<llvm::Value*>& args, const vector<RecordStructType*>& params_types) {
+    if (func_record->is_var_arg) return;
+    vector<unsigned short> mismatch_indices;
+    size_t limit = std::min(func_record->arguments.size(), params_types.size());
+    for (size_t idx = 0; idx < limit; ++idx) {
+        auto pt = func_record->arguments[idx];
+        auto pst = params_types[idx];
+        auto expected_type = std::get<1>(pt);
+        if (_checkType(expected_type, pst)) {
+            // Type Is Same So No need to do any thing
+        } else if (this->canConvertType(pst, expected_type)) {
+            if (std::get<2>(pt)) {
+                errors::raiseCompletionError(
+                    file_path,
+                    source,
+                    func_call->arguments[idx]->meta_data.st_line_no,
+                    func_call->arguments[idx]->meta_data.st_col_no,
+                    func_call->arguments[idx]->meta_data.end_line_no,
+                    func_call->arguments[idx]->meta_data.end_col_no,
+                    "Cant pass by refrence the non same type"
+                );
             }
+            args[idx] = this->convertType({args[idx], nullptr, pst}, expected_type).value;
+        } else {
+            mismatch_indices.push_back(idx);
         }
-        if (func_record->arguments.size() != params_types.size()) {
-            size_t max_size = std::max(func_record->arguments.size(), params_types.size());
-            for (size_t idx = limit; idx < max_size; ++idx) { mismatch_indices.push_back(idx); }
-        }
-        if (!mismatch_indices.empty()) {
-            mismatches.push_back(mismatch_indices);
-        } else return;
     }
-    if (!mismatches.empty()) errors::raiseNoOverloadError(this->file_path, this->source, mismatches, func_call, "Cannot call the function with wrong type");
+    if (func_record->arguments.size() != params_types.size()) {
+        size_t max_size = std::max(func_record->arguments.size(), params_types.size());
+        for (size_t idx = limit; idx < max_size; ++idx) { mismatch_indices.push_back(idx); }
+    }
+    if (mismatch_indices.empty())
+        return;
+    errors::raiseNoOverloadError(this->file_path, this->source, {mismatch_indices}, func_call, "Cannot call the function with wrong type");
 }
 
 Compiler::ResolvedValue
@@ -349,7 +355,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             auto func_record = gfunc->env->getFunction(name, params_types, false, true);
 
             // Validate and convert argument types as necessary
-            this->_checkAndConvertCallType({func_record}, func_call, args, params_types);
+            this->_checkAndConvertCallType(func_record, func_call, args, params_types);
 
             // Create LLVM call instruction
             auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, args, name + "_result");
@@ -411,6 +417,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         vector<llvm::Type*> llvm_param_types;
         vector<RecordStructType*> param_struct_types;
         vector<bool> param_references;
+        vector<bool> param_const;
 
         // Prepare LLVM parameter types and names
         for (size_t i = 0; i < params.size(); ++i) {
@@ -419,6 +426,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             param_names.push_back(param->name->castToIdentifierLiteral()->value);
             param_struct_types.push_back(param_type);
             param_references.push_back(param->value_type->refrence);
+            param_const.push_back(param->constant);
             llvm_param_types.push_back(param_type->struct_type || name == "raw_array" ? this->ll_pointer : param_type->stand_alone_type);
         }
 
@@ -434,7 +442,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         for (const auto& [idx, arg] : llvm::enumerate(func->args())) { arg.setName(param_names[idx]); }
 
         // Create a record for the new function
-        auto func_record = new RecordFunction(name, func, func_type, {}, return_type, gfunc->func->extra_info);
+        auto func_record = new RecordFunction(name, func, func_type, {}, return_type, gfunc->func->extra_info, gfunc->func->return_const);
 
         if (body) {
             // Create entry basic block for the function
@@ -458,7 +466,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
                 llvm::Value* arg_value = param_references[idx] ? this->llvm_ir_builder.CreateLoad(param_type->stand_alone_type, &arg, "loaded_" + arg.getName()) : alloca;
                 // Create and add a record for the argument variable
                 auto record = new RecordVariable(Str(arg.getName()), arg_value, alloca, param_type);
-                func_record->arguments.emplace_back(arg.getName().str(), param_type, param_references[idx]);
+                func_record->arguments.emplace_back(arg.getName().str(), param_type, param_references[idx], param_const[idx]);
                 this->env->addRecord(record);
             }
 
@@ -485,7 +493,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             if (!this->function_entry_block.empty()) { this->llvm_ir_builder.SetInsertPoint(this->function_entry_block.back()); }
         } else {
             // If no body, record the function arguments
-            for (const auto& [idx, arg] : llvm::enumerate(func->args())) { func_record->arguments.emplace_back(arg.getName().str(), param_struct_types[idx], param_references[idx]); }
+            for (const auto& [idx, arg] : llvm::enumerate(func->args())) { func_record->arguments.emplace_back(arg.getName().str(), param_struct_types[idx], param_references[idx], param_const[idx]); }
 
             // Add the function record to the generic function's environment
             gfunc->env->addRecord(func_record);
@@ -512,7 +520,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         this->env = prev_env;
 
         // Return the resolved value
-        return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
+        return {returnValue, nullptr, func_record->return_type, func_record->is_const_return ? resolveType::ConstStructInst : resolveType::StructInst};
     }
 
     // Handle cases where no overload matches
@@ -554,7 +562,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     auto params = function_declaration_statement->parameters;
     vector<Str> param_names;
     vector<llvm::Type*> param_types;
-    vector<std::tuple<Str, RecordStructType*, bool>> arguments;
+    vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments;
     vector<RecordStructType*> args;
 
     for (const auto& param : params) {
@@ -571,7 +579,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
         // Store argument details for later use
         args.push_back(param_type);
-        arguments.emplace_back(param_name, param_type, param->value_type->refrence);
+        arguments.emplace_back(param_name, param_type, param->value_type->refrence, param->constant);
     }
 
     // Determine the return type of the function
@@ -595,7 +603,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
     // Create a RecordFunction to keep track of the function's metadata and
     // environment
-    auto func_record = new RecordFunction(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info);
+    auto func_record = new RecordFunction(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info, function_declaration_statement->return_const);
     func_record->ll_name = func->getName().str();
 
     // Add the function record to the appropriate scope (struct, module, or global
@@ -986,9 +994,9 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
             idx++;
         }
-        this->_checkAndConvertCallType({func}, call_expression, args, params_types);
+        this->_checkAndConvertCallType(func, call_expression, args, params_types);
         auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args);
-        return {returnValue, nullptr, func->return_type, resolveType::StructInst};
+        return {returnValue, nullptr, func->return_type, func->is_const_return ? resolveType::ConstStructInst : resolveType::StructInst};
     } else if (this->env->isGenericFunc(name)) {
         auto gfuncs = this->env->getGenericFunc(name);
         return this->_CallGfunc(gfuncs, call_expression, name, args, params_types);
@@ -999,9 +1007,6 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         auto struct_record = this->env->getStruct(name);
         return _callStruct(struct_record, call_expression, params_types, args);
     }
-    std::vector<RecordFunction*> func_records;
-    for (auto func : this->env->getFunc(name)) { func_records.push_back(func); }
-    this->_checkAndConvertCallType(func_records, call_expression, args, params_types);
     errors::raiseCompletionError(this->file_path,
                                  this->source,
                                  call_expression->meta_data.st_line_no,
@@ -1041,15 +1046,10 @@ Compiler::ResolvedValue Compiler::_callStruct(RecordStructType* struct_record, A
 
     if (func) {
         // Validate and convert argument types
-        this->_checkAndConvertCallType({func}, call_expression, args, params_types);
+        this->_checkAndConvertCallType(func, call_expression, args, params_types);
         // Call the __init__ method
         this->llvm_ir_builder.CreateCall(func->function, args);
     } else {
-        std::vector<RecordFunction*> methods = {};
-        for (auto [_, method] : struct_record->methods) {
-            if (method->name == "__init__") { methods.push_back(method); }
-        }
-        _checkAndConvertCallType(methods, call_expression, args, params_types);
         // Raise an error if __init__ is not defined
         errors::raiseNoOverloadError(this->file_path,
                                      this->source,
@@ -1334,7 +1334,7 @@ void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
     llvm_ir_builder.SetInsertPoint(dump_block);
     llvm_ir_builder.CreateUnreachable();
 
-    enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true));
+    enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true, true));
     this->env->addRecord(enum_struct);
 }
 
@@ -1426,14 +1426,14 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             }
             params_types.push_back(std::get<RecordStructType*>(param_type));
             arg_allocas.push_back(val_alloca);
-            args.push_back(value);
+            args.push_back(value ? value : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array" ? ll_pointer : std::get<RecordStructType*>(param_type)->stand_alone_type, val_alloca));
         }
         if (ltt == resolveType::Module) {
             auto left_type = std::get<RecordModule*>(_left_type);
             if (left_type->isGenericFunc(name) ? left_type->isFunction(name, params_types, true) : left_type->isFunction(name, params_types)) {
                 auto func = left_type->getFunction(name, params_types);
                 unsigned short idx = 0;
-                _checkAndConvertCallType({func}, call_expression, args, params_types);
+                _checkAndConvertCallType(func, call_expression, args, params_types);
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, func->arguments)) {
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
@@ -1462,6 +1462,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 if (name == "getName") {
                     if (params.size() != 0) {
                         // TODO Raise Error
+                        errors::raiseCompilationError("TODO: add suport to raise error");
                     }
                     auto method = left_type->get_method("getName", {});
                     auto param = left_alloca ? llvm_ir_builder.CreateLoad(left_type->stand_alone_type, left_alloca) : left_value;
@@ -1475,7 +1476,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             if (left_type->is_method(name, params_types)) {
                 auto method = left_type->get_method(name, params_types);
                 unsigned short idx = 0;
-                _checkAndConvertCallType({method}, call_expression, args, params_types);
+                _checkAndConvertCallType(method, call_expression, args, params_types);
                 for (auto [arg_alloca, param_type, argument] : llvm::zip(arg_allocas, params_types, method->arguments)) {
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
@@ -2079,6 +2080,19 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     auto var_value = variable_declaration_statement->value;
     RecordStructType* var_type = variable_declaration_statement->value_type ? this->_parseType(variable_declaration_statement->value_type) : nullptr;
 
+    if (!var_value && variable_declaration_statement->is_const) {
+        errors::raiseCompletionError(
+            file_path,
+            source,
+            variable_declaration_statement->meta_data.st_line_no,
+            variable_declaration_statement->meta_data.st_col_no,
+            variable_declaration_statement->meta_data.end_line_no,
+            variable_declaration_statement->meta_data.end_col_no,
+            "Cant Decelare constant Variable with undefine value",
+            "remove the const kw"
+        );
+    }
+
     if (!var_value) {
         if (global) {
             auto gv = new llvm::GlobalVariable(var_type->stand_alone_type ? var_type->stand_alone_type : var_type->struct_type,
@@ -2121,11 +2135,11 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
         }
         auto gv = new llvm::GlobalVariable(*this->llvm_module,
                                            var_generic->stand_alone_type,
-                                           false,
+                                           variable_declaration_statement->is_const,
                                            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
                                            llvm::cast<llvm::Constant>(var_value_resolved),
                                            var_name->value);
-        auto var = new RecordVariable(var_name->value, nullptr, gv, var_generic);
+        auto var = new RecordVariable(var_name->value, nullptr, gv, var_generic, variable_declaration_statement->is_const);
         this->env->addRecord(var);
     } else {
         llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_generic->struct_type || var_generic->name == "raw_array" ? this->ll_pointer : var_generic->stand_alone_type);
@@ -2133,13 +2147,13 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
             this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(this->ll_pointer, var_value_alloca),
                                               alloca,
                                               variable_declaration_statement->is_volatile);
-            auto var = new RecordVariable(var_name->value, nullptr, alloca, var_generic);
+            auto var = new RecordVariable(var_name->value, nullptr, alloca, var_generic, variable_declaration_statement->is_const);
             this->env->addRecord(var);
         } else {
             this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(var_generic->stand_alone_type, var_value_alloca),
                                               alloca,
                                               variable_declaration_statement->is_volatile);
-            auto var = new RecordVariable(var_name->value, nullptr, alloca, var_generic);
+            auto var = new RecordVariable(var_name->value, nullptr, alloca, var_generic, variable_declaration_statement->is_const);
             this->env->addRecord(var);
         }
     }
@@ -2150,7 +2164,16 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
     auto [value, value_alloca, _assignmentType, vtt] = this->_resolveValue(var_value);
     auto assignmentType = std::get<RecordStructType*>(_assignmentType);
 
-    if (vtt != resolveType::StructInst && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
+    if (vtt == resolveType::ConstStructInst) {
+        errors::raiseCompletionError(file_path, source,
+            variable_assignment_statement->name->meta_data.st_line_no,
+            variable_assignment_statement->name->meta_data.st_col_no,
+            variable_assignment_statement->name->meta_data.end_line_no,
+            variable_assignment_statement->name->meta_data.end_col_no,
+            "Cant assign to the constant variable"
+        );
+    }
+    if ((vtt != resolveType::StructInst) && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
         errors::raiseWrongTypeError(this->file_path, this->source, var_value, nullptr, {assignmentType}, "Cannot assign module or type to variable");
     }
 
@@ -2275,11 +2298,16 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
         currentStructType->meta_data = identifier_literal->meta_data;
-        if (currentStructType->struct_type || currentStructType->name == "raw_array") {
-            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
-        } else {
-            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
+        if (variable->is_const) {
+            if (currentStructType->struct_type || currentStructType->name == "raw_array")
+                return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
+            else
+                return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
         }
+        if (currentStructType->struct_type || currentStructType->name == "raw_array")
+            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
+        else
+            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
     } else if (this->env->isModule(identifier_literal->value)) {
         return {nullptr, nullptr, this->env->getModule(identifier_literal->value), resolveType::Module};
     } else if (this->env->isStruct(identifier_literal->value)) {
@@ -2426,6 +2454,14 @@ void Compiler::_handleTypeConversion(AST::Expression* element, ResolvedValue& re
 void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statement) {
     auto value = return_statement->value;
     auto [return_value, return_alloca, _return_type, _] = _resolveAndValidateReturnValue(value);
+    if (_ == resolveType::ConstStructInst && !this->env->current_function->is_const_return) {
+        errors::raiseWrongTypeError(this->file_path,
+                                    this->source,
+                                    value,
+                                    this->env->current_function->return_type,
+                                    {this->env->current_function->return_type},
+                                    "Cant return const value from non const function", "", true);
+    }
     auto return_type = std::get<RecordStructType*>(_return_type);
     if (this->env->current_function == nullptr) {
         errors::raiseNodeOutsideError("Return outside function", this->source, return_statement, errors::OutsideNodeType::Return, "Return statement outside of a function");
@@ -2441,8 +2477,7 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
 
 Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression* value) {
     auto resolved_value = this->_resolveValue(value);
-
-    if (resolved_value.type != resolveType::StructInst) {
+    if (resolved_value.type != resolveType::StructInst && resolved_value.type != resolveType::ConstStructInst) {
         if (resolved_value.type == resolveType::StructType && std::get<RecordStructType*>(resolved_value.variant)->name == "void") {
             this->llvm_ir_builder.CreateRetVoid();
             throw DoneRet();

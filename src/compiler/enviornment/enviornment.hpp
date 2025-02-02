@@ -116,11 +116,12 @@ class RecordFunction : public Record {
      * - Name of the argument.
      * - Pointer to the struct type of the argument.
      * - Boolean indicating if the argument is passed by reference.
+     * - Boolean indicating if the argument is const.
      */
-    std::vector<std::tuple<Str, RecordStructType*, bool>> arguments = {};
+    std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments = {};
     RecordStructType* return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;       ///< Indicates if the function accepts a variable
-                                   ///< number of arguments.
+    bool is_const_return = false;       ///< Indicates if the function accepts a variable
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -140,10 +141,11 @@ class RecordFunction : public Record {
     RecordFunction(const Str& name,
                    llvm::Function* function,
                    llvm::FunctionType* functionType,
-                   std::vector<std::tuple<Str, RecordStructType*, bool>> arguments,
+                   std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
                    RecordStructType* returnInst,
-                   const AST::MoreData& extraInfo = {})
-        : Record(RecordType::Function, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst) {}
+                   const AST::MoreData& extraInfo = {},
+                   bool is_const_return = false)
+        : Record(RecordType::Function, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_const_return(is_const_return) {}
 
     /**
      * @brief Constructs a RecordFunction with variable arguments support.
@@ -155,8 +157,8 @@ class RecordFunction : public Record {
      * @param isVarArg Indicates if the function accepts variable arguments.
      */
     RecordFunction(
-        const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool>> arguments, RecordStructType* returnInst, bool isVarArg)
-        : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg) {}
+        const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments, RecordStructType* returnInst, bool isVarArg, bool is_const_return = false)
+        : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg), is_const_return(is_const_return) {}
 
     /**
      * @brief Copy constructor for RecordFunction.
@@ -191,7 +193,7 @@ class RecordFunction : public Record {
      * @param arguments Vector of arguments.
      * @return Pointer to the current RecordFunction instance.
      */
-    RecordFunction* setArguments(const std::vector<std::tuple<Str, RecordStructType*, bool>>& arguments) {
+    RecordFunction* setArguments(const std::vector<std::tuple<Str, RecordStructType*, bool, bool>>& arguments) {
         this->arguments = arguments;
         return this;
     }
@@ -201,7 +203,7 @@ class RecordFunction : public Record {
      * @param argument Tuple containing argument details.
      * @return Pointer to the current RecordFunction instance.
      */
-    RecordFunction* addArgument(const std::tuple<Str, RecordStructType*, bool>& argument) {
+    RecordFunction* addArgument(const std::tuple<Str, RecordStructType*, bool, bool>& argument) {
         arguments.push_back(argument);
         return this;
     }
@@ -460,6 +462,7 @@ class RecordVariable : public Record {
     llvm::Value* value = nullptr;              ///< Pointer to the LLVM Value representing the variable.
     llvm::Value* allocainst = nullptr;         ///< Pointer to the LLVM Allocation Instruction.
     RecordStructType* variable_type = nullptr; ///< Pointer to the struct type of the variable.
+    bool is_const;
 
     /**
      * @brief Constructs a RecordVariable with the specified name.
@@ -474,8 +477,8 @@ class RecordVariable : public Record {
      * @param allocainst Pointer to the LLVM Allocation Instruction.
      * @param generic Pointer to the struct type of the variable.
      */
-    RecordVariable(const Str& name, llvm::Value* value, llvm::Value* allocainst, RecordStructType* generic)
-        : Record(RecordType::Variable, name), value(value), allocainst(allocainst), variable_type(generic) {}
+    RecordVariable(const Str& name, llvm::Value* value, llvm::Value* allocainst, RecordStructType* generic, bool is_const = false)
+        : Record(RecordType::Variable, name), value(value), allocainst(allocainst), variable_type(generic), is_const(is_const) {}
 
     /**
      * @brief Copy constructor for RecordVariable.

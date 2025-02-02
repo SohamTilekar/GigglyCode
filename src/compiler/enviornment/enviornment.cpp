@@ -67,7 +67,7 @@ bool _checkFunctionParameterType(RecordFunction* func_record, std::vector<Record
     if (!exact && func_record->is_var_arg) return true;
     // Compare each argument type with the corresponding parameter type
     for (const auto& [arg, pass_instance] : llvm::zip(func_record->arguments, params)) {
-        const auto& [arg_name, accept_instance, _] = arg;
+        const auto& [arg_name, accept_instance, _, _] = arg;
         bool types_match = _checkType(accept_instance, pass_instance);
         // Allow type conversion if exact matching is not required
         bool can_convert = !exact && compiler::Compiler::canConvertType(accept_instance, pass_instance);

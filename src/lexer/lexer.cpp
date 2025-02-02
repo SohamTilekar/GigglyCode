@@ -51,6 +51,8 @@ token::TokenType Lexer::_lookupIdent(const std::string ident) {
         return token::TokenType::Enum;
     } else if (ident == "volatile") {
         return token::TokenType::Volatile;
+    } else if (ident == "const") {
+        return token::TokenType::Const;
     } else if (ident == "use") {
         return token::TokenType::Use;
     } else if (ident == "import") {

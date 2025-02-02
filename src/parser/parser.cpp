@@ -136,8 +136,11 @@ AST::Statement* Parser::_parseStatement() {
         case TokenType::Volatile:
             this->_nextToken(); // [volatileFT] -> [Identifier!]
             LOG_TOK()
-            return this->_parseVariableDeclaration(nullptr, -1, -1,
-                                                   true); // [Identifier!FT] -> [;]
+            return this->_parseVariableDeclaration(nullptr, -1, -1, true); // [Identifier!FT] -> [;]
+        case TokenType::Const:
+            this->_nextToken(); // [volatileFT] -> [Identifier!]
+            LOG_TOK()
+            return this->_parseVariableDeclaration(nullptr, -1, -1, false, true); // [Identifier!FT] -> [;]
         default:
             return this->_parseExpressionStatement(); // [ExpressionFT] -> [;]
     }
@@ -291,7 +294,7 @@ std::vector<AST::FunctionParameter*> Parser::_parseFunctionParameters() {
             this->_nextToken();                  // Move to parameter type
             LOG_TOK()
             auto type = this->_parseType();
-            parameters.push_back(new AST::FunctionParameter(identifier, type));
+            parameters.push_back(new AST::FunctionParameter(identifier, type, false));
             this->_expectPeek({TokenType::Comma, TokenType::RightParen});
             if (this->_currentTokenIs(TokenType::Comma)) {
                 this->_nextToken(); // Consume ',' and continue
@@ -300,7 +303,24 @@ std::vector<AST::FunctionParameter*> Parser::_parseFunctionParameters() {
             } else if (this->_currentTokenIs(TokenType::RightParen)) {
                 break;
             }
-        } else {
+        } else if (this->current_token.type == TokenType::Const) {
+            this->_nextToken(); // Consume 'const' keyword
+            LOG_TOK()
+            this->_nextToken(); // Move to parameter type
+            LOG_TOK()
+            auto type = this->_parseType();
+            this->_expectPeek(TokenType::Identifier); // Expect identifier after 'const'
+            auto identifier = new AST::IdentifierLiteral(this->current_token);
+            parameters.push_back(new AST::FunctionParameter(identifier, type, true));
+            this->_expectPeek({TokenType::Comma, TokenType::RightParen});
+            if (this->_currentTokenIs(TokenType::Comma)) {
+                this->_nextToken(); // Consume ',' and continue
+                LOG_TOK()
+                continue;
+            } else if (this->_currentTokenIs(TokenType::RightParen)) {
+                break;
+            }
+        }else {
             _currentTokenError(current_token.type, {TokenType::Identifier});
             break;
         }
@@ -317,7 +337,7 @@ std::vector<AST::FunctionParameter*> Parser::_parseClosureParameters() {
             this->_nextToken();                  // Move to closure parameter type
             LOG_TOK()
             auto type = this->_parseType();
-            closure_parameters.push_back(new AST::FunctionParameter(identifier, type));
+            closure_parameters.push_back(new AST::FunctionParameter(identifier, type, false));
             this->_nextToken(); // Consume ',' or ')'
             LOG_TOK()
             if (this->_currentTokenIs(TokenType::Comma)) {
@@ -365,10 +385,15 @@ AST::FunctionStatement* Parser::_parseFunctionStatement() {
     }
 
     // Handle return type if present
+    bool return_const = false;
     AST::Type* return_type = nullptr;
     if (this->_peekTokenIs(TokenType::RightArrow)) {
         this->_nextToken(); // Consume '->'
         LOG_TOK()
+        if (_peekTokenIs(TokenType::Const)) {
+            return_const = true;
+            _nextToken();
+        }
         this->_nextToken(); // Move to return type
         LOG_TOK()
         return_type = this->_parseType();
@@ -387,7 +412,7 @@ AST::FunctionStatement* Parser::_parseFunctionStatement() {
     int end_line_no = current_token.end_line_no;
     int end_col_no = current_token.col_no;
 
-    auto function_statement = new AST::FunctionStatement(name, parameters, closure_parameters, return_type, body, std::vector<AST::Type*>{});
+    auto function_statement = new AST::FunctionStatement(name, parameters, closure_parameters, return_type, return_const, body, std::vector<AST::Type*>{});
 
     function_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return function_statement;
@@ -673,7 +698,7 @@ AST::Statement* Parser::_parseExpressionStatement(AST::Expression* first_token, 
     return stmt;
 }
 
-AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, int st_line_no, int st_col_no, bool is_volatile) {
+AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, int st_line_no, int st_col_no, bool is_volatile, bool is_const) {
     if (!identifier) {
         st_line_no = current_token.st_line_no;
         st_col_no = current_token.col_no;
@@ -695,7 +720,7 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         LOG_TOK()
         int end_line_no = current_token.end_line_no;
         int end_col_no = current_token.col_no;
-        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, nullptr, is_volatile);
+        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, nullptr, is_volatile, is_const);
         variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
         variableDeclarationStatement->meta_data.more_data.insert("name_line_no", st_line_no);
         variableDeclarationStatement->meta_data.more_data.insert("name_col_no", st_col_no);
@@ -709,7 +734,7 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         LOG_TOK()
         int end_line_no = current_token.end_line_no;
         int end_col_no = current_token.col_no;
-        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, expr, is_volatile);
+        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, expr, is_volatile, is_const);
         variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
         variableDeclarationStatement->meta_data.more_data.insert("name_line_no", st_line_no);
         variableDeclarationStatement->meta_data.more_data.insert("name_col_no", st_col_no);
