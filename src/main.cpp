@@ -352,8 +352,8 @@ class Compiler {
         debugParser(Utils::readFileToString(filePath), filePath);
 #endif
 
-        Lexer lexer(fileContent, filePath);
-        parser::Parser parser(&lexer);
+        auto toks = Lexer(fileContent.c_str(), filePath).Tokenize();
+        parser::Parser parser(toks, filePath);
         auto program = parser.parseProgram();
 
         compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string());
@@ -454,11 +454,10 @@ class Compiler {
     void debugLexer(const std::string& fileContent, const std::filesystem::path& file_path) const {
 #ifdef DEBUG_LEXER
         std::cout << "=========== Lexer Debug ===========" << std::endl;
-        Lexer debugLexer(fileContent, file_path);
+        auto dbg_toks = Lexer(fileContent.c_str(), file_path).Tokenize();
         if (std::filesystem::path(DEBUG_LEXER_OUTPUT_PATH).string().empty()) {
-            while (debugLexer.current_char != "") {
-                token::Token token = debugLexer.nextToken();
-                std::cout << token.toString(true) << std::endl;
+            for (auto token : dbg_toks.tokens) {
+                std::cout << token.toString(fileContent, true) << std::endl;
             }
         } else {
             std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
@@ -466,9 +465,8 @@ class Compiler {
                 std::cerr << "Error: Could not open debug output file " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
                 return;
             }
-            while (debugLexer.current_char != "") {
-                token::Token token = debugLexer.nextToken();
-                debugOutput << token.toString(false) << std::endl;
+            for (auto token : dbg_toks.tokens) {
+                debugOutput << token.toString(fileContent, false) << std::endl;
             }
             std::cout << "Lexer debug output written to " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
         }
@@ -482,8 +480,8 @@ class Compiler {
      */
     void debugParser(const std::string& fileContent, const std::filesystem::path& file_path) const {
 #ifdef DEBUG_PARSER
-        Lexer debug_lexer(fileContent, file_path);
-        parser::Parser debugParser(&debug_lexer);
+        auto toks = Lexer(fileContent.c_str(), file_path).Tokenize();
+        parser::Parser debugParser(toks, file_path.string());
         auto program = debugParser.parseProgram();
         std::cout << "=========== Parser Debug ===========" << std::endl;
         if (!std::filesystem::path(DEBUG_PARSER_OUTPUT_PATH).string().empty()) {

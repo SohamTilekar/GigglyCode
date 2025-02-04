@@ -759,7 +759,7 @@ std::string InfixExpression::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
-    out << YAML::Key << "operator" << YAML::Value << token::tokenTypeString(op);
+    out << YAML::Key << "operator" << YAML::Value << token::tokenTypeToString(op);
     out << YAML::Key << "left_node";
     if (left) {
         out << YAML::Value << YAML::Load(left->toStr());

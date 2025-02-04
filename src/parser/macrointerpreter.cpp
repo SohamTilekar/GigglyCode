@@ -72,7 +72,7 @@ void MacroInterpreter::visitReturnStatement(AST::ReturnStatement* node) {
     // Iterating through the return_value vector in reverse & pussing tokens to the lexer->tokenBuffer
     const auto& tokens = std::get<std::vector<token::Token>>(return_value.Value);
     for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
-        lexer->tokenBuffer.push_back(*it);
+        this->tokens.append(*it);
     }
 };
 
@@ -198,7 +198,7 @@ MIObjects MacroInterpreter::visitCallExpression(AST::CallExpression* node) {
         parser->_nextToken();
         return MIObjects(MIObjectType::Void, {});
     } else if (name == "Token") {
-        if (node->arguments.size() == 4) {
+        if (node->arguments.size() == 2) {
             auto arg0 = visitExpression(node->arguments[0]);
             if (arg0.Type != MIObjectType::TokenType) {
                 throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
@@ -208,50 +208,8 @@ MIObjects MacroInterpreter::visitCallExpression(AST::CallExpression* node) {
             if (arg1.Type != MIObjectType::Int) {
                 throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
             }
-            auto arg1_val = std::get<int>(arg1.Value);
-            auto arg2 = visitExpression(node->arguments[2]);
-            if (arg2.Type != MIObjectType::Int) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg2_val = std::get<int>(arg1.Value);
-            auto arg3 = visitExpression(node->arguments[3]);
-            if (arg3.Type != MIObjectType::Int) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg3_val = std::get<int>(arg1.Value);
-            return {MIObjectType::Token, token::Token(arg0_val, arg1_val, arg2_val, arg3_val)};
-        } else if (node->arguments.size() == 6) {
-            auto arg0 = visitExpression(node->arguments[0]);
-            if (arg0.Type != MIObjectType::TokenType) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg0_val = std::get<token::TokenType>(arg0.Value);
-            auto arg1 = visitExpression(node->arguments[1]);
-            if (arg1.Type != MIObjectType::Str) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg1_val = std::get<std::string>(arg1.Value);
-            auto arg2 = visitExpression(node->arguments[2]);
-            if (arg2.Type != MIObjectType::Int) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg2_val = std::get<int>(arg1.Value);
-            auto arg3 = visitExpression(node->arguments[3]);
-            if (arg3.Type != MIObjectType::Int) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg3_val = std::get<int>(arg1.Value);
-            auto arg4 = visitExpression(node->arguments[4]);
-            if (arg4.Type != MIObjectType::Int) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg4_val = std::get<int>(arg1.Value);
-            auto arg5 = visitExpression(node->arguments[5]);
-            if (arg5.Type != MIObjectType::Int) {
-                throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-            }
-            auto arg5_val = std::get<int>(arg1.Value);
-            return {MIObjectType::Token, token::Token(arg0_val, arg1_val, arg2_val, arg3_val, arg4_val, arg5_val)};
+            auto arg1_val = uint32_t(std::get<int>(arg1.Value));
+            return {MIObjectType::Token, token::Token(arg0_val, arg1_val)};
         }
         throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
     } else if (name == "peekTokenIs") {
@@ -319,10 +277,14 @@ MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
                     return {MIObjectType::TokenType, token::TokenType::Integer};
                 } else if (name == "Float") {
                     return {MIObjectType::TokenType, token::TokenType::Float};
-                } else if (name == "String") {
-                    return {MIObjectType::TokenType, token::TokenType::String};
-                } else if (name == "RawString") {
-                    return {MIObjectType::TokenType, token::TokenType::RawString};
+                } else if (name == "StringSSQ") {
+                    return {MIObjectType::TokenType, token::TokenType::StringSSQ};
+                } else if (name == "StringSTQ") {
+                    return {MIObjectType::TokenType, token::TokenType::StringSTQ};
+                } else if (name == "StringDSQ") {
+                    return {MIObjectType::TokenType, token::TokenType::StringDSQ};
+                } else if (name == "StringDTQ") {
+                    return {MIObjectType::TokenType, token::TokenType::StringDTQ};
                 } else if (name == "PlusEqual") {
                     return {MIObjectType::TokenType, token::TokenType::PlusEqual};
                 } else if (name == "DashEqual") {

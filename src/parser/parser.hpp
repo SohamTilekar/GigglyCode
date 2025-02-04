@@ -49,7 +49,7 @@ class Logger {
      * @param line_no The line number in the source file.
      * @param message The message to log.
      */
-    void log(const std::string& file_name, const std::string& function_name, int line_no, const std::string& message) {
+    void log(const std::string& file_name, const std::string& function_name, uint32_t line_no, const std::string& message) {
         std::lock_guard<std::mutex> guard(mtx_);
         if (log_stream_.is_open()) { log_stream_ << "[" << file_name << ":" << function_name << ":" << line_no << "] " << message << std::endl; }
     }
@@ -172,17 +172,20 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
  * @brief Class responsible for parsing tokens into an abstract syntax tree
  * (AST).
  */
-class Parser {
-  public:
-    Lexer* lexer;               ///< The lexer used for tokenizing the input
+struct Parser {
+    token::Tokens tokens;       ///< The lexer used for tokenizing the input
     token::Token current_token; ///< The current token being parsed
     token::Token peek_token;    ///< The next token to be parsed
+    std::string file_path;
 
     // Prefix parse functions
-    std::unordered_map<TokenType, std::function<AST::Expression*()>> prefix_parse_fns = {
+    const std::unordered_map<TokenType, std::function<AST::Expression*()>> prefix_parse_fns = {
         {TokenType::Integer, std::bind(&Parser::_parseIntegerLiteral, this)},
         {TokenType::Float, std::bind(&Parser::_parseFloatLiteral, this)},
-        {TokenType::String, std::bind(&Parser::_parseStringLiteral, this)},
+        {TokenType::StringDSQ, std::bind(&Parser::_parseStringLiteral, this)},
+        {TokenType::StringDTQ, std::bind(&Parser::_parseStringLiteral, this)},
+        {TokenType::StringSTQ, std::bind(&Parser::_parseStringLiteral, this)},
+        {TokenType::StringSSQ, std::bind(&Parser::_parseStringLiteral, this)},
         {TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
         {TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},
         {TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
@@ -192,7 +195,7 @@ class Parser {
     };
 
     // Infix parse functions
-    std::unordered_map<TokenType, std::function<AST::Expression*(AST::Expression*)>> infix_parse_fns = {
+    const std::unordered_map<TokenType, std::function<AST::Expression*(AST::Expression*)>> infix_parse_fns = {
         {TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::And, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::Plus, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
@@ -221,7 +224,7 @@ class Parser {
      *
      * @param lexer The lexer to use for tokenizing the input
      */
-    Parser(Lexer* lexer);
+    Parser(token::Tokens tokens, std::string file_path);
 
     ~Parser();
 
@@ -355,7 +358,7 @@ class Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Statement* The parsed expression statement
      */
-    AST::Statement* _parseExpressionStatement(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Statement* _parseExpressionStatement(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
 
     /**
      * @brief Parse a variable declaration statement
@@ -369,7 +372,7 @@ class Parser {
      * @param is_volatile Optional flag indicating if the variable is volatile
      * @return AST::Statement* The parsed variable declaration statement
      */
-    AST::Statement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1, bool is_volatile = false, bool is_const = false);
+    AST::Statement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1, bool is_volatile = false, bool is_const = false);
 
     /**
      * @brief Parse a variable assignment statement
@@ -381,7 +384,7 @@ class Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Statement* The parsed variable assignment statement
      */
-    AST::Statement* _parseVariableAssignment(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Statement* _parseVariableAssignment(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
 
     /**
      * @brief Parse a return statement
@@ -546,7 +549,7 @@ class Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Expression* The parsed function call expression
      */
-    AST::Expression* _parseFunctionCall(AST::Expression* identifier = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Expression* _parseFunctionCall(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
 
     // Expression parsing methods
 
@@ -570,10 +573,10 @@ class Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Expression* The parsed expression
      */
-    AST::Expression* _parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression = nullptr, int st_line_no = -1, int st_col_no = -1);
+    AST::Expression* _parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
 
     /**
-     * @brief Parse an integer literal expression
+     * @brief Parse an intteger literal expression
      *
      * @return AST::Expression* The parsed integer literal
      */
@@ -593,13 +596,7 @@ class Parser {
      */
     AST::Expression* _parseBooleanLiteral();
 
-    /**
-     * @brief Parse a string literal expression
-     *
-     * @return AST::Expression* The parsed string literal
-     */
     AST::Expression* _parseStringLiteral();
-
     /**
      * @brief Parse a grouped expression (expressions within parentheses)
      *

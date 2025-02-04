@@ -1,6 +1,7 @@
 #include "errors.hpp"
 #include "../lexer/lexer.hpp"
 
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <llvm/ADT/STLExtras.h>
@@ -45,9 +46,9 @@ std::string truncate_line(const std::string& line, size_t max_width, int inc) {
 }
 
 std::string highlight_syntax(const std::string& line) {
-    Lexer lex(line, "", true);
+    auto toks = Lexer(line.c_str(), "", true).Tokenize();
     std::string highlighted_line = line;
-    auto current_token = lex.nextToken();
+    auto current_token = toks.nextToken();
     int inc = 0;
     while (current_token.type != token::TokenType::EndOfFile) {
         switch (current_token.type) {
@@ -86,9 +87,9 @@ std::string highlight_syntax(const std::string& line) {
             case token::TokenType::Other:
             case token::TokenType::Return: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc);
-                temp = temp + LIGHT_RED + highlighted_line.substr(current_token.col_no + inc, current_token.end_col_no - current_token.col_no);
-                temp = temp + RESET + highlighted_line.substr(current_token.end_col_no + inc);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc);
+                temp = temp + LIGHT_RED + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc, current_token.getEnColNo(line.c_str()) - current_token.getStColNo(line.c_str()));
+                temp = temp + RESET + highlighted_line.substr(current_token.getEnColNo(line.c_str()) + inc);
                 inc += 11;
                 highlighted_line = temp;
                 break;
@@ -96,9 +97,9 @@ std::string highlight_syntax(const std::string& line) {
             case token::TokenType::Integer:
             case token::TokenType::Float: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc);
-                temp = temp + BLUE + highlighted_line.substr(current_token.col_no + inc, current_token.end_col_no - current_token.col_no);
-                temp = temp + RESET + highlighted_line.substr(current_token.end_col_no + inc);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc);
+                temp = temp + BLUE + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc, current_token.getEnColNo(line.c_str()) - current_token.getStColNo(line.c_str()));
+                temp = temp + RESET + highlighted_line.substr(current_token.getEnColNo(line.c_str()) + inc);
                 inc += 11;
                 highlighted_line = temp;
                 break;
@@ -123,9 +124,9 @@ std::string highlight_syntax(const std::string& line) {
             case token::TokenType::RightBracket:
             case token::TokenType::Asterisk: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc + 1);
-                temp = temp + YELLOW + highlighted_line.substr(current_token.col_no + inc + 1, current_token.literal.length());
-                temp = temp + RESET + highlighted_line.substr(current_token.end_col_no + inc + 1);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc + 1);
+                temp = temp + YELLOW + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc + 1, current_token.getLiteral(line.c_str()).length());
+                temp = temp + RESET + highlighted_line.substr(current_token.getEnColNo(line.c_str()) + inc + 1);
                 inc += 11;
                 highlighted_line = temp;
                 break;
@@ -155,35 +156,38 @@ std::string highlight_syntax(const std::string& line) {
             case token::TokenType::LeftShift:
             case token::TokenType::RightShift: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc + 1);
-                temp = temp + YELLOW + highlighted_line.substr(current_token.col_no + inc + 1, current_token.literal.length() + 1);
-                temp = temp + RESET + highlighted_line.substr(current_token.end_col_no + inc + 2);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc + 1);
+                temp = temp + YELLOW + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc + 1, current_token.getLiteral(line.c_str()).length() + 1);
+                temp = temp + RESET + highlighted_line.substr(current_token.getEnColNo(line.c_str()) + inc + 2);
                 inc += 11;
                 highlighted_line = temp;
                 break;
             }
             case token::TokenType::Illegal: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc);
-                temp = temp + RED + highlighted_line.substr(current_token.col_no + inc, current_token.end_col_no - current_token.col_no);
-                temp = temp + RESET + highlighted_line.substr(current_token.end_col_no + inc);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc);
+                temp = temp + RED + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc, current_token.getEnColNo(line.c_str()) - current_token.getStColNo(line.c_str()));
+                temp = temp + RESET + highlighted_line.substr(current_token.getEnColNo(line.c_str()) + inc);
                 inc += 11;
                 highlighted_line = temp;
                 break;
             }
-            case token::TokenType::String: {
+            case token::TokenType::StringSSQ:
+            case token::TokenType::StringSTQ:
+            case token::TokenType::StringDSQ:
+            case token::TokenType::StringDTQ: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc);
-                temp = temp + MAGENTA + highlighted_line.substr(current_token.col_no + inc, current_token.end_col_no - current_token.col_no);
-                temp = temp + RESET + highlighted_line.substr(current_token.end_col_no + inc);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc);
+                temp = temp + MAGENTA + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc, current_token.getEnColNo(line.c_str()) - current_token.getStColNo(line.c_str()));
+                temp = temp + RESET + highlighted_line.substr(current_token.getEnColNo(line.c_str()) + inc);
                 inc += 11;
                 highlighted_line = temp;
                 break;
             }
             case token::TokenType::Coment: {
                 auto temp = highlighted_line;
-                temp = highlighted_line.substr(0, current_token.col_no + inc);
-                temp = temp + DARK_GRAY + highlighted_line.substr(current_token.col_no + inc);
+                temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc);
+                temp = temp + DARK_GRAY + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc);
                 temp = temp + RESET;
                 inc += 11;
                 highlighted_line = temp;
@@ -192,7 +196,7 @@ std::string highlight_syntax(const std::string& line) {
             default:
                 break;
         }
-        current_token = lex.nextToken();
+        current_token = toks.nextToken();
     }
     auto trunc_line = truncate_line(highlighted_line, get_terminal_width(), inc);
     std::vector<std::string> colours = {
@@ -476,9 +480,9 @@ void raiseSyntaxError(const std::string& file_path, const token::Token& token, c
     print_banner("Syntax Error");
     print_error_message(message);
 
-    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.st_line_no, token.col_no, token.end_line_no, token.end_col_no, source, RED);
+    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.getStLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), source, RED);
 
-    print_source_context(source, file_path, token.end_line_no, token.col_no, token.end_line_no, token.end_col_no - 1, underlines);
+    print_source_context(source, file_path, token.getEnLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()) - 1, underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -487,9 +491,9 @@ void raiseNoPrefixParseFnError(const std::string& file_path, const token::Token&
     print_banner("No Prefix Parse Function Error");
     print_error_message(message);
 
-    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.st_line_no, token.col_no, token.end_line_no, token.end_col_no, source, RED);
+    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.getStLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), source, RED);
 
-    print_source_context(source, file_path, token.end_line_no, token.col_no, token.end_line_no, token.end_col_no, underlines);
+    print_source_context(source, file_path, token.getEnLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }

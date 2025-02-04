@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <variant>
-#include "../lexer/lexer.hpp"
+#include "../lexer/token.hpp"
 #include "AST/ast.hpp"
 #include "parser.hpp"
 
@@ -32,11 +32,11 @@ public:
 
 class MacroInterpreter {
 public:
-    MacroInterpreter(Lexer* lexer, parser::Parser* parser) : lexer(lexer), parser(parser) {};
+    MacroInterpreter(token::Tokens tokens, parser::Parser* parser) : tokens(tokens), parser(parser) {};
 
     void interpret(AST::MacroStatement* macro) { visitBlockStatement(macro->body); };
 private:
-    Lexer* lexer;
+    token::Tokens tokens;
     parser::Parser* parser;
     std::unordered_map<std::string, MIObjects> variabels;
     void visitStatement(AST::Statement* node);
