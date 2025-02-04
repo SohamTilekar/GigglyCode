@@ -1470,8 +1470,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 }
             }
             params_types.insert(params_types.begin(), left_type);
-            args.insert(args.begin(), left_value ? left_value : left_alloca);
-            arg_allocas.insert(arg_allocas.begin(), left_value ? left_value : left_alloca);
+            args.insert(args.begin(), left_value ? left_value : llvm_ir_builder.CreateLoad(ll_pointer, left_alloca));
+            arg_allocas.insert(arg_allocas.begin(), left_alloca);
             auto name = right->castToCallExpression()->name->castToIdentifierLiteral()->value;
             if (left_type->is_method(name, params_types)) {
                 auto method = left_type->get_method(name, params_types);
