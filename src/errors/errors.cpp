@@ -106,16 +106,16 @@ std::string highlight_syntax(const std::string& line) {
             }
             case token::TokenType::Dot:
             case token::TokenType::Plus:
-            case token::TokenType::Dash:
+            case token::TokenType::Minus:
             case token::TokenType::Colon:
             case token::TokenType::Semicolon:
             case token::TokenType::Comma:
-            case token::TokenType::AtTheRate:
+            case token::TokenType::At:
             case token::TokenType::Pipe:
             case token::TokenType::Equals:
             case token::TokenType::GreaterThan:
             case token::TokenType::LessThan:
-            case token::TokenType::Percent:
+            case token::TokenType::Modulo:
             case token::TokenType::LeftParen:
             case token::TokenType::RightParen:
             case token::TokenType::LeftBrace:
@@ -134,16 +134,16 @@ std::string highlight_syntax(const std::string& line) {
             case token::TokenType::Increment:
             case token::TokenType::Decrement:
             case token::TokenType::PlusEqual:
-            case token::TokenType::DashEqual:
+            case token::TokenType::MinusEqual:
             case token::TokenType::AsteriskEqual:
-            case token::TokenType::PercentEqual:
+            case token::TokenType::ModuloEqual:
             case token::TokenType::CaretEqual:
             case token::TokenType::ForwardSlashEqual:
-            case token::TokenType::BackwardSlashEqual:
+            case token::TokenType::BackSlashEqual:
             case token::TokenType::Ellipsis:
-            case token::TokenType::AsteriskAsterisk:
+            case token::TokenType::Exponent:
             case token::TokenType::ForwardSlash:
-            case token::TokenType::BackwardSlash:
+            case token::TokenType::BackSlash:
             case token::TokenType::RightArrow:
             case token::TokenType::GreaterThanOrEqual:
             case token::TokenType::LessThanOrEqual:
@@ -184,7 +184,7 @@ std::string highlight_syntax(const std::string& line) {
                 highlighted_line = temp;
                 break;
             }
-            case token::TokenType::Coment: {
+            case token::TokenType::Comment: {
                 auto temp = highlighted_line;
                 temp = highlighted_line.substr(0, current_token.getStColNo(line.c_str()) + inc);
                 temp = temp + DARK_GRAY + highlighted_line.substr(current_token.getStColNo(line.c_str()) + inc);
@@ -480,7 +480,8 @@ void raiseSyntaxError(const std::string& file_path, const token::Token& token, c
     print_banner("Syntax Error");
     print_error_message(message);
 
-    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.getStLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), source, RED);
+    std::vector<std::tuple<int, std::string, std::string>> underlines =
+        underline(token.getStLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), source, RED);
 
     print_source_context(source, file_path, token.getEnLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()) - 1, underlines);
     print_suggested_fix(suggestedFix);
@@ -491,7 +492,8 @@ void raiseNoPrefixParseFnError(const std::string& file_path, const token::Token&
     print_banner("No Prefix Parse Function Error");
     print_error_message(message);
 
-    std::vector<std::tuple<int, std::string, std::string>> underlines = underline(token.getStLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), source, RED);
+    std::vector<std::tuple<int, std::string, std::string>> underlines =
+        underline(token.getStLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), source, RED);
 
     print_source_context(source, file_path, token.getEnLineNo(source.c_str()), token.getStColNo(source.c_str()), token.getEnLineNo(source.c_str()), token.getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);

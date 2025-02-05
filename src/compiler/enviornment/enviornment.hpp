@@ -121,7 +121,7 @@ class RecordFunction : public Record {
     std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments = {};
     RecordStructType* return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;       ///< Indicates if the function accepts a variable
-    bool is_const_return = false;       ///< Indicates if the function accepts a variable
+    bool is_const_return = false;  ///< Indicates if the function accepts a variable
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -156,8 +156,13 @@ class RecordFunction : public Record {
      * @param returnInst Pointer to the struct type of the return value.
      * @param isVarArg Indicates if the function accepts variable arguments.
      */
-    RecordFunction(
-        const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments, RecordStructType* returnInst, bool isVarArg, bool is_const_return = false)
+    RecordFunction(const Str& name,
+                   llvm::Function* function,
+                   llvm::FunctionType* functionType,
+                   std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
+                   RecordStructType* returnInst,
+                   bool isVarArg,
+                   bool is_const_return = false)
         : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg), is_const_return(is_const_return) {}
 
     /**

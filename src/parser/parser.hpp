@@ -111,12 +111,12 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
 
     // Assignment operators
     {TokenType::PlusEqual, PrecedenceType::ASSIGN},
-    {TokenType::DashEqual, PrecedenceType::ASSIGN},
+    {TokenType::MinusEqual, PrecedenceType::ASSIGN},
     {TokenType::AsteriskEqual, PrecedenceType::ASSIGN},
-    {TokenType::PercentEqual, PrecedenceType::ASSIGN},
+    {TokenType::ModuloEqual, PrecedenceType::ASSIGN},
     {TokenType::CaretEqual, PrecedenceType::ASSIGN},
     {TokenType::ForwardSlashEqual, PrecedenceType::ASSIGN},
-    {TokenType::BackwardSlashEqual, PrecedenceType::ASSIGN},
+    {TokenType::BackSlashEqual, PrecedenceType::ASSIGN},
     {TokenType::Equals, PrecedenceType::ASSIGN},
     {TokenType::Is, PrecedenceType::ASSIGN},
 
@@ -139,16 +139,16 @@ static const std::unordered_map<TokenType, PrecedenceType> token_precedence = {
 
     // Addition and subtraction
     {TokenType::Plus, PrecedenceType::SUM},
-    {TokenType::Dash, PrecedenceType::SUM},
+    {TokenType::Minus, PrecedenceType::SUM},
 
     // Multiplication and division
     {TokenType::Asterisk, PrecedenceType::PRODUCT},
-    {TokenType::Percent, PrecedenceType::PRODUCT},
+    {TokenType::Modulo, PrecedenceType::PRODUCT},
     {TokenType::ForwardSlash, PrecedenceType::PRODUCT},
-    {TokenType::BackwardSlash, PrecedenceType::PRODUCT},
+    {TokenType::BackSlash, PrecedenceType::PRODUCT},
 
     // Exponentiation
-    {TokenType::AsteriskAsterisk, PrecedenceType::Exponent},
+    {TokenType::Exponent, PrecedenceType::Exponent},
 
     // Prefix operators
     {TokenType::BitwiseNot, PrecedenceType::PREFIX},
@@ -199,11 +199,11 @@ struct Parser {
         {TokenType::Or, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::And, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::Plus, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {TokenType::Dash, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Minus, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::Asterisk, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::ForwardSlash, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {TokenType::Percent, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
-        {TokenType::AsteriskAsterisk, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Modulo, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
+        {TokenType::Exponent, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::GreaterThan, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::LessThan, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},
         {TokenType::GreaterThanOrEqual, std::bind(&Parser::_parseInfixExpression, this, std::placeholders::_1)},

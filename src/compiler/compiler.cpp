@@ -322,15 +322,13 @@ void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallEx
             // Type Is Same So No need to do any thing
         } else if (this->canConvertType(pst, expected_type)) {
             if (std::get<2>(pt)) {
-                errors::raiseCompletionError(
-                    file_path,
-                    source,
-                    func_call->arguments[idx]->meta_data.st_line_no,
-                    func_call->arguments[idx]->meta_data.st_col_no,
-                    func_call->arguments[idx]->meta_data.end_line_no,
-                    func_call->arguments[idx]->meta_data.end_col_no,
-                    "Cant pass by refrence the non same type"
-                );
+                errors::raiseCompletionError(file_path,
+                                             source,
+                                             func_call->arguments[idx]->meta_data.st_line_no,
+                                             func_call->arguments[idx]->meta_data.st_col_no,
+                                             func_call->arguments[idx]->meta_data.end_line_no,
+                                             func_call->arguments[idx]->meta_data.end_col_no,
+                                             "Cant pass by refrence the non same type");
             }
             args[idx] = this->convertType({args[idx], nullptr, pst}, expected_type).value;
         } else {
@@ -341,8 +339,7 @@ void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallEx
         size_t max_size = std::max(func_record->arguments.size(), params_types.size());
         for (size_t idx = limit; idx < max_size; ++idx) { mismatch_indices.push_back(idx); }
     }
-    if (mismatch_indices.empty())
-        return;
+    if (mismatch_indices.empty()) return;
     errors::raiseNoOverloadError(this->file_path, this->source, {mismatch_indices}, func_call, "Cannot call the function with wrong type");
 }
 
@@ -1426,7 +1423,11 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             }
             params_types.push_back(std::get<RecordStructType*>(param_type));
             arg_allocas.push_back(val_alloca);
-            args.push_back(value ? value : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array" ? ll_pointer : std::get<RecordStructType*>(param_type)->stand_alone_type, val_alloca));
+            args.push_back(value ? value
+                                 : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array"
+                                                                  ? ll_pointer
+                                                                  : std::get<RecordStructType*>(param_type)->stand_alone_type,
+                                                              val_alloca));
         }
         if (ltt == resolveType::Module) {
             auto left_type = std::get<RecordModule*>(_left_type);
@@ -1758,7 +1759,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             case token::TokenType::Plus: {
                 return this->_StructInfixCall("__add__", "add", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
-            case token::TokenType::Dash: {
+            case token::TokenType::Minus: {
                 return this->_StructInfixCall("__sub__", "substract", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::Asterisk: {
@@ -1767,7 +1768,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             case token::TokenType::ForwardSlash: {
                 return this->_StructInfixCall("__div__", "divide", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
-            case token::TokenType::Percent: {
+            case token::TokenType::Modulo: {
                 return this->_StructInfixCall("__mod__", "%", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             case token::TokenType::EqualEqual: {
@@ -1812,7 +1813,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             case token::TokenType::GreaterThanOrEqual: {
                 return this->_StructInfixCall("__gte__", "compare greater than equals", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
-            case token::TokenType::AsteriskAsterisk: {
+            case token::TokenType::Exponent: {
                 return this->_StructInfixCall("__pow__", "**", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             default: {
@@ -1847,7 +1848,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 auto inst = this->llvm_ir_builder.CreateAdd(left_val_converted, right_val_converted);
                 return {inst, nullptr, common_type, resolveType::StructInst};
             }
-            case (token::TokenType::Dash): {
+            case (token::TokenType::Minus): {
                 auto inst = this->llvm_ir_builder.CreateSub(left_val_converted, right_val_converted);
                 return {inst, nullptr, common_type, resolveType::StructInst};
             }
@@ -1861,7 +1862,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 else inst = this->llvm_ir_builder.CreateUDiv(left_val_converted, right_val_converted);
                 return {inst, nullptr, common_type, resolveType::StructInst};
             }
-            case (token::TokenType::Percent): {
+            case (token::TokenType::Modulo): {
                 llvm::Value* inst;
                 if (left_type->name == "int" || left_type->name == "int32") inst = this->llvm_ir_builder.CreateSRem(left_val_converted, right_val_converted);
                 else inst = this->llvm_ir_builder.CreateURem(left_val_converted, right_val_converted);
@@ -1913,7 +1914,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 auto inst = this->llvm_ir_builder.CreateOr(left_val_converted, right_val_converted);
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
-            case (token::TokenType::AsteriskAsterisk): {
+            case (token::TokenType::Exponent): {
                 errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Power operator not supported for int");
             }
             default: {
@@ -1926,7 +1927,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 auto inst = this->llvm_ir_builder.CreateFAdd(left_val_converted, right_val_converted);
                 return {inst, nullptr, common_type, resolveType::StructInst};
             }
-            case (token::TokenType::Dash): {
+            case (token::TokenType::Minus): {
                 auto inst = this->llvm_ir_builder.CreateFSub(left_val_converted, right_val_converted);
                 return {inst, nullptr, common_type, resolveType::StructInst};
             }
@@ -1965,7 +1966,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 auto inst = this->llvm_ir_builder.CreateFCmpOGE(left_val_converted, right_val_converted);
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
-            case (token::TokenType::AsteriskAsterisk): {
+            case (token::TokenType::Exponent): {
                 errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Power operator not supported for float");
             }
             default: {
@@ -2081,16 +2082,14 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     RecordStructType* var_type = variable_declaration_statement->value_type ? this->_parseType(variable_declaration_statement->value_type) : nullptr;
 
     if (!var_value && variable_declaration_statement->is_const) {
-        errors::raiseCompletionError(
-            file_path,
-            source,
-            variable_declaration_statement->meta_data.st_line_no,
-            variable_declaration_statement->meta_data.st_col_no,
-            variable_declaration_statement->meta_data.end_line_no,
-            variable_declaration_statement->meta_data.end_col_no,
-            "Cant Decelare constant Variable with undefine value",
-            "remove the const kw"
-        );
+        errors::raiseCompletionError(file_path,
+                                     source,
+                                     variable_declaration_statement->meta_data.st_line_no,
+                                     variable_declaration_statement->meta_data.st_col_no,
+                                     variable_declaration_statement->meta_data.end_line_no,
+                                     variable_declaration_statement->meta_data.end_col_no,
+                                     "Cant Decelare constant Variable with undefine value",
+                                     "remove the const kw");
     }
 
     if (!var_value) {
@@ -2165,13 +2164,13 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
     auto assignmentType = std::get<RecordStructType*>(_assignmentType);
 
     if (vtt == resolveType::ConstStructInst) {
-        errors::raiseCompletionError(file_path, source,
-            variable_assignment_statement->name->meta_data.st_line_no,
-            variable_assignment_statement->name->meta_data.st_col_no,
-            variable_assignment_statement->name->meta_data.end_line_no,
-            variable_assignment_statement->name->meta_data.end_col_no,
-            "Cant assign to the constant variable"
-        );
+        errors::raiseCompletionError(file_path,
+                                     source,
+                                     variable_assignment_statement->name->meta_data.st_line_no,
+                                     variable_assignment_statement->name->meta_data.st_col_no,
+                                     variable_assignment_statement->name->meta_data.end_line_no,
+                                     variable_assignment_statement->name->meta_data.end_col_no,
+                                     "Cant assign to the constant variable");
     }
     if ((vtt != resolveType::StructInst) && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
         errors::raiseWrongTypeError(this->file_path, this->source, var_value, nullptr, {assignmentType}, "Cannot assign module or type to variable");
@@ -2179,9 +2178,7 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
 
     auto [_, alloca, _var_type, att] = this->_resolveValue(variable_assignment_statement->name);
     auto var_type = std::get<RecordStructType*>(_var_type);
-    if (!alloca) {
-        errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true);
-    }
+    if (!alloca) { errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true); }
 
     if (!_checkType(var_type, assignmentType)) {
         if (this->canConvertType(assignmentType, var_type)) {
@@ -2299,15 +2296,11 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
         auto currentStructType = variable->variable_type;
         currentStructType->meta_data = identifier_literal->meta_data;
         if (variable->is_const) {
-            if (currentStructType->struct_type || currentStructType->name == "raw_array")
-                return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
-            else
-                return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
+            if (currentStructType->struct_type || currentStructType->name == "raw_array") return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
+            else return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
         }
-        if (currentStructType->struct_type || currentStructType->name == "raw_array")
-            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
-        else
-            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
+        if (currentStructType->struct_type || currentStructType->name == "raw_array") return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
+        else return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
     } else if (this->env->isModule(identifier_literal->value)) {
         return {nullptr, nullptr, this->env->getModule(identifier_literal->value), resolveType::Module};
     } else if (this->env->isStruct(identifier_literal->value)) {
@@ -2460,7 +2453,9 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
                                     value,
                                     this->env->current_function->return_type,
                                     {this->env->current_function->return_type},
-                                    "Cant return const value from non const function", "", true);
+                                    "Cant return const value from non const function",
+                                    "",
+                                    true);
     }
     auto return_type = std::get<RecordStructType*>(_return_type);
     if (this->env->current_function == nullptr) {

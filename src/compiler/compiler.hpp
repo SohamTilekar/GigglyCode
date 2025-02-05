@@ -47,11 +47,11 @@ using llBB = llvm::BasicBlock;                                ///< Alias for LLV
  * @brief Enumeration of different types used during type resolution.
  */
 enum class resolveType : char {
-    Module,      ///< Represents a module
-    StructInst,  ///< Represents a struct instance
-    ConstStructInst,  ///< Represents a const struct instance
-    StructType,  ///< Represents a struct type
-    GStructType, ///< Represents a generic struct type
+    Module,          ///< Represents a module
+    StructInst,      ///< Represents a struct instance
+    ConstStructInst, ///< Represents a const struct instance
+    StructType,      ///< Represents a struct type
+    GStructType,     ///< Represents a generic struct type
 };
 
 /**

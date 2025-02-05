@@ -456,18 +456,14 @@ class Compiler {
         std::cout << "=========== Lexer Debug ===========" << std::endl;
         auto dbg_toks = Lexer(fileContent.c_str(), file_path).Tokenize();
         if (std::filesystem::path(DEBUG_LEXER_OUTPUT_PATH).string().empty()) {
-            for (auto token : dbg_toks.tokens) {
-                std::cout << token.toString(fileContent, true) << std::endl;
-            }
+            for (auto token : dbg_toks.tokens) { std::cout << token.toString(fileContent, true) << std::endl; }
         } else {
             std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
             if (!debugOutput) {
                 std::cerr << "Error: Could not open debug output file " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
                 return;
             }
-            for (auto token : dbg_toks.tokens) {
-                debugOutput << token.toString(fileContent, false) << std::endl;
-            }
+            for (auto token : dbg_toks.tokens) { debugOutput << token.toString(fileContent, false) << std::endl; }
             std::cout << "Lexer debug output written to " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
         }
 #endif

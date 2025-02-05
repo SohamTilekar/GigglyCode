@@ -257,8 +257,8 @@ MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
                     return {MIObjectType::TokenType, token::TokenType::EndOfFile};
                 } else if (name == "Illegal") {
                     return {MIObjectType::TokenType, token::TokenType::Illegal};
-                } else if (name == "Coment") {
-                    return {MIObjectType::TokenType, token::TokenType::Coment};
+                } else if (name == "Comment") {
+                    return {MIObjectType::TokenType, token::TokenType::Comment};
                 } else if (name == "GreaterThan") {
                     return {MIObjectType::TokenType, token::TokenType::GreaterThan};
                 } else if (name == "LessThan") {
@@ -288,17 +288,17 @@ MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
                 } else if (name == "PlusEqual") {
                     return {MIObjectType::TokenType, token::TokenType::PlusEqual};
                 } else if (name == "DashEqual") {
-                    return {MIObjectType::TokenType, token::TokenType::DashEqual};
+                    return {MIObjectType::TokenType, token::TokenType::MinusEqual};
                 } else if (name == "AsteriskEqual") {
                     return {MIObjectType::TokenType, token::TokenType::AsteriskEqual};
                 } else if (name == "PercentEqual") {
-                    return {MIObjectType::TokenType, token::TokenType::PercentEqual};
+                    return {MIObjectType::TokenType, token::TokenType::ModuloEqual};
                 } else if (name == "CaretEqual") {
                     return {MIObjectType::TokenType, token::TokenType::CaretEqual};
                 } else if (name == "ForwardSlashEqual") {
                     return {MIObjectType::TokenType, token::TokenType::ForwardSlashEqual};
-                } else if (name == "BackwardSlashEqual") {
-                    return {MIObjectType::TokenType, token::TokenType::BackwardSlashEqual};
+                } else if (name == "BackSlashEqual") {
+                    return {MIObjectType::TokenType, token::TokenType::BackSlashEqual};
                 } else if (name == "Equals") {
                     return {MIObjectType::TokenType, token::TokenType::Equals};
                 } else if (name == "Is") {
@@ -326,19 +326,19 @@ MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
                 } else if (name == "Plus") {
                     return {MIObjectType::TokenType, token::TokenType::Plus};
                 } else if (name == "Dash") {
-                    return {MIObjectType::TokenType, token::TokenType::Dash};
+                    return {MIObjectType::TokenType, token::TokenType::Minus};
                 } else if (name == "Asterisk") {
                     return {MIObjectType::TokenType, token::TokenType::Asterisk};
                 } else if (name == "Percent") {
-                    return {MIObjectType::TokenType, token::TokenType::Percent};
+                    return {MIObjectType::TokenType, token::TokenType::Modulo};
                 } else if (name == "AsteriskAsterisk") {
-                    return {MIObjectType::TokenType, token::TokenType::AsteriskAsterisk};
+                    return {MIObjectType::TokenType, token::TokenType::Exponent};
                 } else if (name == "ForwardSlash") {
                     return {MIObjectType::TokenType, token::TokenType::ForwardSlash};
-                } else if (name == "BackwardSlash") {
-                    return {MIObjectType::TokenType, token::TokenType::BackwardSlash};
+                } else if (name == "BackSlash") {
+                    return {MIObjectType::TokenType, token::TokenType::BackSlash};
                 } else if (name == "Refrence") {
-                    return {MIObjectType::TokenType, token::TokenType::Refrence};
+                    return {MIObjectType::TokenType, token::TokenType::Ampersand};
                 } else if (name == "LeftParen") {
                     return {MIObjectType::TokenType, token::TokenType::LeftParen};
                 } else if (name == "RightParen") {
@@ -359,8 +359,8 @@ MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
                     return {MIObjectType::TokenType, token::TokenType::RightArrow};
                 } else if (name == "Comma") {
                     return {MIObjectType::TokenType, token::TokenType::Comma};
-                } else if (name == "AtTheRate") {
-                    return {MIObjectType::TokenType, token::TokenType::AtTheRate};
+                } else if (name == "At") {
+                    return {MIObjectType::TokenType, token::TokenType::At};
                 } else if (name == "Pipe") {
                     return {MIObjectType::TokenType, token::TokenType::Pipe};
                 } else if (name == "And") {
@@ -433,11 +433,11 @@ MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
         throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
     } else if (node->op == token::TokenType::Plus) {
         throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-    } else if (node->op == token::TokenType::Dash) {
+    } else if (node->op == token::TokenType::Minus) {
         throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
     } else if (node->op == token::TokenType::Asterisk) {
         throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
-    } else if (node->op == token::TokenType::BackwardSlash) {
+    } else if (node->op == token::TokenType::BackSlash) {
         throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));

@@ -1,118 +1,124 @@
 #ifndef TOKENS_HPP
 #define TOKENS_HPP
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <deque>
 #include <string>
 #include <vector>
 
 namespace token {
+
 enum struct TokenType : char {
-    // Special Tokens
-    EndOfFile, // End of file token
+    EndOfFile, // End of file
     Illegal,   // Illegal token
-    Coment,    // Coment token `# ...`
+    Comment,    // `# ...`
 
     // Comparison Operators
-    GreaterThan,        // Greater than '>'
-    LessThan,           // Less than '<'
-    GreaterThanOrEqual, // Greater than or equal to '>='
-    LessThanOrEqual,    // Less than or equal to '<='
-    EqualEqual,         // Equal to '=='
-    NotEquals,          // Not equal to '!='
+    GreaterThan,        // `>`
+    LessThan,           // `<`
+    GreaterThanOrEqual, // `>=`
+    LessThanOrEqual,    // `<=`
+    EqualEqual,         // `==`
+    NotEquals,          // `!=`
 
     // Data Types
-    Identifier, // Identifier token [a-zA-Z_][a-zA-Z0-9_]*
-    Integer,    // Integer token [0-9]+
-    Float,      // Float token [0-9]+.[0-9]+
-    StringSSQ,     // String token `'...'`
-    StringDSQ,     // String token `"..."`
-    StringSTQ,     // String token `'''...'''`
-    StringDTQ,     // String token `"""..."""`
+    Identifier, // [a-zA-Z_][a-zA-Z0-9_]*
+    Integer,    // [0-9]*
+    Float,      // [0-9]*.[0-9]*
+    StringSSQ,  // `'...'`
+    StringDSQ,  // `"..."`
+    StringSTQ,  // `'''...'''`
+    StringDTQ,  // `"""..."""`
 
     // Assignment Operators
-    PlusEqual,          // Addition assignment '+='
-    DashEqual,          // Subtraction assignment '-='
-    AsteriskEqual,      // Multiplication assignment '*='
-    PercentEqual,       // Modulus assignment '%='
-    CaretEqual,         // Exponentiation assignment '^='
-    ForwardSlashEqual,  // Division assignment '/='
-    BackwardSlashEqual, // Division assignment '\='
-    Equals,             // Equals sign '='
-    Is,                 // Is sign 'is'
+    PlusEqual,          // `+=`
+    MinusEqual,          // `-=`
+    AsteriskEqual,      // `*=`
+    ModuloEqual,       // `%=`
+    CaretEqual,         // `^=`
+    ForwardSlashEqual,  // `/=`
+    BackSlashEqual, // `\=`
+    Equals,             // `=`
+    Is,                 // `is`
 
-    // Increment and Decrement Operators
-    Increment, // Increment '++'
-    Decrement, // Decrement '--'
+    // post fix operators
+    Increment, // Increment `++`
+    Decrement, // Decrement `--`
 
     // Bitwise Operators
-    BitwiseAnd, // Bitwise AND '&&'
-    BitwiseOr,  // Bitwise OR '||'
-    BitwiseXor, // Bitwise XOR '^'
-    BitwiseNot, // Bitwise NOT '~'
-    LeftShift,  // Left shift '<<'
-    RightShift, // Right shift '>>'
+    BitwiseAnd, // Bitwise AND `&&`
+    BitwiseOr,  // Bitwise OR  `||`
+    BitwiseXor, // Bitwise XOR `^`
+    BitwiseNot, // Bitwise NOT `~`
+    LeftShift,  // Left shift  `<<`
+    RightShift, // Right shift `>>`
 
     // Arithmetic Operators
-    Dot,              // Dot '.'
-    Ellipsis,         // Ellipsis '...'
-    Plus,             // Addition '+'
-    Dash,             // Subtraction '-'
-    Asterisk,         // Multiplication '*'
-    Percent,          // Modulus '%'
-    AsteriskAsterisk, // Exponentiation '**'
-    ForwardSlash,     // Division '/'
-    BackwardSlash,    // Backward slash '\'
-    Refrence,         // Reference '&'
+    Dot,              // `.`
+    Ellipsis,         // `...`
+    Plus,             // `+`
+    Minus,             // `-`
+    Asterisk,         // `*`
+    Modulo,          // `%`
+    Exponent, // `**`
+    ForwardSlash,     // `/`
+    BackSlash,    // `\`
+    Ampersand,         // `&`
 
     // Symbols
-    LeftParen,    // Left Parenthesis '('
-    RightParen,   // Right Parenthesis ')'
-    LeftBrace,    // Left Brace '{'
-    RightBrace,   // Right Brace '}'
-    LeftBracket,  // Left Bracket '['
-    RightBracket, // Right Bracket ']'
-    Colon,        // Colon ':'
-    Semicolon,    // Semicolon ';'
-    RightArrow,   // Right Arrow '->'
-    Comma,        // Comma ','
-    AtTheRate,    // At symbol '@'
-    Pipe,         // Pipe symbol '|'
+    LeftParen,    // `(`
+    RightParen,   // `)`
+    LeftBrace,    // `{`
+    RightBrace,   // `}`
+    LeftBracket,  // `[`
+    RightBracket, // `]`
+    Colon,        // `:`
+    Semicolon,    // `;`
+    RightArrow,   // `->`
+    Comma,        // `,`
+    At,    // `@`
+    Pipe,         // `|`
 
     // Keywords
-    And,      // Logical AND 'and'
-    Or,       // Logical OR 'or'
-    Not,      // Logical NOT 'not'
-    Def,      // Function definition 'def'
-    Return,   // Return statement 'return'
-    If,       // If statement 'if'
-    Else,     // Else statement 'else'
-    ElIf,     // Else If statement 'elif'
-    While,    // While statement 'while'
-    For,      // For statement 'for'
-    In,       // In statement 'in'
-    Break,    // Break statement 'break'
-    Continue, // Continue statement 'continue'
-    Struct,   // Struct keyword 'struct'
-    Enum,     // Enum keyword 'enum'
-    Volatile, // Volatile keyword 'volatile'
-    Const, // Constant keyword 'const'
-    Use,      // Use keyword 'use'
-    Import,   // Import keyword 'import'
-    As,       // As keyword 'as'
-    True,     // Boolean true 'true'
-    False,    // Boolean false 'false'
-    None,     // None type 'none'
-    New,      // New keyword 'new'
-    Try,      // Try keyword 'try'
-    Catch,    // Catch keyword 'catch'
-    Raise,    // Raise keyword 'raise'
-    IfBreak,  // IfBreak keyword 'ifbreak'
-    NotBreak, // NotBreak keyword 'notbreak'
-    Switch,   // Switch keyword 'switch'
-    Case,     // Case keyword 'case'
-    Other,    // Other keyword 'other'
+    And,      // 'and'
+    Or,       // 'or'
+    Not,      // 'not'
+    Def,      // 'def'
+    Return,   // 'return'
+    If,       // 'if'
+    Else,     // 'else'
+    ElIf,     // 'elif'
+    While,    // 'while'
+    For,      // 'for'
+    In,       // 'in'
+    Break,    // 'break'
+    Continue, // 'continue'
+    Struct,   // 'struct'
+    Enum,     // 'enum'
+    Volatile, // 'volatile'
+    Const,    // 'const'
+    Use,      // 'use'
+    Import,   // 'import'
+    As,       // 'as'
+    True,     // 'true'
+    False,    // 'false'
+    None,     // 'none'
+    New,      // 'new'
+    Try,      // 'try'
+    Catch,    // 'catch'
+    Raise,    // 'raise'
+    IfBreak,  // 'ifbreak'
+    NotBreak, // 'notbreak'
+    Switch,   // 'switch'
+    Case,     // 'case'
+    Other,    // 'other'
+};
+
+enum struct StringDelimiter : char {
+    None,
+    SingleQuote = int(TokenType::StringSSQ),
+    DoubleQuote,
+    TripleSingleQuote,
+    TripleDoubleQuote,
 };
 
 /**
@@ -121,13 +127,13 @@ enum struct TokenType : char {
  * @param type The TokenType to convert.
  * @return std::string The string representation of the TokenType.
  */
-std::string tokenTypeToString(TokenType type);
+const std::string tokenTypeToString(TokenType type);
 
-#define UINT24_MAX 16777215
+#define UINT24_MAX 1'67'77'215
 
 struct Token {
     TokenType type = TokenType::Illegal;
-    uint32_t pos : 24 = UINT24_MAX;
+    uint32_t pos : 24 = UINT24_MAX; //https://en.cppreference.com/w/cpp/language/bit_field https://en.cppreference.com/w/cpp/language/bit_field
 
     inline Token() = default;
     inline Token(TokenType type, uint32_t pos) : type(type), pos(pos) {};
@@ -145,50 +151,33 @@ struct Token {
      *
      * @param color If true, adds color to the string for CLI printing in ANSI format.
      */
-    std::string toString(std::string source, bool color = true) const;
+    const std::string toString(std::string source, bool color = true) const;
 
     void print(std::string source) const;
+
   private:
     static bool _isDigit(const char character) {
-        return character >= '0' && character <= '9'; /* 0-9 in ansi is lied in one after the another*/
-    };
-
-    static bool _isHexDigit(const char character) {
-        return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f') || (character >= 'A' && character <= 'F');
+        return character >= '0' && character <= '9'; // 0-9 in ansi is lied in one after the another
     };
 
     static bool _isLetter(const char character) {
-        return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '_'; /* a-z & A-Z in ansi is lied in one after the another*/
+        return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '_'; // a-z & A-Z in ansi is lie in one after the another
     };
 };
 
 struct Tokens {
     std::vector<Token> tokens = {};
-    std::deque<Token> token_buffer = {};
-    uint32_t current_token = 0;
+    std::deque<Token> tokenBuffer = {};
     const char* source;
-    Tokens() = delete;
-    Tokens(const char* source) : source(source) {}
+    uint32_t currentTokenIDX = 0;
 
-    void append(Token token) {
-        tokens.push_back(token);
-    };
+    explicit Tokens(const char* source) : source(source) {}
 
-    void append2buf(Token token) {
-        token_buffer.push_back(token);
-    };
+    void append(Token token) { this->tokens.push_back(token); };
 
-    Token nextToken() {
-        if (!token_buffer.empty()) {
-            auto tok = token_buffer.back();
-            token_buffer.pop_back();
-            return tok;
-        }
-        if (current_token >= tokens.size()) return token::Token(TokenType::EndOfFile, UINT24_MAX);
-        auto tok = tokens[current_token];
-        current_token++;
-        return tok;
-    }
+    void append2buf(Token token) { tokenBuffer.push_back(token); };
+
+    Token nextToken();
 };
 
 } // namespace token

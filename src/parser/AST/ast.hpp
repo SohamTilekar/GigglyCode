@@ -276,8 +276,13 @@ class FunctionStatement : public Statement {
     bool return_const;
     BlockStatement* body;
     std::vector<Type*> generic;
-    inline FunctionStatement(
-        Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, bool return_const, BlockStatement* body, const std::vector<Type*>& generic)
+    inline FunctionStatement(Expression* name,
+                             std::vector<FunctionParameter*> parameters,
+                             std::vector<FunctionParameter*> closure_parameters,
+                             Type* return_type,
+                             bool return_const,
+                             BlockStatement* body,
+                             const std::vector<Type*>& generic)
         : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), return_const(return_const), body(body), generic(generic) {
         this->extra_info.insert("autocast", false);
     }
@@ -395,7 +400,8 @@ class VariableDeclarationStatement : public Statement {
     Expression* value;
     bool is_volatile = false;
     bool is_const = false;
-    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = false, bool is_const = false) : name(name), value_type(type), value(value), is_volatile(is_volatile), is_const(is_const) {}
+    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = false, bool is_const = false)
+        : name(name), value_type(type), value(value), is_volatile(is_volatile), is_const(is_const) {}
     inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
     std::string toStr() override;
 
