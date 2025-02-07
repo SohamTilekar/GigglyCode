@@ -88,41 +88,30 @@ enum class NodeType {
 std::string nodeTypeToString(NodeType type);
 
 struct MoreData {
-    std::unordered_map<std::string, int> int_map = {};
+    std::unordered_map<std::string, uint32_t> int_map = {};
     std::unordered_map<std::string, std::string> str_map = {};
-    std::unordered_map<std::string, std::tuple<int, int>> pos_map = {};
+    std::unordered_map<std::string, std::tuple<uint32_t, uint32_t>> pos_map = {};
     std::unordered_map<std::string, bool> bool_map = {};
 
     MoreData() = default;
-    MoreData(std::unordered_map<std::string, int> int_map) : int_map(int_map) {}
+    MoreData(std::unordered_map<std::string, uint32_t> int_map) : int_map(int_map) {}
     MoreData(std::unordered_map<std::string, std::string> str_map) : str_map(str_map) {}
     MoreData(std::unordered_map<std::string, bool> bool_map) : bool_map(bool_map) {}
-    MoreData(std::unordered_map<std::string, std::tuple<int, int>> pos_map) : pos_map(pos_map) {}
-
-    template <typename T> void insert(const std::string& key, const T& value) {
-        if constexpr (std::is_same_v<T, int>) {
-            int_map[key] = value;
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            str_map[key] = value;
-        } else if constexpr (std::is_same_v<T, std::tuple<int, int>>) {
-            pos_map[key] = value;
-        } else if constexpr (std::is_same_v<T, bool>) {
-            bool_map[key] = value;
-        } else {
-            // Handle other types or throw an error if needed
-            static_assert(false, "Unsupported type for MoreData::insert");
-        }
-    }
+    MoreData(std::unordered_map<std::string, std::tuple<uint32_t, uint32_t>> pos_map) : pos_map(pos_map) {}
 
     // Overload for std::pair<int, int> to avoid ambiguity with std::tuple
-    void insert(const std::string& key, const std::pair<int, int>& value) { pos_map[key] = value; }
+    void insert(const std::string& key, const std::pair<uint32_t, uint32_t>& value) { pos_map[key] = value; }
+    void insert(const std::string& key, const std::tuple<uint32_t, uint32_t>& value) { pos_map[key] = value; }
+    void insert(const std::string& key, const uint32_t value) { int_map[key] = value; }
+    void insert(const std::string& key, const std::string value) { str_map[key] = value; }
+    void insert(const std::string& key, const bool value) { bool_map[key] = value; }
 };
 
 struct MetaData {
-    int st_line_no = -1;
-    int st_col_no = -1;
-    int end_line_no = -1;
-    int end_col_no = -1;
+    uint32_t st_line_no = -1;
+    uint32_t st_col_no = -1;
+    uint32_t end_line_no = -1;
+    uint32_t end_col_no = -1;
     MoreData more_data;
 };
 
@@ -504,7 +493,7 @@ class FloatLiteral : public Expression {
 class StringLiteral : public Expression {
   public:
     std::string value;
-    inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data.insert("length", int(value.length())); }
+    inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data.insert("length", uint32_t(value.length())); }
     inline NodeType type() override { return NodeType::StringLiteral; };
     std::string toStr() override;
 
@@ -515,13 +504,7 @@ class StringLiteral : public Expression {
 class IdentifierLiteral : public Expression {
   public:
     std::string value;
-    inline IdentifierLiteral(token::Token value) {
-        this->value = value.literal;
-        this->meta_data.st_line_no = value.end_line_no;
-        this->meta_data.end_line_no = value.end_line_no;
-        this->meta_data.st_col_no = value.col_no;
-        this->meta_data.end_col_no = value.end_col_no;
-    }
+    inline IdentifierLiteral(std::string value) : value(value) {}
     inline NodeType type() override { return NodeType::IdentifierLiteral; };
     std::string toStr() override;
 

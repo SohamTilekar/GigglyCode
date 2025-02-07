@@ -1470,8 +1470,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 }
             }
             params_types.insert(params_types.begin(), left_type);
-            args.insert(args.begin(), left_value ? left_value : left_alloca);
-            arg_allocas.insert(arg_allocas.begin(), left_value ? left_value : left_alloca);
+            args.insert(args.begin(), left_value ? left_value : llvm_ir_builder.CreateLoad(ll_pointer, left_alloca));
+            arg_allocas.insert(arg_allocas.begin(), left_alloca);
             auto name = right->castToCallExpression()->name->castToIdentifierLiteral()->value;
             if (left_type->is_method(name, params_types)) {
                 auto method = left_type->get_method(name, params_types);
@@ -1701,7 +1701,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto [right_value, right_alloca, _right_type, rtt] = this->_resolveValue(right);
     if (ltt != resolveType::StructInst && !(ltt == resolveType::StructType && std::get<RecordStructType*>(_left_type)->name == "nullptr") ||
         (rtt != resolveType::StructInst && !(rtt == resolveType::StructType && std::get<RecordStructType*>(_right_type)->name == "nullptr"))) {
-        errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 types or modules");
+        errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Cant " + token::tokenTypeToString(op) + " 2 types or modules");
     }
     auto left_val = left_value;
     auto right_val = right_value;
@@ -1709,7 +1709,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto right_type = std::get<RecordStructType*>(_right_type);
     if (left_type->is_enum_kind && right_type->is_enum_kind) {
         if (!_checkType(left_type, right_type)) {
-            errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant " + token::tokenTypeString(op) + " 2 diffrent types enums");
+            errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Cant " + token::tokenTypeToString(op) + " 2 diffrent types enums");
         }
         auto left_val = left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, left_alloca);
         auto right_val = right_value ? right_value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, right_alloca);
@@ -1747,7 +1747,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op));
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
             }
         }
     }
@@ -1816,7 +1816,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return this->_StructInfixCall("__pow__", "**", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Cant operator: `" + token::tokenTypeString(op) + "` 2 structs", "");
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Cant operator: `" + token::tokenTypeToString(op) + "` 2 structs", "");
             }
         }
     }
@@ -1914,10 +1914,10 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Power operator not supported for int");
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Power operator not supported for int");
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op));
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
             }
         }
     } else if (common_type->stand_alone_type->isDoubleTy() || common_type->stand_alone_type->isFloatTy()) {
@@ -1966,10 +1966,10 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Power operator not supported for float");
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Power operator not supported for float");
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeString(op), "Unknown operator: " + token::tokenTypeString(op));
+                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
             }
         }
     } else {
@@ -3125,10 +3125,9 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     this->source = gc_source;
 
     // Parse the source code into an AST
-    auto lexer = new Lexer(gc_source_path, gc_source);
-    auto parser = new parser::Parser(lexer);
+    auto toks = Lexer(gc_source.c_str(), gc_source_path).Tokenize();
+    auto parser = new parser::Parser(toks, gc_source_path);
     auto program = parser->parseProgram();
-    delete lexer;
     delete parser;
 
     // Create a new module record if not importing into an existing module

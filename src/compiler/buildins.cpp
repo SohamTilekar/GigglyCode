@@ -4,7 +4,7 @@
 #include <llvm/IR/DerivedTypes.h>
 
 void compiler::Compiler::initilizeArray() {
-    Lexer lexer_instance(
+    auto toks = Lexer(
 R"(
 @generic(T: Any)
 struct array {
@@ -19,8 +19,8 @@ struct array {
     }
 };
 )",
-this->file_path);
-    auto parser_instance = parser::Parser(&lexer_instance);
+this->file_path).Tokenize();
+    auto parser_instance = parser::Parser(toks, "");
     auto ast_instance = parser_instance.parseProgram();
     this->compile(ast_instance->statements[0]);
     this->ll_array = llvm::StructType::create(this->llvm_context, {this->ll_pointer, this->ll_int}, "array");

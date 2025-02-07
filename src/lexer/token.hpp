@@ -1,22 +1,14 @@
-/**
- * @file token.hpp
- * @brief This file contains the definition of tokens used in the lexer.
- *
- * It includes the TokenType enum class which represents different types of
- * tokens, and the Token class which represents a token in the source code.
- * Additionally, it provides utility functions for converting TokenType to
- * string and printing tokens.
- */
 #ifndef TOKENS_HPP
 #define TOKENS_HPP
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <deque>
 #include <string>
+#include <vector>
 
 namespace token {
-
-/**
- * @brief Enum class representing different types of tokens.
- */
-enum class TokenType {
+enum struct TokenType : char {
     // Special Tokens
     EndOfFile, // End of file token
     Illegal,   // Illegal token
@@ -34,10 +26,10 @@ enum class TokenType {
     Identifier, // Identifier token [a-zA-Z_][a-zA-Z0-9_]*
     Integer,    // Integer token [0-9]+
     Float,      // Float token [0-9]+.[0-9]+
-    String,     // String token "[\"'].*[\"']" | "'''[^']*'''" | '"""[^"]*"""'
-    RawString,  // Raw String token "r[\"'].*[\"']" | "R[\"'].*[\"']" |
-                // "r'''[^']*'''" | "R'''[^']*'''" | '"""[^"]*"""' |
-                // 'R"""[^"]*"""'
+    StringSSQ,     // String token `'...'`
+    StringDSQ,     // String token `"..."`
+    StringSTQ,     // String token `'''...'''`
+    StringDTQ,     // String token `"""..."""`
 
     // Assignment Operators
     PlusEqual,          // Addition assignment '+='
@@ -129,58 +121,74 @@ enum class TokenType {
  * @param type The TokenType to convert.
  * @return std::string The string representation of the TokenType.
  */
-std::string tokenTypeString(TokenType type);
+std::string tokenTypeToString(TokenType type);
 
-/**
- * @brief Class representing a token in the source code.
- */
-class Token {
-  public:
-    TokenType type;      ///< The type of the token.
-    std::string literal; ///< The literal value of the token.
-    int st_line_no;      ///< The line number where the token is located.
-    int end_line_no;     ///< The line number where the token is located.
-    int end_col_no;      ///< The ending column number of the token.
-    int col_no;          ///< The starting column number of the token.
+#define UINT24_MAX 16777215
 
-    /**
-     * @brief Default constructor for Token.
-     */
-    inline Token() {};
+struct Token {
+    TokenType type = TokenType::Illegal;
+    uint32_t pos : 24 = UINT24_MAX;
 
-    /**
-     * @brief Constructor for Token with type, line number, and column number.
-     *
-     * @param type The type of the token.
-     * @param lineNo The line number where the token is located.
-     * @param colNo The column number where the token starts.
-     */
-    inline Token(TokenType type, int lineNo, int colNo, int endColNo) : type(type), st_line_no(lineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
+    inline Token() = default;
+    inline Token(TokenType type, uint32_t pos) : type(type), pos(pos) {};
 
-    /**
-     * @brief Constructor for Token with type, literal, line number, and column
-     * number.
-     *
-     * @param type The type of the token.
-     * @param literal The literal value of the token.
-     * @param lineNo The line number where the token is located.
-     * @param colNo The column number where the token starts.
-     */
-    inline Token(TokenType type, std::string literal, int stLineNo, int lineNo, int colNo, int endColNo)
-        : type(type), literal(literal), st_line_no(stLineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
+    uint32_t getStLineNo(const char* source) const;
+    uint32_t getEnLineNo(const char* source) const;
+    uint32_t getStColNo(const char* source) const;
+    uint32_t getEnColNo(const char* source) const;
+    uint32_t getEnPos(const char* source) const;
+
+    const std::string getLiteral(const char* source) const;
 
     /**
      * @brief Convert the current token to a string.
      *
-     * @param color If true, adds color to the string for CLI printing.
-     * @return std::string The string representation of the token.
+     * @param color If true, adds color to the string for CLI printing in ANSI format.
      */
-    std::string toString(bool color = true);
+    std::string toString(std::string source, bool color = true) const;
 
-    /**
-     * @brief Print the current token to the CLI.
-     */
-    void print();
+    void print(std::string source) const;
+  private:
+    static bool _isDigit(const char character) {
+        return character >= '0' && character <= '9'; /* 0-9 in ansi is lied in one after the another*/
+    };
+
+    static bool _isHexDigit(const char character) {
+        return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f') || (character >= 'A' && character <= 'F');
+    };
+
+    static bool _isLetter(const char character) {
+        return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '_'; /* a-z & A-Z in ansi is lied in one after the another*/
+    };
+};
+
+struct Tokens {
+    std::vector<Token> tokens = {};
+    std::deque<Token> token_buffer = {};
+    uint32_t current_token = 0;
+    const char* source;
+    Tokens() = delete;
+    Tokens(const char* source) : source(source) {}
+
+    void append(Token token) {
+        tokens.push_back(token);
+    };
+
+    void append2buf(Token token) {
+        token_buffer.push_back(token);
+    };
+
+    Token nextToken() {
+        if (!token_buffer.empty()) {
+            auto tok = token_buffer.back();
+            token_buffer.pop_back();
+            return tok;
+        }
+        if (current_token >= tokens.size()) return token::Token(TokenType::EndOfFile, UINT24_MAX);
+        auto tok = tokens[current_token];
+        current_token++;
+        return tok;
+    }
 };
 
 } // namespace token
