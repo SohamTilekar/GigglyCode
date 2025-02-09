@@ -223,7 +223,7 @@ void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
         errors::raiseNodeOutsideError(this->file_path, this->source.string, node, errors::OutsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary");
     }
     if (node->loopIdx >= this->env->loop_ifbreak_block.size()) {
-        auto idx_tok = token::Token(token::TokenType::Integer, node->pos);
+        auto idx_tok = token::Token(token::TokenType::Integer, node->IdxPos);
         errors::raiseCompletionError(this->file_path,
                                      this->source.string,
                                      idx_tok.getStLineNo(this->source),
@@ -253,7 +253,7 @@ void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
                                       "Remove the Continue statement, it is not necessary");
     }
     if (node->loopIdx >= this->env->loop_ifbreak_block.size()) {
-        auto idx_tok = token::Token(token::TokenType::Integer, node->pos);
+        auto idx_tok = token::Token(token::TokenType::Integer, node->IdxPos);
         errors::raiseCompletionError(this->file_path,
                                      this->source.string,
                                      idx_tok.getStLineNo(this->source),

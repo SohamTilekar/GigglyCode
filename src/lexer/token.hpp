@@ -3,9 +3,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <deque>
+#include <iostream>
+#include <ostream>
 #include <string>
-#include <vector>
+
 
 #include "../config.hpp"
 
@@ -124,12 +125,6 @@ enum struct TokenType : char {
     Other,    // Other keyword 'other'
 };
 
-/**
- * @brief Convert TokenType to string for debugging.
- *
- * @param type The TokenType to convert.
- * @return std::string The string representation of the TokenType.
- */
 std::string tokenTypeToString(TokenType type);
 
 #define UINT24_MAX 1'67'77'215
@@ -150,11 +145,6 @@ struct Token {
     const std::string getLiteral(str source) const;
     const std::string getIdentLiteral(str source) const;
 
-    /**
-     * @brief Convert the current token to a string.
-     *
-     * @param color If true, adds color to the string for CLI printing in ANSI format.
-     */
     std::string toString(std::string source, bool color = true) const;
 
     void print(std::string source) const;
@@ -173,31 +163,65 @@ struct Token {
 };
 
 struct Tokens {
-    std::vector<Token> tokens = {};
-    std::deque<Token> token_buffer = {};
+    Token* tokens = nullptr;
+    uint32_t tokens_size = 0;
+    uint32_t tokens_capacity = 100;
+    Token* token_buffer = nullptr;
+    uint32_t token_buffer_size = 0;
+    uint32_t token_buffer_capacity = 100;
     uint32_t current_token = 0;
     str source;
     Tokens() = delete;
-    Tokens(str source) : source(source) {}
+    Tokens(str source) : source(source) {
+        tokens = (Token*)malloc(tokens_capacity * sizeof(Token));
+        if (tokens == nullptr) {
+            std::cerr << "Memory allocation failed for tokens" << std::endl;
+            exit(1);
+        }
+        token_buffer = (Token*)malloc(token_buffer_capacity * sizeof(Token));
+        if (token_buffer == nullptr) {
+            free(tokens);
+            std::cerr << "Memory allocation failed for token_buffer" << std::endl;
+            exit(1);
+        }
+    }
+    ~Tokens() {
+        free(tokens);
+        free(token_buffer);
+    }
 
     void append(Token token) {
-        tokens.push_back(token);
+        if (tokens_size >= tokens_capacity) {
+            uint32_t new_capacity = tokens_capacity * 2;
+            tokens = (Token*)realloc(tokens, new_capacity * sizeof(Token));
+            if (tokens == nullptr) {
+                std::cerr << "Memory reallocation failed for tokens" << std::endl;
+                exit(1);
+            }
+            tokens_capacity = new_capacity;
+        }
+        tokens[tokens_size++] = token;
     };
 
     void append2buf(Token token) {
-        token_buffer.push_back(token);
+        if (token_buffer_size >= token_buffer_capacity) {
+            uint32_t new_capacity = token_buffer_capacity * 2;
+            token_buffer = (Token*)realloc(token_buffer, new_capacity * sizeof(Token));
+            if (token_buffer == nullptr) {
+                std::cerr << "Memory reallocation failed for token_buffer" << std::endl;
+                exit(1);
+            }
+            token_buffer_capacity = new_capacity;
+        }
+        token_buffer[token_buffer_size++] = token;
     };
 
     Token nextToken() {
-        if (!token_buffer.empty()) {
-            auto tok = token_buffer.back();
-            token_buffer.pop_back();
-            return tok;
+        if (token_buffer_size > 0) {
+            return token_buffer[--token_buffer_size];
         }
-        if (current_token >= tokens.size()) return token::Token(TokenType::EndOfFile, UINT24_MAX);
-        auto tok = tokens[current_token];
-        current_token++;
-        return tok;
+        if (current_token >= tokens_size) return token::Token(TokenType::EndOfFile, UINT24_MAX);
+        return tokens[current_token++];
     }
 };
 

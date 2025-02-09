@@ -94,9 +94,9 @@ std::string nodeTypeToString(NodeType type);
 #endif
 
 struct Node {
-    token::Token lastToken;
-    uint32_t firstToken : 24;
     NodeType type = NodeType::Unknown;
+    uint32_t firstToken : 24;
+    token::Token lastToken;
 
     #ifdef DEBUG_PARSER
         virtual inline std::string toStr() {
@@ -247,9 +247,9 @@ struct FunctionStatement : public Statement {
     std::vector<FunctionParameter*> parameters;
     std::vector<FunctionParameter*> closure_parameters;
     Type* return_type;
-    bool return_const;
     BlockStatement* body;
     std::vector<Type*> generic;
+    bool return_const;
     bool autocast = false;
     inline FunctionStatement(
         uint32_t firstToken, token::Token lastToken, Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, bool return_const, BlockStatement* body, const std::vector<Type*>& generic)
@@ -325,15 +325,15 @@ struct ForEachStatement : public Statement {
 
 struct BreakStatement : public Statement {
     uint8_t loopIdx;
-    uint32_t pos : 24;
+    uint32_t IdxPos : 24;
     BreakStatement(uint32_t firstToken, token::Token lastToken, uint8_t loopNum)
         : Statement(firstToken, lastToken), loopIdx(loopNum) { type = NodeType::BreakStatement; };
     DefToStr;
 };
 
 struct ContinueStatement : public Statement {
-  uint8_t loopIdx;
-  uint32_t pos : 24;
+    uint8_t loopIdx;
+    uint32_t IdxPos : 24;
     ContinueStatement(uint32_t firstToken, token::Token lastToken, int loopNum)
         : Statement(firstToken, lastToken), loopIdx(loopNum) { type = NodeType::ContinueStatement; };
     DefToStr;

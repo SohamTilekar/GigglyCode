@@ -35,8 +35,9 @@ class MacroInterpreter {
 public:
     MacroInterpreter(token::Tokens tokens, parser::Parser* parser) : tokens(tokens), parser(parser) {};
 
-    void interpret(AST::MacroStatement* macro) { visitBlockStatement(macro->body); };
+    void interpret(AST::MacroStatement* macro, token::Token peek_token) { peekTok = peek_token; visitBlockStatement(macro->body); };
 private:
+    token::Token peekTok;
     token::Tokens tokens;
     parser::Parser* parser;
     std::unordered_map<std::string, MIObjects> variabels;

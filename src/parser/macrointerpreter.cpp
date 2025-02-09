@@ -72,8 +72,9 @@ void MacroInterpreter::visitReturnStatement(AST::ReturnStatement* node) {
     }
     // Iterating through the return_value vector in reverse & pussing tokens to the lexer->tokenBuffer
     const auto& tokens = std::get<std::vector<token::Token>>(return_value.Value);
+    this->tokens.append2buf(this->peekTok);
     for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
-        this->tokens.append(*it);
+        this->tokens.append2buf(*it);
     }
 };
 
@@ -235,12 +236,12 @@ MIObjects MacroInterpreter::visitCallExpression(AST::CallExpression* node) {
         if (node->arguments.size() != 0) {
             throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
         }
-        return {MIObjectType::Token, parser->current_token};
+        return {MIObjectType::Token, parser->currentToken};
     } else if (name == "peekToken") {
         if (node->arguments.size() != 0) {
             throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
         }
-        return {MIObjectType::Token, parser->peek_token};
+        return {MIObjectType::Token, parser->peekToken};
     }
     throw error("WDF is " + name + " " + __FILE__ + ":" + std::to_string(__LINE__));
 };
