@@ -1,5 +1,6 @@
 #ifndef COMPILATION_STATE
 #define COMPILATION_STATE
+#include "config.hpp"
 #include "compiler/enviornment/enviornment.hpp"
 #include <string>
 #include <variant>

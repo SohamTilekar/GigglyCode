@@ -80,25 +80,10 @@ bool _checkFunctionParameterType(RecordFunction* func_record, std::vector<Record
 }
 
 // Checks if a struct type has a specific method matching the given criteria
-bool RecordStructType::is_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
+bool RecordStructType::is_method(const std::string& name, const std::vector<RecordStructType*>& params_types, RecordStructType* return_type, bool exact, bool is_autocast) {
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
-        bool match = true;
-
-        // Verify extra information matches
-        for (const auto& [key, value] : ex_info.bool_map) {
-            if (key == "autocast") {
-                auto it = method->extra_info.bool_map.find(key);
-                if (it == method->extra_info.bool_map.end() || it->second != value) {
-                    match = false;
-                    break;
-                }
-            } else {
-                // Unsupported keys in ex_info will cause an error
-                std::cerr << "Unsupported key found in ex_info: " << key << std::endl;
-                throw std::runtime_error("Unsupported key found in ex_info: " + key);
-            }
-        }
+        bool match = (is_autocast ? method->is_auto_cast : true);
 
         // Check if return type matches (if specified)
         bool return_correct = !return_type || _checkType(return_type, method->return_type);
@@ -114,25 +99,9 @@ bool RecordStructType::is_method(const std::string& name, const std::vector<Reco
 }
 
 // Retrieves a method from a struct type that matches the given criteria
-RecordFunction* RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
+RecordFunction* RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, RecordStructType* return_type, bool exact) {
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
-        bool match = true;
-
-        // Verify extra information matches
-        for (const auto& [key, value] : ex_info.bool_map) {
-            if (key == "autocast") {
-                auto it = method->extra_info.bool_map.find(key);
-                if (it == method->extra_info.bool_map.end() || it->second != value) {
-                    match = false;
-                    break;
-                }
-            } else {
-                // Throw an error for unsupported keys
-                throw std::runtime_error("Unsupported key found in ex_info: " + key);
-            }
-        }
-
         // Check if return type matches (if specified)
         bool return_correct = !return_type || _checkType(return_type, method->return_type);
         // Check if method name matches (if specified)
@@ -141,7 +110,7 @@ RecordFunction* RecordStructType::get_method(const std::string& name, const std:
         bool params_match = _checkFunctionParameterType(method, params_types);
 
         // If all conditions are met, return the matching method
-        if (return_correct && match && name_matches && params_match) { return method; }
+        if (return_correct && name_matches && params_match) { return method; }
     }
     // Return nullptr if no matching method is found
     return nullptr;

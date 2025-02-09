@@ -1,48 +1,48 @@
 #ifndef AST_HPP
 #define AST_HPP
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "../../config.hpp"
 #include "../../lexer/token.hpp"
 
 namespace AST {
-class Node;
-class Statement;
-class Type;
-class Program;
-class FunctionParameter;
-class Expression;
-class IdentifierLiteral;
-class IntegerLiteral;
-class FloatLiteral;
-class StringLiteral;
-class BooleanLiteral;
-class ArrayLiteral;
-class InfixExpression;
-class IndexExpression;
-class CallExpression;
-class ExpressionStatement;
-class BlockStatement;
-class ReturnStatement;
-class RaiseStatement;
-class FunctionStatement;
-class IfElseStatement;
-class WhileStatement;
-class ForEachStatement;
-class ForStatement;
-class BreakStatement;
-class ContinueStatement;
-class ImportStatement;
-class VariableDeclarationStatement;
-class VariableAssignmentStatement;
-class TryCatchStatement;
-class StructStatement;
-class EnumStatement;
-class SwitchCaseStatement;
-class MacroStatement;
+struct Node;
+struct Statement;
+struct Type;
+struct Program;
+struct FunctionParameter;
+struct Expression;
+struct IdentifierLiteral;
+struct IntegerLiteral;
+struct FloatLiteral;
+struct StringLiteral;
+struct BooleanLiteral;
+struct ArrayLiteral;
+struct InfixExpression;
+struct IndexExpression;
+struct CallExpression;
+struct ExpressionStatement;
+struct BlockStatement;
+struct ReturnStatement;
+struct RaiseStatement;
+struct FunctionStatement;
+struct IfElseStatement;
+struct WhileStatement;
+struct ForEachStatement;
+struct ForStatement;
+struct BreakStatement;
+struct ContinueStatement;
+struct ImportStatement;
+struct VariableDeclarationStatement;
+struct VariableAssignmentStatement;
+struct TryCatchStatement;
+struct StructStatement;
+struct EnumStatement;
+struct SwitchCaseStatement;
+struct MacroStatement;
 
-enum class NodeType {
+enum struct NodeType : char {
     Program,
     Unknown,
 
@@ -87,53 +87,53 @@ enum class NodeType {
 
 std::string nodeTypeToString(NodeType type);
 
-struct MoreData {
-    std::unordered_map<std::string, uint32_t> int_map = {};
-    std::unordered_map<std::string, std::string> str_map = {};
-    std::unordered_map<std::string, std::tuple<uint32_t, uint32_t>> pos_map = {};
-    std::unordered_map<std::string, bool> bool_map = {};
+#ifdef DEBUG_PARSER
+#define DefToStr std::string toStr() override
+#else
+#define DefToStr
+#endif
 
-    MoreData() = default;
-    MoreData(std::unordered_map<std::string, uint32_t> int_map) : int_map(int_map) {}
-    MoreData(std::unordered_map<std::string, std::string> str_map) : str_map(str_map) {}
-    MoreData(std::unordered_map<std::string, bool> bool_map) : bool_map(bool_map) {}
-    MoreData(std::unordered_map<std::string, std::tuple<uint32_t, uint32_t>> pos_map) : pos_map(pos_map) {}
+struct Node {
+    token::Token lastToken;
+    uint32_t firstToken : 24;
+    NodeType type = NodeType::Unknown;
 
-    // Overload for std::pair<int, int> to avoid ambiguity with std::tuple
-    void insert(const std::string& key, const std::pair<uint32_t, uint32_t>& value) { pos_map[key] = value; }
-    void insert(const std::string& key, const std::tuple<uint32_t, uint32_t>& value) { pos_map[key] = value; }
-    void insert(const std::string& key, const uint32_t value) { int_map[key] = value; }
-    void insert(const std::string& key, const std::string value) { str_map[key] = value; }
-    void insert(const std::string& key, const bool value) { bool_map[key] = value; }
-};
+    #ifdef DEBUG_PARSER
+        virtual inline std::string toStr() {
+            std::string yaml = "type: " + nodeTypeToString(type) + "\n";
+            return yaml;
+        }
+    #endif
 
-struct MetaData {
-    uint32_t st_line_no = -1;
-    uint32_t st_col_no = -1;
-    uint32_t end_line_no = -1;
-    uint32_t end_col_no = -1;
-    MoreData more_data;
-};
+    Node(uint32_t firstToken, token::Token lastToken)
+        : firstToken(firstToken), lastToken(lastToken) {};
+    Node() {};
 
-class Node {
-  public:
-    MetaData meta_data;
-    MoreData extra_info;
-
-    inline void set_meta_data(int st_line_num, int st_col_num, int end_line_num, int end_col_num) {
-        if (this->type() == NodeType::IdentifierLiteral) return;
-        meta_data.st_line_no = st_line_num;
-        meta_data.st_col_no = st_col_num;
-        meta_data.end_line_no = end_line_num;
-        meta_data.end_col_no = end_col_num;
+    uint32_t getStColNo(str source) const {
+            return firstToken;
     }
 
-    virtual inline NodeType type() { return NodeType::Unknown; }
-
-    virtual inline std::string toStr() {
-        std::string yaml = "type: " + nodeTypeToString(this->type()) + "\n";
-        return yaml;
+    uint32_t getStLineNo(str source) const {
+        uint32_t line_no = 1;
+        uint32_t pos = 0;
+        while (pos < this->firstToken && pos < source.len) {
+            if (source.string[pos] == '\n') {
+                line_no++;
+            }
+            pos++;
+        }
+        return line_no;
     }
+
+    uint32_t getEnLineNo(str source) const {
+        return lastToken.getEnLineNo(source);
+    }
+
+    uint32_t getEnColNo(str source) const {
+        return lastToken.getEnColNo(source);
+    }
+
+    void del();
 
     Expression* castToExpression() { return (Expression*)(this); }
     Statement* castToStatement() { return (Statement*)(this); }
@@ -170,105 +170,79 @@ class Node {
     InfixExpression* castToInfixExpression() { return (InfixExpression*)(this); }
     IndexExpression* castToIndexExpression() { return (IndexExpression*)(this); }
     CallExpression* castToCallExpression() { return (CallExpression*)(this); }
-
-    // Destructor Declaration
-    virtual ~Node() = default;
 };
 
-class Statement : public Node {
-  public:
-    // Destructor Declaration
-    virtual ~Statement() = default;
-};
+struct Statement : public Node { using Node::Node; };
 
-class Expression : public Node {
-  public:
-    // Destructor Declaration
-    virtual ~Expression() = default;
-};
+struct Expression : public Node { using Node::Node; };
 
-class Type : public Node {
-  public:
+struct Type : public Node {
     Expression* name;
     std::vector<Type*> generics;
     bool refrence;
-    inline Type(Expression* name, const std::vector<Type*>& generics, bool refrence) : name(name), generics(generics), refrence(refrence) {}
-    NodeType type() override { return NodeType::Type; };
-    std::string toStr() override;
+    inline Type(uint32_t firstToken, token::Token lastToken, Expression* name, const std::vector<Type*>& generics, bool refrence)
+        : Node(firstToken, lastToken), name(name), generics(generics), refrence(refrence) { type = NodeType::Type; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~Type() override;
+    ~Type();
 };
 
-class Program : public Node {
-  public:
+struct Program : public Node {
     std::vector<Statement*> statements;
-    inline NodeType type() override { return NodeType::Program; };
-    std::string toStr() override;
+    Program() { type = NodeType::Program; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~Program() override;
+    ~Program();
 };
 
-class ExpressionStatement : public Statement {
-  public:
+struct ExpressionStatement : public Statement {
     Expression* expr;
-    inline ExpressionStatement(Expression* expr = nullptr) : expr(expr) {}
-    inline NodeType type() override { return NodeType::ExpressionStatement; };
-    std::string toStr() override;
+    inline ExpressionStatement(uint32_t firstToken, token::Token lastToken, Expression* expr = nullptr)
+        : Statement(firstToken, lastToken), expr(expr) { type = NodeType::ExpressionStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~ExpressionStatement() override;
+    ~ExpressionStatement();
 };
 
-class BlockStatement : public Statement {
-  public:
+struct BlockStatement : public Statement {
     std::vector<Statement*> statements;
-    inline NodeType type() override { return NodeType::BlockStatement; };
-    inline BlockStatement(const std::vector<Statement*>& statements = {}) : statements(statements) {}
-    std::string toStr() override;
+    inline BlockStatement(uint32_t firstToken, token::Token lastToken, const std::vector<Statement*>& statements = {})
+        : Statement(firstToken, lastToken), statements(statements) { type = NodeType::BlockStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~BlockStatement() override;
+    ~BlockStatement();
 };
 
-class ReturnStatement : public Statement {
-  public:
+struct ReturnStatement : public Statement {
     Expression* value;
-    inline ReturnStatement(Expression* exp = nullptr) : value(exp) {}
-    inline NodeType type() override { return NodeType::ReturnStatement; };
-    std::string toStr() override;
+    inline ReturnStatement(uint32_t firstToken, token::Token lastToken, Expression* exp = nullptr)
+        : Statement(firstToken, lastToken), value(exp) { type = NodeType::ReturnStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~ReturnStatement() override;
+    ~ReturnStatement();
 };
 
-class RaiseStatement : public Statement {
-  public:
+struct RaiseStatement : public Statement {
     Expression* value;
-    inline RaiseStatement(Expression* exp = nullptr) : value(exp) {}
-    inline NodeType type() override { return NodeType::RaiseStatement; };
-    std::string toStr() override;
+    inline RaiseStatement(uint32_t firstToken, token::Token lastToken, Expression* exp = nullptr)
+        : Statement(firstToken, lastToken), value(exp) { type = NodeType::RaiseStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~RaiseStatement() override;
+    ~RaiseStatement();
 };
 
-class FunctionParameter : public Node {
-  public:
+struct FunctionParameter : public Node {
     Expression* name;
     Type* value_type;
     bool constant;
-    inline FunctionParameter(Expression* name, Type* type, bool constant) : name(name), value_type(type), constant(constant) {}
-    inline NodeType type() override { return NodeType::FunctionParameter; };
-    std::string toStr() override;
+    inline FunctionParameter(uint32_t firstToken, token::Token lastToken, Expression* name, Type* type, bool constant)
+        : Node(firstToken, lastToken), name(name), value_type(type), constant(constant) { this->type = NodeType::FunctionParameter; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~FunctionParameter() override;
+    ~FunctionParameter();
 };
 
-class FunctionStatement : public Statement {
-  public:
+struct FunctionStatement : public Statement {
     Expression* name;
     std::vector<FunctionParameter*> parameters;
     std::vector<FunctionParameter*> closure_parameters;
@@ -276,298 +250,241 @@ class FunctionStatement : public Statement {
     bool return_const;
     BlockStatement* body;
     std::vector<Type*> generic;
+    bool autocast = false;
     inline FunctionStatement(
-        Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, bool return_const, BlockStatement* body, const std::vector<Type*>& generic)
-        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), return_const(return_const), body(body), generic(generic) {
-        this->extra_info.insert("autocast", false);
+        uint32_t firstToken, token::Token lastToken, Expression* name, std::vector<FunctionParameter*> parameters, std::vector<FunctionParameter*> closure_parameters, Type* return_type, bool return_const, BlockStatement* body, const std::vector<Type*>& generic)
+        : Statement(firstToken, lastToken), name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), return_const(return_const), body(body), generic(generic) {
+        this->type = NodeType::FunctionStatement;
     }
-    inline NodeType type() override { return NodeType::FunctionStatement; };
-    std::string toStr() override;
+    DefToStr;
 
-    // Destructor Declaration
-    ~FunctionStatement() override;
+    ~FunctionStatement();
 };
 
-class CallExpression : public Expression {
-  public:
-    Expression* name;
+struct CallExpression : public Expression {
+    IdentifierLiteral* name;
     std::vector<Expression*> arguments;
     std::vector<Expression*> generics;
     bool _new;
-    inline CallExpression(Expression* name, const std::vector<Expression*>& arguments = {}) : name(name), arguments(arguments), _new(false) {}
-    inline NodeType type() override { return NodeType::CallExpression; };
-    std::string toStr() override;
+    inline CallExpression(uint32_t firstToken, token::Token lastToken, IdentifierLiteral* name, const std::vector<Expression*>& arguments = {})
+        : Expression(firstToken, lastToken), name(name), arguments(arguments), _new(false) { type = NodeType::CallExpression; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~CallExpression() override;
+    ~CallExpression();
 };
 
-class IfElseStatement : public Statement {
-  public:
+struct IfElseStatement : public Statement {
     Expression* condition;
     Statement* consequence;
     Statement* alternative;
-    inline IfElseStatement(Expression* condition, Statement* consequence, Statement* alternative = nullptr) : condition(condition), consequence(consequence), alternative(alternative) {}
-    inline NodeType type() override { return NodeType::IfElseStatement; };
-    std::string toStr() override;
+    inline IfElseStatement(uint32_t firstToken, token::Token lastToken, Expression* condition, Statement* consequence, Statement* alternative = nullptr)
+        : Statement(firstToken, lastToken), condition(condition), consequence(consequence), alternative(alternative) { type = NodeType::IfElseStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~IfElseStatement() override;
+    ~IfElseStatement();
 };
 
-class WhileStatement : public Statement {
-  public:
+struct WhileStatement : public Statement {
     Expression* condition;
     Statement* body;
     Statement* ifbreak;
     Statement* notbreak;
-    inline WhileStatement(Expression* condition, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
-        : condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
-    inline NodeType type() override { return NodeType::WhileStatement; };
-    std::string toStr() override;
+    inline WhileStatement(uint32_t firstToken, token::Token lastToken, Expression* condition, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
+        : Statement(firstToken, lastToken), condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) { type = NodeType::IfElseStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~WhileStatement() override;
+    ~WhileStatement();
 };
 
-class ForStatement : public Statement {
-  public:
+struct ForStatement : public Statement {
     Statement* init;
     Expression* condition;
     Statement* update;
     Statement* body;
     Statement* ifbreak;
     Statement* notbreak;
-    inline ForStatement(Statement* init, Expression* condition, Statement* update, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
-        : init(init), condition(condition), update(update), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
-    inline NodeType type() override { return NodeType::ForStatement; };
-    std::string toStr() override;
+    inline ForStatement(uint32_t firstToken, token::Token lastToken, Statement* init, Expression* condition, Statement* update, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
+        : Statement(firstToken, lastToken), init(init), condition(condition), update(update), body(body), ifbreak(ifbreak), notbreak(notbreak) { type = NodeType::ForStatement; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~ForStatement() override;
+    ~ForStatement();
 };
 
-class ForEachStatement : public Statement {
-  public:
+struct ForEachStatement : public Statement {
     Expression* from;
     IdentifierLiteral* get;
     Statement* body;
     Statement* ifbreak;
     Statement* notbreak;
-    inline ForEachStatement(IdentifierLiteral* get, Expression* from, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
-        : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
-    inline NodeType type() override { return NodeType::ForEachStatement; };
-    std::string toStr() override;
+    inline ForEachStatement(uint32_t firstToken, token::Token lastToken, IdentifierLiteral* get, Expression* from, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
+        : Statement(firstToken, lastToken), get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) { type = NodeType::ForEachStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~ForEachStatement() override;
+    ~ForEachStatement();
 };
 
-class BreakStatement : public Statement {
-  public:
-    int loopIdx;
-    inline NodeType type() override { return NodeType::BreakStatement; };
-    BreakStatement(int loopNum = 0) : loopIdx(loopNum) {};
-    std::string toStr() override;
+struct BreakStatement : public Statement {
+    uint8_t loopIdx;
+    uint32_t pos : 24;
+    BreakStatement(uint32_t firstToken, token::Token lastToken, uint8_t loopNum)
+        : Statement(firstToken, lastToken), loopIdx(loopNum) { type = NodeType::BreakStatement; };
+    DefToStr;
 };
 
-class ContinueStatement : public Statement {
-  public:
-    unsigned short loopIdx = 0;
-    inline NodeType type() override { return NodeType::ContinueStatement; };
-    ContinueStatement(int loopNum) : loopIdx(loopNum) {};
-    std::string toStr() override;
+struct ContinueStatement : public Statement {
+  uint8_t loopIdx;
+  uint32_t pos : 24;
+    ContinueStatement(uint32_t firstToken, token::Token lastToken, int loopNum)
+        : Statement(firstToken, lastToken), loopIdx(loopNum) { type = NodeType::ContinueStatement; };
+    DefToStr;
 };
 
-class ImportStatement : public Statement {
-  public:
+struct ImportStatement : public Statement {
     std::string relativePath;
     std::string as;
-    inline NodeType type() override { return NodeType::ImportStatement; }
-    ImportStatement(const std::string& relativePath, const std::string& as) : relativePath(relativePath), as(as) {}
-    std::string toStr() override;
+    ImportStatement(uint32_t firstToken, token::Token lastToken, const std::string& relativePath, const std::string& as)
+        : Statement(firstToken, lastToken), relativePath(relativePath), as(as) { type = NodeType::ImportStatement; }
+    DefToStr;
 };
 
-class VariableDeclarationStatement : public Statement {
-  public:
+struct VariableDeclarationStatement : public Statement {
     Expression* name;
     Type* value_type;
     Expression* value;
     bool is_volatile = false;
     bool is_const = false;
-    inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = false, bool is_const = false) : name(name), value_type(type), value(value), is_volatile(is_volatile), is_const(is_const) {}
-    inline NodeType type() override { return NodeType::VariableDeclarationStatement; };
-    std::string toStr() override;
+    inline VariableDeclarationStatement(uint32_t firstToken, token::Token lastToken, Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = false, bool is_const = false)
+        : Statement(firstToken, lastToken), name(name), value_type(type), value(value), is_volatile(is_volatile), is_const(is_const) { this->type = NodeType::VariableDeclarationStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~VariableDeclarationStatement() override;
+    ~VariableDeclarationStatement();
 };
 
-class VariableAssignmentStatement : public Statement {
-  public:
+struct VariableAssignmentStatement : public Statement {
     Expression* name;
     Expression* value;
-    inline VariableAssignmentStatement(Expression* name, Expression* value) : name(name), value(value) {}
-    inline NodeType type() override { return NodeType::VariableAssignmentStatement; };
-    std::string toStr() override;
+    inline VariableAssignmentStatement(uint32_t firstToken, token::Token lastToken, Expression* name, Expression* value)
+        : Statement(firstToken, lastToken), name(name), value(value) { type = NodeType::VariableAssignmentStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~VariableAssignmentStatement() override;
+    ~VariableAssignmentStatement();
 };
 
-class TryCatchStatement : public Statement {
-  public:
+struct TryCatchStatement : public Statement {
     Statement* try_block;
     std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks;
-    inline TryCatchStatement(Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks) : try_block(try_block), catch_blocks(catch_blocks) {}
-    inline NodeType type() override { return NodeType::TryCatchStatement; };
-    std::string toStr() override;
+    inline TryCatchStatement(uint32_t firstToken, token::Token lastToken, Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks)
+        : Statement(firstToken, lastToken), try_block(try_block), catch_blocks(catch_blocks) { type = NodeType::TryCatchStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~TryCatchStatement() override;
+    ~TryCatchStatement();
 };
 
-class SwitchCaseStatement : public Statement {
-  public:
+struct SwitchCaseStatement : public Statement {
     Expression* condition;
     std::vector<std::tuple<Expression*, Statement*>> cases;
     Statement* other;
-    inline SwitchCaseStatement(Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr) : condition(condition), cases(cases), other(other) {};
-    inline NodeType type() override { return NodeType::SwitchCaseStatement; };
-    std::string toStr() override;
+    inline SwitchCaseStatement(uint32_t firstToken, token::Token lastToken, Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr)
+        : Statement(firstToken, lastToken), condition(condition), cases(cases), other(other) { type = NodeType::SwitchCaseStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~SwitchCaseStatement() override;
+    ~SwitchCaseStatement();
 };
 
-class InfixExpression : public Expression {
-  public:
+struct InfixExpression : public Expression {
     Expression* left;
     Expression* right;
     token::TokenType op;
-    inline InfixExpression(Expression* left, token::TokenType op, const std::string& literal, Expression* right = nullptr) : left(left), right(right), op(op) {
-        this->meta_data.more_data.insert("operator_literal", literal);
-    }
-    inline NodeType type() override { return NodeType::InfixedExpression; };
-    std::string toStr() override;
+    inline InfixExpression(uint32_t firstToken, token::Token lastToken, Expression* left, token::TokenType op, const std::string& literal, Expression* right = nullptr)
+        : Expression(firstToken, lastToken), left(left), right(right), op(op) { type = NodeType::InfixedExpression; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~InfixExpression() override;
+    ~InfixExpression();
 };
 
-class IndexExpression : public Expression {
-  public:
+struct IndexExpression : public Expression {
     Expression* left;
     Expression* index;
-    inline IndexExpression(Expression* left, Expression* index) : left(left), index(index) {}
-    inline IndexExpression(Expression* left) : left(left), index(nullptr) {}
-    inline NodeType type() override { return NodeType::IndexExpression; };
-    std::string toStr() override;
+    inline IndexExpression(uint32_t firstToken, token::Token lastToken, Expression* left, Expression* index)
+        : Expression(firstToken, lastToken), left(left), index(index) { type = NodeType::IndexExpression; }
+    DefToStr;
 
-    // Destructor Declaration
-    ~IndexExpression() override;
+    ~IndexExpression();
 };
 
-class IntegerLiteral : public Expression {
-  public:
-    long long int value;
-    inline IntegerLiteral(long long int value) : value(value) {}
-    inline NodeType type() override { return NodeType::IntegerLiteral; };
-    std::string toStr() override;
-
-    // Destructor Declaration
-    ~IntegerLiteral() override;
+struct IntegerLiteral : public Expression {
+    int64_t value;
+    inline IntegerLiteral(uint32_t firstToken, token::Token lastToken, int64_t value)
+        : Expression(firstToken, lastToken), value(value) { type = NodeType::IntegerLiteral; };
+    DefToStr;
 };
 
-class FloatLiteral : public Expression {
-  public:
+struct FloatLiteral : public Expression {
     double value;
-    inline FloatLiteral(double value) : value(value) {}
-    inline NodeType type() override { return NodeType::FloatLiteral; };
-    std::string toStr() override;
-
-    // Destructor Declaration
-    ~FloatLiteral() override;
+    inline FloatLiteral(uint32_t firstToken, token::Token lastToken, double value)
+        : Expression(firstToken, lastToken), value(value) { type = NodeType::FloatLiteral; };
+    DefToStr;
 };
 
-class StringLiteral : public Expression {
-  public:
+struct StringLiteral : public Expression {
     std::string value;
-    inline StringLiteral(const std::string& value) : value(value) { this->meta_data.more_data.insert("length", uint32_t(value.length())); }
-    inline NodeType type() override { return NodeType::StringLiteral; };
-    std::string toStr() override;
-
-    // Destructor Declaration
-    ~StringLiteral() override;
+    inline StringLiteral(uint32_t firstToken, token::Token lastToken, const std::string& value)
+        : Expression(firstToken, lastToken), value(value) { type = NodeType::StringLiteral; };
+    DefToStr;
 };
 
-class IdentifierLiteral : public Expression {
-  public:
+struct IdentifierLiteral : public Expression {
     std::string value;
-    inline IdentifierLiteral(std::string value) : value(value) {}
-    inline NodeType type() override { return NodeType::IdentifierLiteral; };
-    std::string toStr() override;
-
-    // Destructor Declaration
-    ~IdentifierLiteral() override;
+    inline IdentifierLiteral(uint32_t firstToken, token::Token lastToken, std::string value)
+        : Expression(firstToken, lastToken), value(value) { type = NodeType::IdentifierLiteral; };
+    DefToStr;
 };
 
-class BooleanLiteral : public Expression {
-  public:
+struct BooleanLiteral : public Expression {
     bool value;
-    inline BooleanLiteral(bool value) : value(value) {}
-    inline NodeType type() override { return NodeType::BooleanLiteral; };
-    std::string toStr() override;
-
-    // Destructor Declaration
-    ~BooleanLiteral() override;
+    inline BooleanLiteral(uint32_t firstToken, token::Token lastToken, bool value)
+        : Expression(firstToken, lastToken), value(value) { type = NodeType::BooleanLiteral; };
+    DefToStr;
 };
 
-class StructStatement : public Statement {
-  public:
+struct StructStatement : public Statement {
     Expression* name = nullptr;
     std::vector<Statement*> fields = {};
     std::vector<Type*> generics = {};
-    inline StructStatement(Expression* name, const std::vector<Statement*>& fields) : name(name), fields(fields) {}
-    inline NodeType type() override { return NodeType::StructStatement; };
-    std::string toStr() override;
+    inline StructStatement(uint32_t firstToken, token::Token lastToken, Expression* name, const std::vector<Statement*>& fields)
+        : Statement(firstToken, lastToken), name(name), fields(fields) { type = NodeType::StructStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~StructStatement() override;
+    ~StructStatement();
 };
 
-class EnumStatement : public Statement {
-  public:
+struct EnumStatement : public Statement {
     Expression* name = nullptr;
     std::vector<std::string> fields = {};
-    inline EnumStatement(Expression* name, const std::vector<std::string>& fields) : name(name), fields(fields) {}
-    ~EnumStatement() override;
-    inline NodeType type() override { return NodeType::EnumStatement; };
-    std::string toStr() override;
+    inline EnumStatement(uint32_t firstToken, token::Token lastToken, Expression* name, const std::vector<std::string>& fields)
+        : Statement(firstToken, lastToken), name(name), fields(fields) { type = NodeType::EnumStatement; }
+    ~EnumStatement();
+    DefToStr;
 };
 
-class MacroStatement : public Statement {
-  public:
+struct MacroStatement : public Statement {
     std::string name;
     BlockStatement* body;
-    inline MacroStatement(std::string name, BlockStatement* body) : name(name), body(body) {}
-    inline NodeType type() override { return NodeType::MacroStatement; };
-    std::string toStr() override;
+    inline MacroStatement(std::string name, BlockStatement* body)
+        : name(name), body(body) { type = NodeType::MacroStatement; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~MacroStatement() override;
+    ~MacroStatement();
 };
 
-class ArrayLiteral : public Expression {
-  public:
+struct ArrayLiteral : public Expression {
     std::vector<Expression*> elements;
     bool _new;
-    inline ArrayLiteral(const std::vector<Expression*>& elements, bool _new = false) : elements(elements), _new(_new) {}
-    inline NodeType type() override { return NodeType::ArrayLiteral; };
-    std::string toStr() override;
+    inline ArrayLiteral(uint32_t firstToken, token::Token lastToken, const std::vector<Expression*>& elements, bool _new = false)
+        : Expression(firstToken, lastToken), elements(elements), _new(_new) { type = NodeType::ArrayLiteral; };
+    DefToStr;
 
-    // Destructor Declaration
-    ~ArrayLiteral() override;
+    ~ArrayLiteral();
 };
 
 } // namespace AST

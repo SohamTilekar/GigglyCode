@@ -17,18 +17,13 @@
 #include <vector>
 
 // Include necessary headers
+#include "config.hpp"
 #include "compilation_state.hpp"
 #include "compiler/compiler.hpp"
 #include "errors/errors.hpp"
 #include "include/cli11.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
-
-#define DEBUG_LEXER
-#define DEBUG_PARSER
-
-constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
-constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
 
 // =======================================
 // Helper Function to Run External Commands
@@ -356,9 +351,9 @@ class Compiler {
         parser::Parser parser(toks, filePath);
         auto program = parser.parseProgram();
 
-        compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string());
+        compiler::Compiler comp(fileContent.c_str(), std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string());
         comp.compile(program);
-        delete program;
+        program->del();
 
         // Write LLVM IR to file
         std::error_code EC;
@@ -495,7 +490,7 @@ class Compiler {
         } else {
             std::cout << program->toStr();
         }
-        delete program;
+        program->del();
 #endif
     }
 };

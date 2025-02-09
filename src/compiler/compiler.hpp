@@ -19,6 +19,7 @@
 #include <vector>
 
 // === Project-specific Headers ===
+#include "../config.hpp"
 #include "../compilation_state.hpp"
 #include "../parser/AST/ast.hpp"
 #include "./enviornment/enviornment.hpp"
@@ -155,7 +156,7 @@ class Compiler {
      * @param buildDir The build directory path.
      * @param relativePath The relative path of the source file.
      */
-    Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
+    Compiler(str source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
 
     ~Compiler();
 
@@ -203,7 +204,7 @@ class Compiler {
     // === Member Variables ===
 
     // --- Source Information ---
-    Str source;                         ///< Source code as a string
+    str source;                         ///< Source code as a string
     std::filesystem::path buildDir;     ///< Build directory path
     std::filesystem::path relativePath; ///< Relative path of the source file
     std::filesystem::path file_path;    ///< Full path of the source file

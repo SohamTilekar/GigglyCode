@@ -10,14 +10,13 @@
 #include <string>
 #include <unordered_map>
 
-#include "../lexer/lexer.hpp"
+#include "../config.hpp"
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
 
-#define LOG
-#define LOG_PATH "./dump/dbg.log"
 
-#ifdef LOG
+#ifdef DEBUG_PARSER
+#define LOG_PATH "./dump/dbg.log"
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -188,7 +187,7 @@ struct Parser {
         {TokenType::StringSSQ, std::bind(&Parser::_parseStringLiteral, this)},
         {TokenType::True, std::bind(&Parser::_parseBooleanLiteral, this)},
         {TokenType::False, std::bind(&Parser::_parseBooleanLiteral, this)},
-        {TokenType::Identifier, std::bind(&Parser::_parseIdentifier, this)},
+        {TokenType::Identifier, std::bind(&Parser::_InterpretExpresionIdentifier, this)},
         {TokenType::LeftParen, std::bind(&Parser::_parseGroupedExpression, this)},
         {TokenType::LeftBracket, std::bind(&Parser::_parseArrayLiteral, this)},
         {TokenType::New, std::bind(&Parser::_parseNew, this)},
@@ -358,7 +357,7 @@ struct Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Statement* The parsed expression statement
      */
-    AST::Statement* _parseExpressionStatement(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
+    AST::Statement* _parseExpressionStatement(AST::Expression* identifier = nullptr);
 
     /**
      * @brief Parse a variable declaration statement
@@ -372,7 +371,7 @@ struct Parser {
      * @param is_volatile Optional flag indicating if the variable is volatile
      * @return AST::Statement* The parsed variable declaration statement
      */
-    AST::Statement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1, bool is_volatile = false, bool is_const = false);
+    AST::VariableDeclarationStatement* _parseVariableDeclaration(AST::Expression* identifier = nullptr, bool is_volatile = false, bool is_const = false);
 
     /**
      * @brief Parse a variable assignment statement
@@ -384,7 +383,7 @@ struct Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Statement* The parsed variable assignment statement
      */
-    AST::Statement* _parseVariableAssignment(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
+    AST::VariableAssignmentStatement* _parseVariableAssignment(AST::Expression* identifier = nullptr);
 
     /**
      * @brief Parse a return statement
@@ -457,7 +456,7 @@ struct Parser {
      *
      * @return AST::Statement* The parsed if-else statement
      */
-    AST::Statement* _parseIfElseStatement();
+    AST::IfElseStatement* _parseIfElseStatement();
 
     /**
      * @brief Parse a while statement
@@ -549,7 +548,7 @@ struct Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Expression* The parsed function call expression
      */
-    AST::Expression* _parseFunctionCall(AST::Expression* identifier = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
+    AST::CallExpression* _parseFunctionCall(AST::IdentifierLiteral* identifier = nullptr);
 
     // Expression parsing methods
 
@@ -573,30 +572,30 @@ struct Parser {
      * @param st_col_no Optional start column number for metadata
      * @return AST::Expression* The parsed expression
      */
-    AST::Expression* _parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression = nullptr, uint32_t st_line_no = -1, uint32_t st_col_no = -1);
+    AST::Expression* _parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression = nullptr);
 
     /**
      * @brief Parse an intteger literal expression
      *
      * @return AST::Expression* The parsed integer literal
      */
-    AST::Expression* _parseIntegerLiteral();
+    AST::IntegerLiteral* _parseIntegerLiteral();
 
     /**
      * @brief Parse a float literal expression
      *
      * @return AST::Expression* The parsed float literal
      */
-    AST::Expression* _parseFloatLiteral();
+    AST::FloatLiteral* _parseFloatLiteral();
 
     /**
      * @brief Parse a boolean literal expression
      *
      * @return AST::Expression* The parsed boolean literal
      */
-    AST::Expression* _parseBooleanLiteral();
+    AST::BooleanLiteral* _parseBooleanLiteral();
 
-    AST::Expression* _parseStringLiteral();
+    AST::StringLiteral* _parseStringLiteral();
     /**
      * @brief Parse a grouped expression (expressions within parentheses)
      *
@@ -609,7 +608,14 @@ struct Parser {
      *
      * @return AST::Expression* The parsed identifier
      */
-    AST::Expression* _parseIdentifier();
+    AST::IdentifierLiteral* _parseIdentifier();
+
+    /**
+     * @brief Parse an identifier expression
+     *
+     * @return AST::Expression* The parsed identifier
+     */
+    AST::Expression* _InterpretExpresionIdentifier();
 
     /**
      * @brief Parse an array literal expression
@@ -618,7 +624,7 @@ struct Parser {
      *
      * @return AST::Expression* The parsed array literal
      */
-    AST::Expression* _parseArrayLiteral();
+    AST::ArrayLiteral* _parseArrayLiteral();
 
     /**
      * @brief Parse a 'new' expression for object or array creation

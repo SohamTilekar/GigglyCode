@@ -1,6 +1,7 @@
 #include "macrointerpreter.hpp"
 #include "AST/ast.hpp"
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -24,21 +25,21 @@ class error : public std::exception {
 };
 
 void MacroInterpreter::visitStatement(AST::Statement* node) {
-    if (node->type() == AST::NodeType::BlockStatement) {
+    if (node->type == AST::NodeType::BlockStatement) {
         visitBlockStatement(node->castToBlockStatement());
-    } else if (node->type() == AST::NodeType::ExpressionStatement) {
+    } else if (node->type == AST::NodeType::ExpressionStatement) {
         visitExpressionStatement(node->castToExpressionStatement());
-    } else if (node->type() == AST::NodeType::VariableAssignmentStatement) {
+    } else if (node->type == AST::NodeType::VariableAssignmentStatement) {
         visitVariableAssignmentStatement(node->castToVariableAssignmentStatement());
-    } else if (node->type() == AST::NodeType::ReturnStatement) {
+    } else if (node->type == AST::NodeType::ReturnStatement) {
         visitReturnStatement(node->castToReturnStatement());
-    } else if (node->type() == AST::NodeType::IfElseStatement) {
+    } else if (node->type == AST::NodeType::IfElseStatement) {
         visitIfElseStatement(node->castToIfElseStatement());
-    } else if (node->type() == AST::NodeType::WhileStatement) {
+    } else if (node->type == AST::NodeType::WhileStatement) {
         visitWhileStatement(node->castToWhileStatement());
-    } else if (node->type() == AST::NodeType::ForEachStatement) {
+    } else if (node->type == AST::NodeType::ForEachStatement) {
         visitForEachStatement(node->castToForEachStatement());
-    // } else if (node->type() == AST::NodeType::SwitchCaseStatement) {
+    // } else if (node->type == AST::NodeType::SwitchCaseStatement) {
     //     visitSwitchCaseStatement(node->castToSwitchCaseStatement());
     } else {
         throw std::runtime_error("Unknown statement type");
@@ -56,7 +57,7 @@ void MacroInterpreter::visitExpressionStatement(AST::ExpressionStatement* node) 
 };
 
 void MacroInterpreter::visitVariableAssignmentStatement(AST::VariableAssignmentStatement* node) {
-    if (node->name->type() != AST::NodeType::IdentifierLiteral) {
+    if (node->name->type != AST::NodeType::IdentifierLiteral) {
         throw std::runtime_error("Variable name is not an identifier");
     }
     MIObjects value = visitExpression(node->value);
@@ -127,7 +128,7 @@ void MacroInterpreter::visitForEachStatement(AST::ForEachStatement* node) {
 };
 
 MIObjects MacroInterpreter::visitExpression(AST::Expression* node) {
-    switch (node->type()) {
+    switch (node->type) {
         case AST::NodeType::CallExpression: {
             return visitCallExpression(node->castToCallExpression());
         }
@@ -153,7 +154,7 @@ MIObjects MacroInterpreter::visitExpression(AST::Expression* node) {
             return variabels[node->castToIdentifierLiteral()->value];
         }
         default: {
-            throw error("Cant Interpret this type of Expresion" + AST::nodeTypeToString(node->type()));
+            throw error("Cant Interpret this type of Expresion" + AST::nodeTypeToString(node->type));
         }
     }
 };
@@ -246,10 +247,10 @@ MIObjects MacroInterpreter::visitCallExpression(AST::CallExpression* node) {
 
 MIObjects MacroInterpreter::visitInfixedExpression(AST::InfixExpression* node) {
     if (node->op == token::TokenType::Dot) {
-        if (node->left->type() == AST::NodeType::IdentifierLiteral) {
+        if (node->left->type == AST::NodeType::IdentifierLiteral) {
             auto name = node->left->castToIdentifierLiteral()->value;
             if (name == "TokenType") {
-                if (node->right->type() != AST::NodeType::IdentifierLiteral) {
+                if (node->right->type != AST::NodeType::IdentifierLiteral) {
                     throw error(std::string("Fuck You ") + __FILE__ + ":" + std::to_string(__LINE__));
                 }
                 auto name = node->right->castToIdentifierLiteral()->value;

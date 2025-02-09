@@ -1,40 +1,22 @@
 #ifndef LEXER_HPP
 #define LEXER_HPP
+#include "../config.hpp"
 #include "token.hpp"
 #include <filesystem>
-#include <string>
-
-/**
- * @brief Get the string on a specific line number from the input string.
- *
- * @param input_string The input string.
- * @param line_number The line number to retrieve.
- * @return The string on the specified line number.
- */
-const char* getStringOnLineNumber(const char* input_string, int line_number);
-
-/**
- * @brief Get the number of lines in the input string.
- *
- * @param str The input string.
- * @return The number of lines in the input string.
- */
-int getNumberOfLines(const char* str);
 
 enum struct QuoteType : char {
     None,
     SingleSingleQuote = int(token::TokenType::StringSSQ),
-    DoubleSingleQuote,
-    SingleTripleQuote,
-    DoubleTripleQuote,
+    DoubleSingleQuote = int(token::TokenType::StringDSQ),
+    SingleTripleQuote = int(token::TokenType::StringSTQ),
+    DoubleTripleQuote = int(token::TokenType::StringDTQ),
 };
 
 struct Lexer {
-    const char* source;
-    const uint32_t source_len;
+    str source;
     std::filesystem::path file_path;
-    uint32_t pos;
-    char current_char;
+    uint32_t pos = -1;
+    char current_char = '\0';
     token::Tokens tokens;
     bool tokenize_coment;
 
@@ -43,7 +25,7 @@ struct Lexer {
      *
      * @param source The source code to be lexed.
      */
-    explicit Lexer(const char* source, const std::filesystem::path& file_path, bool tokenize_coment = false);
+    explicit Lexer(str source, const std::filesystem::path& file_path, bool tokenize_coment = false);
 
     token::Tokens Tokenize();
 
@@ -61,7 +43,7 @@ struct Lexer {
      * @param ident The identifier to lookup.
      * @return The token type of the identifier.
      */
-    token::TokenType _lookupIdent(const char* ident);
+    token::TokenType _lookupIdent(str ident);
 
     /**
      * @brief Read the next character from the source code.
@@ -114,13 +96,6 @@ struct Lexer {
     bool _isLetter(const char character);
 
     QuoteType _isString();
-
-    /**
-     * @brief Read an identifier from the source code.
-     *
-     * @return The identifier.
-     */
-    std::string _readIdentifier();
 
     /**
      * @brief Read a string from the source code.

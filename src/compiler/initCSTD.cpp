@@ -6,12 +6,12 @@ using namespace compiler;
 
 void Compiler::addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool strictTypeCheck) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, llvm_name, this->llvm_module.get());
-    this->env->parent->addRecord(new RecordFunction(name, func, funcType, params, returnType, strictTypeCheck));
+    this->env->parent->addRecord(new RecordFunction(name, func, funcType, params, returnType, strictTypeCheck, false, false));
 }
 
 void Compiler::addFunc2Mod(RecordModule* module, const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool strictTypeCheck) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, llvm_name, this->llvm_module.get());
-    module->addRecord(new RecordFunction(name, func, funcType, params, returnType, strictTypeCheck));
+    module->addRecord(new RecordFunction(name, func, funcType, params, returnType, strictTypeCheck, false, false));
 }
 
 void Compiler::_initilizeCSTDLib() {
@@ -42,10 +42,10 @@ void Compiler::_initilizeCSTDLib() {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "putchar", this->llvm_module.get());
 
     params = {std::make_tuple("char", this->gc_int32, false, false)};
-    this->env->parent->addRecord(new RecordFunction("putchar", func, funcType, params, this->gc_int32, false));
+    this->env->parent->addRecord(new RecordFunction("putchar", func, funcType, params, this->gc_int32, false, false, false));
 
     params = {std::make_tuple("char", this->gc_char, false, false)};
-    this->env->parent->addRecord(new RecordFunction("putchar", func, funcType, params, this->gc_int32, false));
+    this->env->parent->addRecord(new RecordFunction("putchar", func, funcType, params, this->gc_int32, false, false, false));
 
     // math.h
     auto math_module = new enviornment::RecordModule("math");

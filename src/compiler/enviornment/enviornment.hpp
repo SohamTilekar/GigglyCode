@@ -3,10 +3,10 @@
 
 /**
  * @file enviornment.hpp
- * @brief Defines the environment classes for managing compilation records and
+ * @brief Defines the environment structes for managing compilation records and
  * scopes.
  *
- * This header file declares several classes within the `enviornment` namespace
+ * This header file declares several structes within the `enviornment` namespace
  * that are responsible for managing records of variables, functions, structs,
  * modules, and their respective environments during the compilation process.
  */
@@ -18,25 +18,26 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../config.hpp"
 #include "../../parser/AST/ast.hpp"
 
 namespace enviornment {
 
-class Record;
+struct Record;
 
-class RecordVariable;
+struct RecordVariable;
 
-class RecordFunction;
+struct RecordFunction;
 
-class RecordStructType;
+struct RecordStructType;
 
-class Enviornment;
+struct Enviornment;
 
-class RecordGenericFunction;
+struct RecordGenericFunction;
 
-class RecordGenericStructType;
+struct RecordGenericStructType;
 
-class RecordModule;
+struct RecordModule;
 
 using Str = std::string;                                    ///< Alias for std::string.
 using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuples mapping
@@ -46,7 +47,7 @@ using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuple
  * @enum RecordType
  * @brief Enumeration of different types of records.
  */
-enum class RecordType {
+enum struct RecordType : char {
     GStructType,    ///< Represents a generic struct type record.
     StructInst,     ///< Represents a struct instance record.
     Variable,       ///< Represents a variable record.
@@ -56,33 +57,16 @@ enum class RecordType {
 };
 
 /**
- * @class Record
- * @brief Base class representing a compilation record.
+ * @struct Record
+ * @brief Base struct representing a compilation record.
  *
- * The Record class serves as the base class for various types of records
+ * The Record struct serves as the base struct for various types of records
  * used during the compilation process. It contains common attributes such
  * as the record type, name, metadata, and any additional information.
  */
-class Record {
-  public:
+struct Record {
     RecordType type;          ///< The type of the record.
     Str name;                 ///< The name of the record.
-    AST::MetaData meta_data;  ///< Metadata associated with the record.
-    AST::MoreData extra_info; ///< Additional information associated with the record.
-
-    /**
-     * @brief Sets the metadata for the record.
-     * @param stLineNo Starting line number.
-     * @param stColNo Starting column number.
-     * @param endLineNo Ending line number.
-     * @param endColNo Ending column number.
-     */
-    virtual inline void set_meta_data(int stLineNo, int stColNo, int endLineNo, int endColNo) {
-        this->meta_data.st_line_no = stLineNo;
-        this->meta_data.st_col_no = stColNo;
-        this->meta_data.end_line_no = endLineNo;
-        this->meta_data.end_col_no = endColNo;
-    }
 
     /**
      * @brief Constructs a Record with the specified type and name.
@@ -90,23 +74,23 @@ class Record {
      * @param name The name of the record.
      * @param extraInfo Optional extra information for the record.
      */
-    Record(const RecordType& type, const Str& name, const AST::MoreData& extraInfo = {}) : type(type), name(name), extra_info(extraInfo) {}
+    Record(const RecordType& type, const Str& name) : type(type), name(name) {}
 
     /**
      * @brief Copy constructor for Record.
      * @param other The Record object to copy from.
      */
-    Record(const Record& other) : type(other.type), name(other.name), meta_data(other.meta_data), extra_info(other.extra_info) {}
-}; // class Record
+    Record(const Record& other) : type(other.type), name(other.name) {}
+}; // struct Record
 
 /**
- * @class RecordFunction
+ * @struct RecordFunction
  * @brief Represents a function record within the environment.
  *
- * This class holds information about a function, including its LLVM function,
+ * This struct holds information about a function, including its LLVM function,
  * function type, arguments, return type, and other related data.
  */
-class RecordFunction : public Record {
+struct RecordFunction : public Record {
   public:
     std::string ll_name;                         ///< The LLVM name of the function.
     llvm::Function* function = nullptr;          ///< Pointer to the LLVM Function.
@@ -122,30 +106,13 @@ class RecordFunction : public Record {
     RecordStructType* return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;       ///< Indicates if the function accepts a variable
     bool is_const_return = false;       ///< Indicates if the function accepts a variable
+    bool is_auto_cast = false;       ///< Indicates if the function accepts a variable
 
     /**
      * @brief Constructs a RecordFunction with the given name.
      * @param name The name of the function.
      */
     RecordFunction(const Str& name) : Record(RecordType::Function, name) {}
-
-    /**
-     * @brief Constructs a RecordFunction with detailed parameters.
-     * @param name The name of the function.
-     * @param function Pointer to the LLVM Function.
-     * @param functionType Pointer to the LLVM FunctionType.
-     * @param arguments Vector of arguments.
-     * @param returnInst Pointer to the struct type of the return value.
-     * @param extraInfo Optional extra information.
-     */
-    RecordFunction(const Str& name,
-                   llvm::Function* function,
-                   llvm::FunctionType* functionType,
-                   std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
-                   RecordStructType* returnInst,
-                   const AST::MoreData& extraInfo = {},
-                   bool is_const_return = false)
-        : Record(RecordType::Function, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_const_return(is_const_return) {}
 
     /**
      * @brief Constructs a RecordFunction with variable arguments support.
@@ -157,8 +124,15 @@ class RecordFunction : public Record {
      * @param isVarArg Indicates if the function accepts variable arguments.
      */
     RecordFunction(
-        const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments, RecordStructType* returnInst, bool isVarArg, bool is_const_return = false)
-        : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg), is_const_return(is_const_return) {}
+        const Str& name,
+        llvm::Function* function,
+        llvm::FunctionType* functionType,
+        std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
+        RecordStructType* returnInst,
+        bool isVarArg,
+        bool is_const_return,
+        bool is_auto_cast)
+        : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg), is_const_return(is_const_return), is_auto_cast(is_auto_cast) {}
 
     /**
      * @brief Copy constructor for RecordFunction.
@@ -229,13 +203,13 @@ class RecordFunction : public Record {
 };
 
 /**
- * @class RecordGenericFunction
+ * @struct RecordGenericFunction
  * @brief Represents a generic function record within the environment.
  *
- * This class holds information about a generic function, including its
+ * This struct holds information about a generic function, including its
  * associated AST node and environment.
  */
-class RecordGenericFunction : public Record {
+struct RecordGenericFunction : public Record {
   public:
     AST::FunctionStatement* func = nullptr; ///< Pointer to the AST FunctionStatement.
     Enviornment* env;                       ///< Pointer to the environment.
@@ -277,13 +251,13 @@ class RecordGenericFunction : public Record {
 };
 
 /**
- * @class RecordGenericStructType
+ * @struct RecordGenericStructType
  * @brief Represents a generic struct type record within the environment.
  *
- * This class manages information about a generic struct type, including its
+ * This struct manages information about a generic struct type, including its
  * associated AST node and environment.
  */
-class RecordGenericStructType : public Record {
+struct RecordGenericStructType : public Record {
   public:
     AST::StructStatement* structAST = nullptr; ///< Pointer to the AST StructStatement.
     Enviornment* env;                          ///< Pointer to the environment.
@@ -325,13 +299,13 @@ class RecordGenericStructType : public Record {
 };
 
 /**
- * @class RecordStructType
+ * @struct RecordStructType
  * @brief Represents a struct type record within the environment.
  *
- * This class manages information about a struct type, including its LLVM
+ * This struct manages information about a struct type, including its LLVM
  * struct type, fields, subtypes, methods, and related functionalities.
  */
-class RecordStructType : public Record {
+struct RecordStructType : public Record {
   private:
     std::vector<Str> fields = {}; ///< List of field names in the struct.
 
@@ -391,7 +365,7 @@ class RecordStructType : public Record {
      * @param exact If true, performs an exact match.
      * @return True if the method exists, false otherwise.
      */
-    bool is_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
+    bool is_method(const Str& name, const std::vector<RecordStructType*>& params_types, RecordStructType* return_type = nullptr, bool exact = false, bool is_auto_cast = false);
 
     bool isVal(std::string name);
 
@@ -404,7 +378,7 @@ class RecordStructType : public Record {
      * @param exact If true, performs an exact match.
      * @return Pointer to the FunctionRecord if found, nullptr otherwise.
      */
-    RecordFunction* get_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
+    RecordFunction* get_method(const Str& name, const std::vector<RecordStructType*>& params_types, RecordStructType* return_type = nullptr, bool exact = false);
 
     uint32_t getVal(std::string name);
 
@@ -451,13 +425,13 @@ class RecordStructType : public Record {
 };
 
 /**
- * @class RecordVariable
+ * @struct RecordVariable
  * @brief Represents a variable record within the environment.
  *
- * This class holds information about a variable, including its LLVM value,
+ * This struct holds information about a variable, including its LLVM value,
  * allocation instruction, and type.
  */
-class RecordVariable : public Record {
+struct RecordVariable : public Record {
   public:
     llvm::Value* value = nullptr;              ///< Pointer to the LLVM Value representing the variable.
     llvm::Value* allocainst = nullptr;         ///< Pointer to the LLVM Allocation Instruction.
@@ -513,14 +487,14 @@ bool _checkType(RecordStructType* type1, RecordStructType* type2, std::set<std::
 bool _checkType(RecordGenericStructType* type1, RecordGenericStructType* type2);
 
 /**
- * @class RecordModule
+ * @struct RecordModule
  * @brief Represents a module record within the environment.
  *
- * This class manages a collection of records within a module, allowing
+ * This struct manages a collection of records within a module, allowing
  * for querying and retrieval of functions, structs, and generic entities
  * defined within the module.
  */
-class RecordModule : public Record {
+struct RecordModule : public Record {
   public:
     StrRecordMap record_map = {}; ///< Holds Records in the module.
 
@@ -668,14 +642,14 @@ class RecordModule : public Record {
 };
 
 /**
- * @class Enviornment
+ * @struct Enviornment
  * @brief Manages the scope and records within the compilation environment.
  *
- * The Enviornment class maintains a collection of records, handles scope
+ * The Enviornment struct maintains a collection of records, handles scope
  * management, and provides functionalities to query and manipulate records
  * such as variables, functions, structs, and modules.
  */
-class Enviornment {
+struct Enviornment {
   public:
     Enviornment* parent;     ///< Pointer to the parent environment.
     Str name;                ///< Name of the current environment.
@@ -898,7 +872,7 @@ class Enviornment {
         this->loop_ifbreak_block.pop_back();
         this->loop_notbreak_block.pop_back();
     }
-}; // class Enviornment
+}; // struct Enviornment
 
 } // namespace enviornment
 

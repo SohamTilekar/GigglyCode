@@ -1,234 +1,333 @@
 #include "ast.hpp"
-#include "../../lexer/token.hpp"
-#include <yaml-cpp/yaml.h>
 
 using namespace AST;
 
+void Node::del() {
+    switch (type) {
+        case NodeType::Program:
+            delete this->castToProgram();
+            return;
+        case NodeType::ExpressionStatement:
+            delete this->castToExpressionStatement();
+            return;
+        case NodeType::VariableDeclarationStatement:
+            delete this->castToVariableDeclarationStatement();
+            return;
+        case NodeType::VariableAssignmentStatement:
+            delete this->castToVariableAssignmentStatement();
+            return;
+        case NodeType::FunctionStatement:
+            delete this->castToFunctionStatement();
+            return;
+        case NodeType::FunctionParameter:
+            delete this->castToFunctionParameter();
+            return;
+        case NodeType::CallExpression:
+            delete this->castToCallExpression();
+            return;
+        case NodeType::BlockStatement:
+            delete this->castToBlockStatement();
+            return;
+        case NodeType::ReturnStatement:
+            delete this->castToReturnStatement();
+            return;
+        case NodeType::IfElseStatement:
+            delete this->castToIfElseStatement();
+            return;
+        case NodeType::WhileStatement:
+            delete this->castToWhileStatement();
+            return;
+        case NodeType::ForStatement:
+            delete this->castToForStatement();
+            return;
+        case NodeType::ForEachStatement:
+            delete this->castToForEachStatement();
+            return;
+        case NodeType::BreakStatement:
+            delete this->castToBreakStatement();
+            return;
+        case NodeType::ContinueStatement:
+            delete this->castToContinueStatement();
+            return;
+        case NodeType::StructStatement:
+            delete this->castToStructStatement();
+            return;
+        case NodeType::EnumStatement:
+            delete this->castToEnumStatement();
+            return;
+        case NodeType::ImportStatement:
+            delete this->castToImportStatement();
+            return;
+        case NodeType::TryCatchStatement:
+            delete this->castToTryCatchStatement();
+            return;
+        case NodeType::RaiseStatement:
+            delete this->castToRaiseStatement();
+            return;
+        case NodeType::SwitchCaseStatement:
+            delete this->castToSwitchCaseStatement();
+            return;
+        case NodeType::MacroStatement:
+            delete this->castToMacroStatement();
+            return;
+        case NodeType::Type:
+            delete this->castToType();
+            return;
+        case NodeType::InfixedExpression:
+            delete this->castToInfixExpression();
+            return;
+        case NodeType::IndexExpression:
+            delete this->castToIndexExpression();
+            return;
+        case NodeType::IntegerLiteral:
+            delete this->castToIntegerLiteral();
+            return;
+        case NodeType::FloatLiteral:
+            delete this->castToFloatLiteral();
+            return;
+        case NodeType::BooleanLiteral:
+            delete this->castToBooleanLiteral();
+            return;
+        case NodeType::StringLiteral:
+            delete this->castToStringLiteral();
+            return;
+        case NodeType::IdentifierLiteral:
+            delete this->castToIdentifierLiteral();
+            return;
+        case NodeType::ArrayLiteral:
+            delete this->castToArrayLiteral();
+            return;
+        case NodeType::Unknown:
+            delete this;
+            break;
+    }
+};
+
 Type::~Type() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     for (auto gen : generics) {
-        if (gen) { delete gen; }
+        if (gen) { gen->del(); }
     }
     generics.clear();
 }
 
 Program::~Program() {
     for (auto stmt : statements) {
-        if (stmt) { delete stmt; }
+        if (stmt) { stmt->del(); }
     }
     statements.clear();
 }
 
 ExpressionStatement::~ExpressionStatement() {
     if (expr) {
-        delete expr;
+        expr->del();
         expr = nullptr;
     }
 }
 
 BlockStatement::~BlockStatement() {
     for (auto stmt : statements) {
-        if (stmt) { delete stmt; }
+        if (stmt) { stmt->del(); }
     }
     statements.clear();
 }
 
 ReturnStatement::~ReturnStatement() {
     if (value) {
-        delete value;
+        value->del();
         value = nullptr;
     }
 }
 
 RaiseStatement::~RaiseStatement() {
     if (value) {
-        delete value;
+        value->del();
         value = nullptr;
     }
 }
 
 FunctionParameter::~FunctionParameter() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     if (value_type) {
-        delete value_type;
+        value_type->del();
         value_type = nullptr;
     }
 }
 
 FunctionStatement::~FunctionStatement() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     for (auto param : parameters) {
-        if (param) { delete param; }
+        if (param) { param->del(); }
     }
     parameters.clear();
     for (auto param : closure_parameters) {
-        if (param) { delete param; }
+        if (param) { param->del(); }
     }
     closure_parameters.clear();
     if (return_type) {
-        delete return_type;
+        return_type->del();
         return_type = nullptr;
     }
     if (body) {
-        delete body;
+        body->del();
         body = nullptr;
     }
     for (auto gen : generic) {
-        if (gen) { delete gen; }
+        if (gen) { gen->del(); }
     }
     generic.clear();
 }
 
 CallExpression::~CallExpression() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     for (auto arg : arguments) {
-        if (arg) { delete arg; }
+        if (arg) { arg->del(); }
     }
     arguments.clear();
     for (auto gen : generics) {
-        if (gen) { delete gen; }
+        if (gen) { gen->del(); }
     }
     generics.clear();
 }
 
 IfElseStatement::~IfElseStatement() {
     if (condition) {
-        delete condition;
+        condition->del();
         condition = nullptr;
     }
     if (consequence) {
-        delete consequence;
+        consequence->del();
         consequence = nullptr;
     }
     if (alternative) {
-        delete alternative;
+        alternative->del();
         alternative = nullptr;
     }
 }
 
 WhileStatement::~WhileStatement() {
     if (condition) {
-        delete condition;
+        condition->del();
         condition = nullptr;
     }
     if (body) {
-        delete body;
+        body->del();
         body = nullptr;
     }
     if (ifbreak) {
-        delete ifbreak;
+        ifbreak->del();
         ifbreak = nullptr;
     }
     if (notbreak) {
-        delete notbreak;
+        notbreak->del();
         notbreak = nullptr;
     }
 }
 
 ForEachStatement::~ForEachStatement() {
     if (get) {
-        delete get;
+        get->del();
         get = nullptr;
     }
     if (from) {
-        delete from;
+        from->del();
         from = nullptr;
     }
     if (body) {
-        delete body;
+        body->del();
         body = nullptr;
     }
     if (ifbreak) {
-        delete ifbreak;
+        ifbreak->del();
         ifbreak = nullptr;
     }
     if (notbreak) {
-        delete notbreak;
+        notbreak->del();
         notbreak = nullptr;
     }
 }
 
 ForStatement::~ForStatement() {
     if (init) {
-        delete init;
+        init->del();
         init = nullptr;
     }
     if (condition) {
-        delete condition;
+        condition->del();
         condition = nullptr;
     }
     if (update) {
-        delete update;
+        update->del();
         update = nullptr;
     }
     if (body) {
-        delete body;
+        body->del();
         body = nullptr;
     }
     if (ifbreak) {
-        delete ifbreak;
+        ifbreak->del();
         ifbreak = nullptr;
     }
     if (notbreak) {
-        delete notbreak;
+        notbreak->del();
         notbreak = nullptr;
     }
 }
 
 VariableDeclarationStatement::~VariableDeclarationStatement() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     if (value_type) {
-        delete value_type;
+        value_type->del();
         value_type = nullptr;
     }
     if (value) {
-        delete value;
+        value->del();
         value = nullptr;
     }
 }
 
 VariableAssignmentStatement::~VariableAssignmentStatement() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     if (value) {
-        delete value;
+        value->del();
         value = nullptr;
     }
 }
 
 TryCatchStatement::~TryCatchStatement() {
     if (try_block) {
-        delete try_block;
+        try_block->del();
         try_block = nullptr;
     }
     for (auto& [type, var, block] : catch_blocks) {
         if (type) {
-            delete type;
+            type->del();
             type = nullptr;
         }
         if (var) {
-            delete var;
+            var->del();
             var = nullptr;
         }
         if (block) {
-            delete block;
+            block->del();
             block = nullptr;
         }
     }
@@ -237,94 +336,74 @@ TryCatchStatement::~TryCatchStatement() {
 
 SwitchCaseStatement::~SwitchCaseStatement() {
     if (condition) {
-        delete condition;
+        condition->del();
         condition = nullptr;
     }
     for (auto& [expr, stmt] : cases) {
         if (expr) {
-            delete expr;
+            expr->del();
             expr = nullptr;
         }
         if (stmt) {
-            delete stmt;
+            stmt->del();
             stmt = nullptr;
         }
     }
     cases.clear();
     if (other) {
-        delete other;
+        other->del();
         other = nullptr;
     }
 }
 
 InfixExpression::~InfixExpression() {
     if (left) {
-        delete left;
+        left->del();
         left = nullptr;
     }
     if (right) {
-        delete right;
+        right->del();
         right = nullptr;
     }
 }
 
 IndexExpression::~IndexExpression() {
     if (left) {
-        delete left;
+        left->del();
         left = nullptr;
     }
     if (index) {
-        delete index;
+        index->del();
         index = nullptr;
     }
 }
 
-IntegerLiteral::~IntegerLiteral() {
-    // No dynamic memory to delete
-}
-
-FloatLiteral::~FloatLiteral() {
-    // No dynamic memory to delete
-}
-
-StringLiteral::~StringLiteral() {
-    // No dynamic memory to delete
-}
-
-IdentifierLiteral::~IdentifierLiteral() {
-    // No dynamic memory to delete
-}
-
-BooleanLiteral::~BooleanLiteral() {
-    // No dynamic memory to delete
-}
-
 StructStatement::~StructStatement() {
     if (name) {
-        delete name;
+        name->del();
         name = nullptr;
     }
     for (auto stmt : fields) {
-        if (stmt) { delete stmt; }
+        if (stmt) { stmt->del(); }
     }
     fields.clear();
     for (auto gen : generics) {
-        if (gen) { delete gen; }
+        if (gen) { gen->del(); }
     }
     generics.clear();
 }
 
 EnumStatement::~EnumStatement() {
-    delete name;
+    name->del();
 }
 
 MacroStatement::~MacroStatement() {
-    delete body;
+    body->del();
 }
 
 ArrayLiteral::~ArrayLiteral() {
     for (auto elem : elements) {
-        if (elem) { delete elem; }
+        if (elem) { elem->del(); }
     }
     elements.clear();
 }
@@ -390,10 +469,12 @@ std::string AST::nodeTypeToString(NodeType type) {
     }
 };
 
+#ifdef DEBUG_PARSER
+#include <yaml-cpp/yaml.h>
 std::string Type::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "generics" << YAML::Value << YAML::BeginSeq;
     for (auto& gen : generics) { out << YAML::Load(gen->toStr()); }
@@ -405,7 +486,7 @@ std::string Type::toStr() {
 std::string Program::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "statements" << YAML::Value << YAML::BeginSeq;
     for (auto& stmt : statements) { out << YAML::Load(stmt->toStr()); }
     out << YAML::EndSeq;
@@ -416,7 +497,7 @@ std::string Program::toStr() {
 std::string ExpressionStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "Expression";
     if (expr) {
         out << YAML::Value << YAML::Load(expr->toStr());
@@ -430,7 +511,7 @@ std::string ExpressionStatement::toStr() {
 std::string BlockStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "statements" << YAML::Value << YAML::BeginSeq;
     for (auto& stmt : statements) { out << YAML::Load(stmt->toStr()); }
     out << YAML::EndSeq;
@@ -441,7 +522,7 @@ std::string BlockStatement::toStr() {
 std::string ReturnStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value";
     if (value) {
         out << YAML::Value << YAML::Load(value->toStr());
@@ -455,7 +536,7 @@ std::string ReturnStatement::toStr() {
 std::string RaiseStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value";
     if (value) {
         out << YAML::Value << YAML::Load(value->toStr());
@@ -469,7 +550,7 @@ std::string RaiseStatement::toStr() {
 std::string FunctionStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "parameters" << YAML::Value << YAML::BeginSeq;
     for (auto& param : parameters) { out << YAML::Load(param->toStr()); }
@@ -496,7 +577,7 @@ std::string FunctionStatement::toStr() {
 std::string FunctionParameter::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "param_name" << YAML::Value << name->toStr();
     out << YAML::Key << "param_type" << YAML::Value;
     out << YAML::Load(value_type->toStr());
@@ -507,7 +588,7 @@ std::string FunctionParameter::toStr() {
 std::string CallExpression::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "arguments" << YAML::Value << YAML::BeginSeq;
     for (auto& arg : arguments) { out << YAML::Load(arg->toStr()); }
@@ -519,7 +600,7 @@ std::string CallExpression::toStr() {
 std::string IfElseStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "condition";
     if (condition) {
         out << YAML::Value << YAML::Load(condition->toStr());
@@ -545,7 +626,7 @@ std::string IfElseStatement::toStr() {
 std::string WhileStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "condition";
     if (condition) {
         out << YAML::Value << YAML::Load(condition->toStr());
@@ -577,7 +658,7 @@ std::string WhileStatement::toStr() {
 std::string ForStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "init";
     if (init) {
         out << YAML::Value << YAML::Load(init->toStr());
@@ -621,7 +702,7 @@ std::string ForStatement::toStr() {
 std::string ForEachStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "body";
     if (body) {
         out << YAML::Value << YAML::Load(body->toStr());
@@ -647,7 +728,7 @@ std::string ForEachStatement::toStr() {
 std::string BreakStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "loopNum" << YAML::Value << loopIdx;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -656,7 +737,7 @@ std::string BreakStatement::toStr() {
 std::string ContinueStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "loopNum" << YAML::Value << loopIdx;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -665,7 +746,7 @@ std::string ContinueStatement::toStr() {
 std::string ImportStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "path" << YAML::Value << relativePath;
     out << YAML::Key << "as" << YAML::Value << as;
     out << YAML::EndMap;
@@ -675,7 +756,7 @@ std::string ImportStatement::toStr() {
 std::string VariableDeclarationStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "value_type";
     if (value_type) {
@@ -697,7 +778,7 @@ std::string VariableDeclarationStatement::toStr() {
 std::string VariableAssignmentStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "value" << YAML::Value << YAML::Load(value->toStr());
     out << YAML::EndMap;
@@ -707,7 +788,7 @@ std::string VariableAssignmentStatement::toStr() {
 std::string TryCatchStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "try";
     if (try_block) {
         out << YAML::Value << YAML::Load(try_block->toStr());
@@ -730,7 +811,7 @@ std::string TryCatchStatement::toStr() {
 std::string SwitchCaseStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "condition";
     if (condition) {
         out << YAML::Value << YAML::Load(condition->toStr());
@@ -758,7 +839,7 @@ std::string SwitchCaseStatement::toStr() {
 std::string InfixExpression::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "operator" << YAML::Value << token::tokenTypeToString(op);
     out << YAML::Key << "left_node";
     if (left) {
@@ -779,7 +860,7 @@ std::string InfixExpression::toStr() {
 std::string IndexExpression::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "left_node";
     if (left) {
         out << YAML::Value << YAML::Load(left->toStr());
@@ -799,7 +880,7 @@ std::string IndexExpression::toStr() {
 std::string IntegerLiteral::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value" << YAML::Value << value;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -808,7 +889,7 @@ std::string IntegerLiteral::toStr() {
 std::string FloatLiteral::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value" << YAML::Value << value;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -817,7 +898,7 @@ std::string FloatLiteral::toStr() {
 std::string StringLiteral::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value" << YAML::Value << value;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -826,7 +907,7 @@ std::string StringLiteral::toStr() {
 std::string IdentifierLiteral::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value" << YAML::Value << value;
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -835,7 +916,7 @@ std::string IdentifierLiteral::toStr() {
 std::string BooleanLiteral::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "value" << YAML::Value << (value ? "true" : "false");
     out << YAML::EndMap;
     return std::string(out.c_str());
@@ -844,7 +925,7 @@ std::string BooleanLiteral::toStr() {
 std::string StructStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "fields" << YAML::Value << YAML::BeginSeq;
     for (auto& field : fields) { out << YAML::Load(field->toStr()); }
@@ -859,7 +940,7 @@ std::string StructStatement::toStr() {
 std::string EnumStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name->toStr();
     out << YAML::Key << "fields" << YAML::Value << YAML::BeginSeq;
     for (auto& field : fields) { out << YAML::Load(field); }
@@ -871,7 +952,7 @@ std::string EnumStatement::toStr() {
 std::string MacroStatement::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "name" << YAML::Value << name;
     out << YAML::Key << "body";
     if (body) {
@@ -886,10 +967,12 @@ std::string MacroStatement::toStr() {
 std::string ArrayLiteral::toStr() {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type());
+    out << YAML::Key << "type" << YAML::Value << nodeTypeToString(type);
     out << YAML::Key << "elements" << YAML::Value << YAML::BeginSeq;
     for (auto& element : elements) { out << YAML::Load(element->toStr()); }
     out << YAML::EndSeq;
     out << YAML::EndMap;
     return std::string(out.c_str());
 }
+
+#endif

@@ -2,293 +2,348 @@
 #include "../errors/errors.hpp"
 #include "token.hpp"
 
+#include <cstdint>
 #include <cstring>
-#include <sstream>
 
-Lexer::Lexer(const char* source, const std::filesystem::path& file_path, bool tokenize_coment) : tokens(source), source_len(strlen(source)) {
-    this->source = source;
-    this->file_path = file_path;
-    this->tokenize_coment = tokenize_coment;
-    // Calling the `_readChar` will incremnt the `pos` & `col_no`
+using namespace token;
+
+Lexer::Lexer(str source, const std::filesystem::path& file_path, bool tokenize_coment)
+    : tokens(source), source(source), file_path(file_path), tokenize_coment(tokenize_coment) {
     pos = -1;
     current_char = '\0';
     _readChar();
 }
 
-token::TokenType Lexer::_lookupIdent(const char* ident) {
-    static const std::unordered_map<std::string, token::TokenType> keywords = {
-        {"and", token::TokenType::And},
-        {"or", token::TokenType::Or},
-        {"not", token::TokenType::Not},
-        {"def", token::TokenType::Def},
-        {"return", token::TokenType::Return},
-        {"if", token::TokenType::If},
-        {"else", token::TokenType::Else},
-        {"elif", token::TokenType::ElIf},
-        {"is", token::TokenType::Is},
-        {"while", token::TokenType::While},
-        {"for", token::TokenType::For},
-        {"in", token::TokenType::In},
-        {"break", token::TokenType::Break},
-        {"continue", token::TokenType::Continue},
-        {"struct", token::TokenType::Struct},
-        {"enum", token::TokenType::Enum},
-        {"volatile", token::TokenType::Volatile},
-        {"const", token::TokenType::Const},
-        {"use", token::TokenType::Use},
-        {"import", token::TokenType::Import},
-        {"as", token::TokenType::As},
-        {"True", token::TokenType::True},
-        {"False", token::TokenType::False},
-        {"None", token::TokenType::None},
-        {"new", token::TokenType::New},
-        {"try", token::TokenType::Try},
-        {"catch", token::TokenType::Catch},
-        {"raise", token::TokenType::Raise},
-        {"notbreak", token::TokenType::NotBreak},
-        {"ifbreak", token::TokenType::IfBreak},
-        {"switch", token::TokenType::Switch},
-        {"case", token::TokenType::Case},
-        {"other", token::TokenType::Other},
-    };
-    auto it = keywords.find(ident);
-    return (it == keywords.end()) ? token::TokenType::Identifier : it->second;
+using KW_TYPE = std::pair<const char*, TokenType>;
+static constexpr KW_TYPE keywords_8[] = {
+    {"continue", TokenType::Continue},
+    {"volatile", TokenType::Volatile},
+    {"notbreak", TokenType::NotBreak},
+};
+static constexpr KW_TYPE keywords_7[] = {
+    {"ifbreak", TokenType::IfBreak}
+};
+static constexpr KW_TYPE keywords_6[] = {
+    {"switch", TokenType::Switch},
+    {"return", TokenType::Return},
+    {"struct", TokenType::Struct},
+    {"import", TokenType::Import},
+};
+static constexpr KW_TYPE keywords_5[] = {
+    {"while", TokenType::While},
+    {"break", TokenType::Break},
+    {"const", TokenType::Const},
+    {"False", TokenType::False},
+    {"catch", TokenType::Catch},
+    {"raise", TokenType::Raise},
+    {"other", TokenType::Other},
+};
+static constexpr KW_TYPE keywords_4[] = {
+    {"else", TokenType::Else},
+    {"elif", TokenType::ElIf},
+    {"enum", TokenType::Enum},
+    {"True", TokenType::True},
+    {"None", TokenType::None},
+    {"case", TokenType::Case},
+};
+static constexpr KW_TYPE keywords_3[] = {
+    {"and", TokenType::And},
+    {"not", TokenType::Not},
+    {"def", TokenType::Def},
+    {"for", TokenType::For},
+    {"use", TokenType::Use},
+    {"new", TokenType::New},
+    {"try", TokenType::Try},
+};
+static constexpr KW_TYPE keywords_2[] = {
+    {"or", TokenType::Or},
+    {"if", TokenType::If},
+    {"is", TokenType::Is},
+    {"in", TokenType::In},
+    {"as", TokenType::As},
 };
 
-token::Tokens Lexer::Tokenize() {
+template <size_t kw_len, size_t len>
+TokenType lookupKeyword(str ident, const KW_TYPE(&kw_types)[kw_len]) {
+    for (size_t i = 0; i < kw_len; ++i) {
+        [[unlikely]]
+        if (memcmp(ident.string, kw_types[i].first, len * sizeof(char)) == 0) {
+            return kw_types[i].second;
+        }
+    }
+    return TokenType::Identifier;
+}
+
+TokenType Lexer::_lookupIdent(str ident) {
+    switch (ident.len) {
+        case (2):
+            return lookupKeyword<sizeof(keywords_2)/sizeof(KW_TYPE), 2>(ident, keywords_2);
+        case (3):
+            return lookupKeyword<sizeof(keywords_3)/sizeof(KW_TYPE), 3>(ident, keywords_3);
+        case (4):
+            return lookupKeyword<sizeof(keywords_4)/sizeof(KW_TYPE), 4>(ident, keywords_4);
+        case (5):
+            return lookupKeyword<sizeof(keywords_5)/sizeof(KW_TYPE), 5>(ident, keywords_5);
+        case (6):
+            return lookupKeyword<sizeof(keywords_6)/sizeof(KW_TYPE), 6>(ident, keywords_6);
+        case (7):
+            return lookupKeyword<sizeof(keywords_7)/sizeof(KW_TYPE), 7>(ident, keywords_7);
+        case (8):
+            return lookupKeyword<sizeof(keywords_8)/sizeof(KW_TYPE), 8>(ident, keywords_8);
+        default:
+            return TokenType::Identifier;
+    }
+};
+
+Tokens Lexer::Tokenize() {
     while (this->current_char != '\0') {
         tokens.append(this->nextToken());
     }
     return this->tokens;
 };
 
-token::Token Lexer::nextToken() {
-    token::Token token;
+Token Lexer::nextToken() {
+    Token token;
     this->_skipWhitespace();
-
-    if (this->current_char == '+') {
-        if (this->_peekChar() == '+') {
-            token = this->_newToken(token::TokenType::Increment, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '++'
-        } else if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::PlusEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '+='
-        } else {
-            token = this->_newToken(token::TokenType::Plus, this->current_char);
-        }
-    } else if (this->current_char == '.') {
-        if (this->_peekChar() == '.' && this->_peekChar(2) == '.') {
-            token = this->_newToken(token::TokenType::Ellipsis, this->current_char + this->_peekChar() + this->_peekChar(2));
-            this->_readChar(); // Move to next character after '..'
-            this->_readChar(); // Move to next character after '...'
-        } else {
-            token = this->_newToken(token::TokenType::Dot, this->current_char);
-        }
-    } else if (this->current_char == '-') {
-        if (this->_peekChar() == '>') {
-            token = this->_newToken(token::TokenType::RightArrow, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '->'
-        } else if (this->_peekChar() == '-') {
-            token = this->_newToken(token::TokenType::Decrement, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '--'
-        } else if (this->_isDigit(this->_peekChar())) {
-            int st_pos = this->pos;
-            this->_readChar(); // Move to next character after '-'
-            token = this->_readNumber();
-            token.pos = st_pos;
-            return token;
-        } else if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::DashEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '-='
-        } else {
-            token = this->_newToken(token::TokenType::Dash, this->current_char);
-        }
-    } else if (this->current_char == '*') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::AsteriskEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '*='
-        } else if (this->_peekChar() == '*') {
-            token = this->_newToken(token::TokenType::AsteriskAsterisk, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '**'
-        } else {
-            token = this->_newToken(token::TokenType::Asterisk, this->current_char);
-        }
-    } else if (this->current_char == '/') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::ForwardSlashEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '/='
-        } else {
-            token = this->_newToken(token::TokenType::ForwardSlash, this->current_char);
-        }
-    } else if (this->current_char == '%') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::PercentEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '%='
-        } else {
-            token = this->_newToken(token::TokenType::Percent, this->current_char);
-        }
-    } else if (this->current_char == '^') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::CaretEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '^='
-        } else {
-            token = this->_newToken(token::TokenType::BitwiseXor, this->current_char);
-        }
-    } else if (this->current_char == '=') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::EqualEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '=='
-        } else {
-            token = this->_newToken(token::TokenType::Equals, this->current_char);
-        }
-    } else if (this->current_char == '>') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::GreaterThanOrEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '>='
-        } else if (this->_peekChar() == '>') {
-            token = this->_newToken(token::TokenType::RightShift, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '>>'
-        } else {
-            token = this->_newToken(token::TokenType::GreaterThan, this->current_char);
-        }
-    } else if (this->current_char == '<') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::LessThanOrEqual, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '<='
-        } else if (this->_peekChar() == '<') {
-            token = this->_newToken(token::TokenType::LeftShift, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '<<'
-        } else {
-            token = this->_newToken(token::TokenType::LessThan, this->current_char);
-        }
-    } else if (this->current_char == '!') {
-        if (this->_peekChar() == '=') {
-            token = this->_newToken(token::TokenType::NotEquals, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '!='
-        } else {
-            token = this->_newToken(token::TokenType::Illegal, this->current_char);
-        }
-    } else if (this->current_char == '{') {
-        token = this->_newToken(token::TokenType::LeftBrace, this->current_char);
-    } else if (this->current_char == '}') {
-        token = this->_newToken(token::TokenType::RightBrace, this->current_char);
-    } else if (this->current_char == '(') {
-        token = this->_newToken(token::TokenType::LeftParen, this->current_char);
-    } else if (this->current_char == ')') {
-        token = this->_newToken(token::TokenType::RightParen, this->current_char);
-    } else if (this->current_char == '[') {
-        token = this->_newToken(token::TokenType::LeftBracket, this->current_char);
-    } else if (this->current_char == ']') {
-        token = this->_newToken(token::TokenType::RightBracket, this->current_char);
-    } else if (this->current_char == ':') {
-        token = this->_newToken(token::TokenType::Colon, this->current_char);
-    } else if (this->current_char == ';') {
-        token = this->_newToken(token::TokenType::Semicolon, this->current_char);
-    } else if (this->current_char == '&') {
-        if (this->_peekChar() == '&') {
-            token = this->_newToken(token::TokenType::BitwiseAnd, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '&&'
-        } else {
-            token = this->_newToken(token::TokenType::Refrence, this->current_char);
-        }
-    } else if (this->current_char == '|') {
-        if (this->_peekChar() == '|') {
-            token = this->_newToken(token::TokenType::BitwiseOr, this->current_char + this->_peekChar());
-            this->_readChar(); // Move to next character after '||'
-        } else {
-            token = this->_newToken(token::TokenType::Pipe, this->current_char);
-        }
-    } else if (this->current_char == '~') {
-        token = this->_newToken(token::TokenType::BitwiseNot, this->current_char);
-    } else if (this->current_char == ',') {
-        token = this->_newToken(token::TokenType::Comma, this->current_char);
-    } else if (this->current_char == '@') {
-        token = this->_newToken(token::TokenType::AtTheRate, this->current_char);
-    } else if (this->current_char == '\0') {
-        token = this->_newToken(token::TokenType::EndOfFile, '\0');
-    } else if (this->current_char == '#' && tokenize_coment) {
-        int st_pos = this->pos;
-        this->_readChar();
-        while (this->current_char != '\n' && this->current_char != '\0') {
-            this->_readChar();
-        }
-        return token::Token(token::TokenType::Coment, st_pos);
-    } else {
-        if (auto quote = this->_isString(); quote != QuoteType::None) {
-            int st_pos = this->pos + (quote == QuoteType::DoubleTripleQuote || quote == QuoteType::SingleTripleQuote ? 3 : 1);
-            this->_readString(quote);
-            token = token::Token(token::TokenType(quote), st_pos);
-            return token;
-        } else if (this->_isLetter(this->current_char)) {
-            auto st_pos = this->pos;
-            auto ident = this->_readIdentifier();
-            token = this->_newToken(this->_lookupIdent(ident.c_str()), st_pos);
-            return token;
-        } else if (this->_isDigit(this->current_char)) {
-            token = this->_readNumber();
-            return token;
-        } else {
-            token = this->_newToken(token::TokenType::Illegal, this->current_char);
-        }
+    switch (current_char) {
+        case '+':
+            if (_peekChar() == '+') {
+                token = Token(TokenType::Increment, this->pos);
+                this->_readChar();
+            } else if (_peekChar() == '=') {
+                token = Token(TokenType::PlusEqual, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Plus, this->pos);
+            break;
+        case '.':
+            [[unlikely]]
+            if (_peekChar() == '.' && _peekChar(2) == '.') {
+                token = Token(TokenType::Ellipsis, this->pos);
+                this->pos += 1;
+                this->_readChar();
+            } else
+                token = Token(TokenType::Dot, this->pos);
+            break;
+        case '-':
+            if (_peekChar() == '>') {
+                token = Token(TokenType::RightArrow, this->pos);
+                this->_readChar();
+            } else if (_peekChar() == '-') {
+                token = Token(TokenType::Decrement, this->pos);
+                this->_readChar();
+            } else if (this->_isDigit(_peekChar())) {
+                uint32_t st_pos = this->pos;
+                this->_readChar();
+                token = this->_readNumber();
+                token.pos = st_pos;
+                return token;
+            } else if (_peekChar() == '=') {
+                token = Token(TokenType::DashEqual, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Dash, this->pos);
+            break;
+        case '*':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::AsteriskEqual, this->pos);
+                this->_readChar();
+            } else [[unlikely]] if (_peekChar() == '*') {
+                token = Token(TokenType::AsteriskAsterisk, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Asterisk, this->pos);
+            break;
+        case '/':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::ForwardSlashEqual, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::ForwardSlash, this->pos);
+            break;
+        case '%':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::PercentEqual, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Percent, this->pos);
+            break;
+        case '^':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::CaretEqual, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::BitwiseXor, this->pos);
+            break;
+        case '=':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::EqualEqual, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Equals, this->pos);
+            break;
+        case '>':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::GreaterThanOrEqual, this->pos);
+                this->_readChar();
+            } else [[unlikely]] if (_peekChar() == '>') {
+                token = Token(TokenType::RightShift, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::GreaterThan, this->pos);
+            break;
+        case '<':
+            if (_peekChar() == '=') {
+                token = Token(TokenType::LessThanOrEqual, this->pos);
+                this->_readChar();
+            } else [[unlikely]] if (_peekChar() == '<') {
+                token = Token(TokenType::LeftShift, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::LessThan, this->pos);
+            break;
+        case '!':
+            [[likely]]
+            if (_peekChar() == '=') {
+                token = Token(TokenType::NotEquals, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Illegal, this->pos);
+            break;
+        case '{':
+            token = Token(TokenType::LeftBrace, this->pos);
+            break;
+        case '}':
+            token = Token(TokenType::RightBrace, this->pos);
+            break;
+        case '(':
+            token = Token(TokenType::LeftParen, this->pos);
+            break;
+        case ')':
+            token = Token(TokenType::RightParen, this->pos);
+            break;
+        case '[':
+            token = Token(TokenType::LeftBracket, this->pos);
+            break;
+        case ']':
+            token = Token(TokenType::RightBracket, this->pos);
+            break;
+        case ':':
+            token = Token(TokenType::Colon, this->pos);
+            break;
+        case ';':
+            token = Token(TokenType::Semicolon, this->pos);
+            break;
+        case '&':
+            [[unlikely]]
+            if (_peekChar() == '&') {
+                token = Token(TokenType::BitwiseAnd, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Refrence, this->pos);
+            break;
+        case '|':
+            [[likely]]
+            if (_peekChar() == '|') {
+                token = Token(TokenType::BitwiseOr, this->pos);
+                this->_readChar();
+            } else
+                token = Token(TokenType::Pipe, this->pos);
+            break;
+        case '~':
+            token = Token(TokenType::BitwiseNot, this->pos);
+            break;
+        case ',':
+            token = Token(TokenType::Comma, this->pos);
+            break;
+        case '@':
+            token = Token(TokenType::AtTheRate, this->pos);
+            break;
+        case '\0':
+            token = Token(TokenType::EndOfFile, this->pos);
+            break;
+        default:
+            [[unlikely]]
+            if (auto quote = _isString(); quote != QuoteType::None) {
+                uint32_t st_pos = this->pos + (quote == QuoteType::DoubleTripleQuote || quote == QuoteType::SingleTripleQuote ? 3 : 1);
+                this->_readString(quote);
+                token = Token(TokenType(quote), st_pos);
+                return token;
+            } else [[likely]] if (this->_isLetter(this->current_char)) {
+                auto st_pos = this->pos;
+                char ident_buffer[64];
+                char* ident = ident_buffer;
+                size_t ident_len = 0;
+                [[likely]]
+                while (this->_isLetter(this->current_char) || this->_isDigit(this->current_char)) {
+                    ident[ident_len++] = this->current_char;
+                    this->_readChar();
+                    [[unlikely]]
+                    if (ident_len == sizeof(ident_buffer)) {
+                        errors::raiseSyntaxError(this->file_path, Token(TokenType::Identifier, st_pos), this->source.string, "Identifier too long", "Identifiers cannot exceed 64 characters.");
+                    }
+                };
+                ident[ident_len] = '\0';
+                token = Token(_lookupIdent(str(ident, ident_len)), st_pos);
+                return token;
+            } else [[likely]] if (this->_isDigit(this->current_char)) {
+                token = this->_readNumber();
+                return token;
+            } else
+                token = Token(TokenType::Illegal, this->pos);
     }
-
     this->_readChar(); // Move to next character after processing current token
     return token;
 }
 
 void Lexer::_readChar() {
     this->pos++;
-    if (this->pos >= this->source_len) {
-        // Set current_char to empty string to tell EOF
+    [[unlikely]]
+    if (this->pos >= this->source.len)
         this->current_char = '\0';
-    } else {
-        this->current_char = this->source[this->pos];
-    }
+    else
+        this->current_char = this->source.string[this->pos];
 }
 
 const char Lexer::_peekChar(int offset) {
-    int peek_pos = this->pos + offset;
-    if (peek_pos >= this->source_len) {
+    uint32_t peek_pos = this->pos + offset;
+    [[unlikely]]
+    if (peek_pos >= this->source.len)
         return '\0';
-    } else {
-        return source[peek_pos];
-    }
+    else
+        return source.string[peek_pos];
 }
 
-token::Token Lexer::_newToken(token::TokenType type, uint32_t st_pos) {
-    return token::Token(type, st_pos);
+Token Lexer::_newToken(TokenType type, uint32_t st_pos) {
+    return Token(type, st_pos);
 }
 
-token::Token Lexer::_readNumber() {
+Token Lexer::_readNumber() {
     bool dot_count = false;
     uint32_t pos = this->pos;
     while (this->_isDigit(this->current_char) || this->current_char == '.') {
         if (this->current_char == '.') dot_count = true;
         this->_readChar();
     }
-    if (dot_count) return this->_newToken(token::TokenType::Float, pos);
-    else return this->_newToken(token::TokenType::Integer, pos);
+    if (dot_count) return this->_newToken(TokenType::Float, pos);
+    else return this->_newToken(TokenType::Integer, pos);
 };
 
-std::string Lexer::_readIdentifier() {
-    std::string identifier = "";
-    while (this->_isLetter(this->current_char) || this->_isDigit(this->current_char)) {
-        identifier += this->current_char;
-        this->_readChar();
-    };
-    return identifier;
-}
-
 void Lexer::_skipWhitespace() {
-    // Skip whitespace characters
-    while (this->current_char == ' ' || this->current_char == '\t' || this->current_char == '\n' || this->current_char == '\r') {
+    [[likely]]
+    while (
+        this->current_char == ' '
+        || this->current_char == '\t'
+        || this->current_char == '\n'
+        || this->current_char == '\r'
+    ) { _readChar(); }
+
+    [[unlikely]]
+    if (this->current_char == '#' && !this->tokenize_coment) {
         this->_readChar();
-    }
-    // Skip comments starting with #
-    if (this->current_char == '#' && !tokenize_coment) {
-        this->_readChar();
+        [[likely]]
         while (this->current_char != '\n' && this->current_char != '\0') { this->_readChar(); }
-        this->_skipWhitespace(); // Recursive call to also skip the white space
+        this->_skipWhitespace(); // Recursive call to also skip the white space after the coment
     }
 }
 
@@ -300,27 +355,12 @@ bool Lexer::_isLetter(const char character) {
     return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '_'; /* a-z & A-Z in ansi is lied in one after the another*/
 };
 
-std::string getStringOnLineNumber(const std::string& input_string, int line_number) {
-    std::istringstream input(input_string);
-    std::string line;
-    // Iterate through the lines to find the specified line number
-    for (int i = 0; std::getline(input, line); ++i) {
-        if (i == line_number - 1) {
-            return line; // Found the line
-        } else if (i > line_number - 1) {
-            return ""; // Line not found
-        }
-    }
-    return ""; // Line not found
-}
-
-int getNumberOfLines(const std::string& str) {
-    return std::count(str.begin(), str.end(), '\n') + 1;
-}
-
 QuoteType Lexer::_isString() {
+    [[unlikely]]
     if (this->current_char == '\"') {
+        [[unlikely]]
         if (this->_peekChar(1) == '\"') {
+            [[unlikely]]
             if (this->_peekChar(2) == '\"') {
                 return QuoteType::DoubleTripleQuote;
             } else {
@@ -329,8 +369,10 @@ QuoteType Lexer::_isString() {
         } else {
             return QuoteType::DoubleSingleQuote;
         }
-    } else if (this->current_char == '\'') {
+    } else [[unlikely]] if (this->current_char == '\'') {
+        [[unlikely]]
         if (this->_peekChar(1) == '\'') {
+            [[unlikely]]
             if (this->_peekChar(2) == '\'') {
                 return QuoteType::DoubleTripleQuote;
             } else {
@@ -344,47 +386,55 @@ QuoteType Lexer::_isString() {
 }
 
 void Lexer::_readString(QuoteType quote) {
+    [[unlikely]]
     if (quote == QuoteType::DoubleTripleQuote || quote == QuoteType::SingleTripleQuote) {
-        this->_readChar();
+        this->pos++;
         this->_readChar();
     }
-    const char* quote_literal =
-        quote == QuoteType::DoubleTripleQuote ? "\"\"\""
-            : quote == QuoteType::SingleTripleQuote
-                ? "'''" : quote == QuoteType::DoubleSingleQuote
-                    ? "\"" : quote == QuoteType::SingleSingleQuote
-                        ? "'" : "";
-    auto st_pos = this->pos;
+    const char* quote_literal = quote == QuoteType::DoubleTripleQuote ? "\"\"\""
+        : quote == QuoteType::SingleTripleQuote                       ? "'''"
+        : quote == QuoteType::DoubleSingleQuote                             ? "\""
+        : quote == QuoteType::SingleSingleQuote                             ? "'"
+        : "";
+
+    uint32_t st_pos = this->pos;
+    [[likely]]
     while (true) {
         this->_readChar();
+        [[unlikely]]
         if (this->current_char == '"') {
+            [[likely]]
             if (quote == QuoteType::DoubleSingleQuote) {
                 this->_readChar();
                 break;
-            } else if(quote == QuoteType::DoubleTripleQuote && _peekChar() == '"' && _peekChar(2) == '"') {
-                this->_readChar();
-                this->_readChar();
-                this->_readChar();
+            } else if (quote == QuoteType::DoubleTripleQuote && _peekChar() == '"' && _peekChar(2) == '"') {
+                this->pos += 2;
+                _readChar();
+
                 break;
             }
-        } else if (this->current_char == '\'') {
+        }
+        [[unlikely]]
+        if (this->current_char == '\'') {
+            [[likely]]
             if (quote == QuoteType::SingleSingleQuote) {
                 this->_readChar();
                 break;
-            } else if(quote == QuoteType::SingleTripleQuote && _peekChar() == '"' && _peekChar(2) == '"') {
-                this->_readChar();
-                this->_readChar();
-                this->_readChar();
+            } else if (quote == QuoteType::SingleTripleQuote && _peekChar() == '"' && _peekChar(2) == '"') {
+                this->pos += 2;
+                _readChar();
+
                 break;
             }
-        } else if (this->current_char == '\\')
-            this->_readChar();
+        }
+        [[unlikely]]
         if ((this->current_char == '\0' || this->current_char == '\n') && (quote == QuoteType::DoubleSingleQuote || quote == QuoteType::SingleSingleQuote)) {
             errors::raiseSyntaxError(this->file_path,
-                                     token::Token(token::TokenType(quote), st_pos),
-                                     this->source,
+                                     Token(TokenType(quote), st_pos),
+                                     this->source.string,
                                      "Unterminated string literal",
                                      std::string("Add a closing ") + quote_literal + " to terminate the string literal");
         }
+
     }
 }

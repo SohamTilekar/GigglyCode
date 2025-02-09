@@ -7,6 +7,15 @@
 #include <string>
 #include <vector>
 
+#include "../config.hpp"
+
+struct str {
+    const char* string;
+    uint32_t len;
+    str(const char* string) : string(string), len(strlen(string)) {}
+    str(const char* string, uint32_t len) : string(string), len(len) {}
+};
+
 namespace token {
 enum struct TokenType : char {
     // Special Tokens
@@ -123,7 +132,7 @@ enum struct TokenType : char {
  */
 std::string tokenTypeToString(TokenType type);
 
-#define UINT24_MAX 16777215
+#define UINT24_MAX 1'67'77'215
 
 struct Token {
     TokenType type = TokenType::Illegal;
@@ -132,13 +141,14 @@ struct Token {
     inline Token() = default;
     inline Token(TokenType type, uint32_t pos) : type(type), pos(pos) {};
 
-    uint32_t getStLineNo(const char* source) const;
-    uint32_t getEnLineNo(const char* source) const;
-    uint32_t getStColNo(const char* source) const;
-    uint32_t getEnColNo(const char* source) const;
-    uint32_t getEnPos(const char* source) const;
+    uint32_t getStLineNo(str source) const;
+    uint32_t getEnLineNo(str source) const;
+    uint32_t getStColNo(str source) const;
+    uint32_t getEnColNo(str source) const;
+    uint32_t getEnPos(str source) const;
 
-    const std::string getLiteral(const char* source) const;
+    const std::string getLiteral(str source) const;
+    const std::string getIdentLiteral(str source) const;
 
     /**
      * @brief Convert the current token to a string.
@@ -166,9 +176,9 @@ struct Tokens {
     std::vector<Token> tokens = {};
     std::deque<Token> token_buffer = {};
     uint32_t current_token = 0;
-    const char* source;
+    str source;
     Tokens() = delete;
-    Tokens(const char* source) : source(source) {}
+    Tokens(str source) : source(source) {}
 
     void append(Token token) {
         tokens.push_back(token);

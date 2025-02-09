@@ -294,7 +294,7 @@ std::vector<std::tuple<int, std::string, std::string>> underline(int st_line_no,
 }
 
 std::vector<std::tuple<int, std::string, std::string>> underline_node(const AST::Node* node, const std::string& source, const std::string& color) {
-    return underline(node->meta_data.st_line_no, node->meta_data.st_col_no, node->meta_data.end_line_no, node->meta_data.end_col_no, source, color);
+    return underline(node->getStLineNo(source.c_str()), node->getStColNo(source.c_str()), node->getEnLineNo(source.c_str()), node->getEnColNo(source.c_str()), source, color);
 }
 
 // Utility functions for printing
@@ -471,7 +471,7 @@ void raiseNodeOutsideError(const std::string& file_path, const std::string& sour
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(node, source, RED);
 
-    print_source_context(source, file_path, node->meta_data.st_line_no, node->meta_data.st_col_no, node->meta_data.end_line_no, node->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, node->getStLineNo(source.c_str()), node->getStColNo(source.c_str()), node->getEnLineNo(source.c_str()), node->getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -508,8 +508,8 @@ void raiseNoOverloadError(const std::string& file_path,
     print_error_message(message);
 
     // Extract the start and end lines of the function call
-    int start_line = func_call->meta_data.st_line_no;
-    int end_line = func_call->meta_data.end_line_no;
+    int start_line = func_call->getStLineNo(source.c_str());
+    int end_line = func_call->getEnLineNo(source.c_str());
 
     // Prepare the underlines for mismatched arguments
     std::vector<std::tuple<int, std::string, std::string>> underlines;
@@ -547,7 +547,7 @@ void raiseDoesntContainError(
         underlines.insert(underlines.end(), member_underlines.begin(), member_underlines.end());
     }
 
-    print_source_context(source, file_path, from->meta_data.st_line_no, from->meta_data.st_col_no, member->meta_data.end_line_no, member->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, from->getStLineNo(source.c_str()), from->getStColNo(source.c_str()), member->getEnLineNo(source.c_str()), member->getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -558,9 +558,9 @@ void raiseWrongInfixError(
     print_error_message(message);
 
     std::vector<std::tuple<int, std::string, std::string>> underlines =
-        underline(left->meta_data.st_line_no, left->meta_data.st_col_no, right->meta_data.end_line_no, right->meta_data.end_col_no, source, RED);
+        underline(left->getStLineNo(source.c_str()), left->getStColNo(source.c_str()), right->getEnLineNo(source.c_str()), right->getEnColNo(source.c_str()), source, RED);
 
-    print_source_context(source, file_path, left->meta_data.st_line_no, left->meta_data.st_col_no, right->meta_data.end_line_no, right->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, left->getStLineNo(source.c_str()), left->getStColNo(source.c_str()), right->getEnLineNo(source.c_str()), right->getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -586,7 +586,7 @@ void raiseWrongTypeError(const std::string& file_path,
     }
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(exp, source, RED);
-    print_source_context(source, file_path, exp->meta_data.st_line_no, exp->meta_data.st_col_no, exp->meta_data.end_line_no, exp->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, exp->getStLineNo(source.c_str()), exp->getStColNo(source.c_str()), exp->getEnLineNo(source.c_str()), exp->getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -609,7 +609,7 @@ void raiseCantIndexError(const std::string& file_path, const std::string& source
         }
     }
 
-    print_source_context(source, file_path, exp->meta_data.st_line_no, exp->meta_data.st_col_no, exp->meta_data.end_line_no, exp->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, exp->getStLineNo(source.c_str()), exp->getStColNo(source.c_str()), exp->getEnLineNo(source.c_str()), exp->getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -620,7 +620,7 @@ void raiseNotDefinedError(const std::string& file_path, const std::string& sourc
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(Name, source, RED);
 
-    print_source_context(source, file_path, Name->meta_data.st_line_no, Name->meta_data.st_col_no, Name->meta_data.end_line_no, Name->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, Name->getStLineNo(source.c_str()), Name->getStColNo(source.c_str()), Name->getEnLineNo(source.c_str()), Name->getEnColNo(source.c_str()), underlines);
     print_suggested_fix(suggestedFix);
     exit(EXIT_FAILURE);
 }
@@ -634,10 +634,10 @@ void raiseDuplicateVariableError(const std::string& file_path, const std::string
         std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(declarationNode, source, RED);
         print_source_context(source,
                              file_path,
-                             declarationNode->meta_data.st_line_no,
-                             declarationNode->meta_data.st_col_no,
-                             declarationNode->meta_data.end_line_no,
-                             declarationNode->meta_data.end_col_no,
+                             declarationNode->getStLineNo(source.c_str()),
+                             declarationNode->getStColNo(source.c_str()),
+                             declarationNode->getEnLineNo(source.c_str()),
+                             declarationNode->getEnColNo(source.c_str()),
                              underlines);
     } else {
         // If no node is provided, display the file path as general context
@@ -674,7 +674,7 @@ void raiseArrayTypeError(const std::string& file_path, const std::string& source
 
     std::vector<std::tuple<int, std::string, std::string>> underlines = underline_node(element, source, RED);
 
-    print_source_context(source, file_path, element->meta_data.st_line_no, element->meta_data.st_col_no, element->meta_data.end_line_no, element->meta_data.end_col_no, underlines);
+    print_source_context(source, file_path, element->getStLineNo(source.c_str()), element->getStColNo(source.c_str()), element->getEnLineNo(source.c_str()), element->getEnColNo(source.c_str()), underlines);
     print_suggested_fix("Ensure that all elements in the array match the expected type.");
     exit(EXIT_FAILURE);
 }

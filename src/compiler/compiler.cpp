@@ -11,6 +11,7 @@
 #include <llvm/IR/Value.h>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 
 #include "../errors/errors.hpp"
 #include "../lexer/lexer.hpp"
@@ -21,7 +22,7 @@ using namespace compiler;
 using llConstInt = llvm::ConstantInt;
 
 Compiler::Compiler(
-    const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
+    str source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
     : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)), relativePath(std::move(relativePath)) {
 
     // Convert file path to Str
@@ -44,7 +45,7 @@ Compiler::Compiler(
 }
 
 Compiler::~Compiler() {
-    for (auto ptr : this->auto_free_programs) { delete ptr; }
+    for (auto ptr : this->auto_free_programs) { ptr->del(); }
     for (auto ptr : this->auto_free_recordStructType) { delete ptr; }
 }
 
@@ -144,7 +145,7 @@ void Compiler::_initializeBuiltins() {
 
 void Compiler::compile(AST::Node* node) {
     // This Only Compiles Statements & expressions are compiled in `_resolveValue
-    switch (node->type()) {
+    switch (node->type) {
         case AST::NodeType::Program:
             this->_visitProgram(node->castToProgram());
             break;
@@ -212,27 +213,23 @@ void Compiler::compile(AST::Node* node) {
             this->_visitImportStatement(node->castToImportStatement());
             break;
         default:
-            errors::raiseCompletionError(this->file_path,
-                                         this->source,
-                                         node->meta_data.st_line_no,
-                                         node->meta_data.st_col_no,
-                                         node->meta_data.end_line_no,
-                                         node->meta_data.end_col_no,
-                                         "Unknown node type: " + AST::nodeTypeToString(node->type()));
+            std::cerr << "internal Error: Unknown node type: " + AST::nodeTypeToString(node->type) << std::endl;
+            exit(1);
     }
 }
 
 void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
     if (this->env->loop_conti_block.empty()) {
-        errors::raiseNodeOutsideError(this->file_path, this->source, node, errors::OutsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary");
+        errors::raiseNodeOutsideError(this->file_path, this->source.string, node, errors::OutsideNodeType::Break, "Break statement outside the Loop", "Remove the Break statement, it is not necessary");
     }
     if (node->loopIdx >= this->env->loop_ifbreak_block.size()) {
+        auto idx_tok = token::Token(token::TokenType::Integer, node->pos);
         errors::raiseCompletionError(this->file_path,
-                                     this->source,
-                                     node->meta_data.st_line_no,
-                                     node->extra_info.int_map["idx_stcol_no"],
-                                     node->meta_data.end_line_no,
-                                     node->extra_info.int_map["idx_endcol_no"],
+                                     this->source.string,
+                                     idx_tok.getStLineNo(this->source),
+                                     idx_tok.getStColNo(this->source),
+                                     idx_tok.getEnLineNo(this->source),
+                                     idx_tok.getEnColNo(this->source),
                                      "Loop index " + std::to_string(node->loopIdx) + " is out of range. Maximum allowed index is " + std::to_string(this->env->loop_ifbreak_block.size() - 1) + ".",
                                      "Ensure that the loop index is within the valid range. Remember: "
                                      "LoopIdx starts with `0`.");
@@ -249,19 +246,20 @@ void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
 void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
     if (this->env->loop_condition_block.empty()) {
         errors::raiseNodeOutsideError(this->file_path,
-                                      this->source,
+                                      this->source.string,
                                       node,
                                       errors::OutsideNodeType::Continue,
                                       "Continue statement outside the Loop",
                                       "Remove the Continue statement, it is not necessary");
     }
     if (node->loopIdx >= this->env->loop_ifbreak_block.size()) {
+        auto idx_tok = token::Token(token::TokenType::Integer, node->pos);
         errors::raiseCompletionError(this->file_path,
-                                     this->source,
-                                     node->meta_data.st_line_no,
-                                     node->extra_info.int_map["idx_stcol_no"],
-                                     node->meta_data.end_line_no,
-                                     node->extra_info.int_map["idx_endcol_no"],
+                                     this->source.string,
+                                     idx_tok.getStLineNo(this->source),
+                                     idx_tok.getStColNo(this->source),
+                                     idx_tok.getEnLineNo(this->source),
+                                     idx_tok.getEnColNo(this->source),
                                      "Loop Index is out of range",
                                      "Remember: LoopIdx start with `0`");
     }
@@ -273,7 +271,7 @@ void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
 
 void Compiler::_visitProgram(AST::Program* program) {
     for (const auto& stmt : program->statements) {
-        switch (stmt->type()) {
+        switch (stmt->type) {
             case (AST::NodeType::FunctionStatement):
                 this->_visitFunctionDeclarationStatement(stmt->castToFunctionStatement());
                 break;
@@ -289,15 +287,8 @@ void Compiler::_visitProgram(AST::Program* program) {
             case AST::NodeType::ImportStatement:
                 this->_visitImportStatement(stmt->castToImportStatement());
                 break;
-            default: {
-                errors::raiseCompletionError(this->file_path,
-                                             this->source,
-                                             stmt->meta_data.st_line_no,
-                                             stmt->meta_data.st_col_no,
-                                             stmt->meta_data.end_line_no,
-                                             stmt->meta_data.end_col_no,
-                                             "Statement Out side the function");
-            }
+            default:
+                std::unreachable();
         }
     }
 }
@@ -324,11 +315,11 @@ void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallEx
             if (std::get<2>(pt)) {
                 errors::raiseCompletionError(
                     file_path,
-                    source,
-                    func_call->arguments[idx]->meta_data.st_line_no,
-                    func_call->arguments[idx]->meta_data.st_col_no,
-                    func_call->arguments[idx]->meta_data.end_line_no,
-                    func_call->arguments[idx]->meta_data.end_col_no,
+                    source.string,
+                    func_call->arguments[idx]->firstToken,
+                    func_call->arguments[idx]->firstToken,
+                    func_call->arguments[idx]->lastToken.getEnLineNo(this->source),
+                    func_call->arguments[idx]->lastToken.getEnColNo(this->source),
                     "Cant pass by refrence the non same type"
                 );
             }
@@ -343,7 +334,7 @@ void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallEx
     }
     if (mismatch_indices.empty())
         return;
-    errors::raiseNoOverloadError(this->file_path, this->source, {mismatch_indices}, func_call, "Cannot call the function with wrong type");
+    errors::raiseNoOverloadError(this->file_path, this->source.string, {mismatch_indices}, func_call, "Cannot call the function with wrong type");
 }
 
 Compiler::ResolvedValue
@@ -380,7 +371,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             const auto& pparam = params_types[idx];
 
             // Handle identifier literals by creating a new struct record
-            if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
+            if (gparam->value_type->name->type == AST::NodeType::IdentifierLiteral) {
                 auto struct_record = new RecordStructType(*pparam);
                 struct_record->name = gparam->value_type->name->castToIdentifierLiteral()->value;
                 this->env->addRecord(struct_record);
@@ -442,7 +433,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         for (const auto& [idx, arg] : llvm::enumerate(func->args())) { arg.setName(param_names[idx]); }
 
         // Create a record for the new function
-        auto func_record = new RecordFunction(name, func, func_type, {}, return_type, gfunc->func->extra_info, gfunc->func->return_const);
+        auto func_record = new RecordFunction(name, func, func_type, {}, return_type, false, gfunc->func->return_const, gfunc->func->autocast);
 
         if (body) {
             // Create entry basic block for the function
@@ -469,9 +460,6 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
                 func_record->arguments.emplace_back(arg.getName().str(), param_type, param_references[idx], param_const[idx]);
                 this->env->addRecord(record);
             }
-
-            // Set metadata for the function record
-            func_record->set_meta_data(gfunc->func->meta_data.st_line_no, gfunc->func->meta_data.st_col_no, gfunc->func->meta_data.end_line_no, gfunc->func->meta_data.end_col_no);
 
             // Add the function record to the environment
             this->env->addRecord(new RecordFunction(*func_record));
@@ -504,7 +492,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             const auto& gparam = gfunc->func->parameters[i];
             const auto& pparam = params_types[i];
 
-            if (gparam->value_type->name->type() == AST::NodeType::IdentifierLiteral) {
+            if (gparam->value_type->name->type == AST::NodeType::IdentifierLiteral) {
                 auto name_literal = gparam->value_type->name->castToIdentifierLiteral()->value;
                 if (this->env->isStruct(name_literal)) {
                     auto struct_record = this->env->getStruct(name_literal);
@@ -525,9 +513,9 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
 
     // Handle cases where no overload matches
     if (mismatches.empty()) {
-        errors::raiseNotDefinedError(this->file_path, this->source, func_call->name, "Function dose not Exist.", "Check the function name or define the function.");
+        errors::raiseNotDefinedError(this->file_path, this->source.string, func_call->name, "Function dose not Exist.", "Check the function name or define the function.");
     } else {
-        errors::raiseNoOverloadError(this->file_path, this->source, mismatches, func_call, "Argument types do not match any overload.", "Check the argument types or define an appropriate overload.");
+        errors::raiseNoOverloadError(this->file_path, this->source.string, mismatches, func_call, "Argument types do not match any overload.", "Check the argument types or define an appropriate overload.");
     }
 };
 
@@ -545,12 +533,12 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
         } else if (struct_) {
             // Generics are not supported for struct members; raise an error
             errors::raiseCompletionError("GenericInMethod",
-                                         this->source,
-                                         gsr->meta_data.st_line_no,
-                                         gsr->meta_data.st_col_no,
-                                         gsr->meta_data.end_line_no,
-                                         gsr->meta_data.end_col_no,
-                                         "Generics do not support struct members");
+                                         this->source.string,
+                                         function_declaration_statement->getStLineNo(source),
+                                         function_declaration_statement->getStColNo(source),
+                                         function_declaration_statement->getEnLineNo(source),
+                                         function_declaration_statement->getEnColNo(source),
+                                         "Generics do not support struct members yet");
         } else {
             // Otherwise, add to the global environment
             this->env->addRecord(gsr);
@@ -603,7 +591,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
     // Create a RecordFunction to keep track of the function's metadata and
     // environment
-    auto func_record = new RecordFunction(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info, function_declaration_statement->return_const);
+    auto func_record = new RecordFunction(name, func, func_type, arguments, return_type, false, function_declaration_statement->return_const, function_declaration_statement->autocast);
     func_record->ll_name = func->getName().str();
 
     // Add the function record to the appropriate scope (struct, module, or global
@@ -656,12 +644,6 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
             this->env->addRecord(record);
         }
 
-        // Set metadata for the function (e.g., source code location)
-        func_record->set_meta_data(function_declaration_statement->meta_data.st_line_no,
-                                   function_declaration_statement->meta_data.st_col_no,
-                                   function_declaration_statement->meta_data.end_line_no,
-                                   function_declaration_statement->meta_data.end_col_no);
-
         // Compile the function body within a try-catch to handle early returns or
         // branches
         this->env->addRecord(new RecordFunction(*func_record));
@@ -698,25 +680,25 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
     if (name == "raw_array") {
         if (param.size() != 2) {
             errors::raiseCompletionError(this->file_path,
-                                         this->source,
-                                         call_expression->meta_data.st_line_no,
-                                         call_expression->meta_data.st_col_no,
-                                         call_expression->meta_data.end_line_no,
-                                         call_expression->meta_data.end_col_no,
+                                         this->source.string,
+                                         call_expression->getStLineNo(source),
+                                         call_expression->getStColNo(source),
+                                         call_expression->getEnLineNo(source),
+                                         call_expression->getEnColNo(source),
                                          "raw_array constructor requires exactly 2 arguments: type and size",
                                          "Pass both a type argument and size argument");
         }
 
         // First param is the type
         auto [type_val, type_alloca, _type_param_type, type_resolve_type] = this->_resolveValue(param[0]);
-        if (type_resolve_type != resolveType::StructType) { errors::raiseWrongTypeError(this->file_path, this->source, param[0], nullptr, {}, "First argument must be a type"); }
+        if (type_resolve_type != resolveType::StructType) { errors::raiseWrongTypeError(this->file_path, this->source.string, param[0], nullptr, {}, "First argument must be a type"); }
         auto raw_array_type = std::get<RecordStructType*>(_type_param_type);
 
         // Second param is the size
         auto [size_val, size_alloca, _size_param_type, size_resolve_type] = this->_resolveValue(param[1]);
         auto size_type = std::get<RecordStructType*>(_size_param_type);
         if (!_checkType(size_type, gc_int) && !_checkType(size_type, gc_int32)) {
-            errors::raiseWrongTypeError(this->file_path, this->source, param[1], size_type, {gc_int, gc_int32}, "Second argument must be an integer size");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, param[1], size_type, {gc_int, gc_int32}, "Second argument must be an integer size");
         }
 
         llvm::Value* raw_array;
@@ -745,11 +727,11 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
     } else if (name == "array") {
         if (call_expression->arguments.size() == 0) {
             errors::raiseCompletionError(this->file_path,
-                                         this->source,
-                                         call_expression->meta_data.st_line_no,
-                                         call_expression->meta_data.st_col_no,
-                                         call_expression->meta_data.end_line_no,
-                                         call_expression->meta_data.end_col_no,
+                                         this->source.string,
+                                         call_expression->getStLineNo(source),
+                                         call_expression->getStColNo(source),
+                                         call_expression->getEnLineNo(source),
+                                         call_expression->getEnColNo(source),
                                          "array constructor requires at least 1 argument: type or instance",
                                          "Pass a type or instance as the first argument");
         }
@@ -775,7 +757,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                 this->env->addRecord(struct_record);
 
                 for (const auto& field : fields) {
-                    if (field->type() == AST::NodeType::VariableDeclarationStatement) {
+                    if (field->type == AST::NodeType::VariableDeclarationStatement) {
                         // Handle variable declarations within the struct
                         auto field_decl = field->castToVariableDeclarationStatement();
                         Str field_name = field_decl->name->castToIdentifierLiteral()->value;
@@ -788,7 +770,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                         struct_record->addSubType(field_name, field_type);
 
                         // Check if the field type is a generic type
-                        if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
+                        if (field_decl->value_type->type == AST::NodeType::IdentifierLiteral) {
                             auto field_value = field_decl->value_type->name->castToIdentifierLiteral()->value;
                             bool is_generic = false;
 
@@ -857,21 +839,21 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
 
             } else if (rtype == resolveType::Module || rtype == resolveType::GStructType) {
                 errors::raiseCompletionError(this->file_path,
-                                             this->source,
-                                             call_expression->meta_data.st_line_no,
-                                             call_expression->meta_data.st_col_no,
-                                             call_expression->meta_data.end_line_no,
-                                             call_expression->meta_data.end_col_no,
+                                             this->source.string,
+                                             call_expression->getStLineNo(source),
+                                             call_expression->getStColNo(source),
+                                             call_expression->getEnLineNo(source),
+                                             call_expression->getEnColNo(source),
                                              "First argument must be a type or instance, not a module or "
                                              "generic struct type",
                                              "Pass a valid type or instance as the first argument");
             } else {
                 errors::raiseCompletionError(this->file_path,
-                                             this->source,
-                                             call_expression->meta_data.st_line_no,
-                                             call_expression->meta_data.st_col_no,
-                                             call_expression->meta_data.end_line_no,
-                                             call_expression->meta_data.end_col_no,
+                                             this->source.string,
+                                             call_expression->getStLineNo(source),
+                                             call_expression->getStColNo(source),
+                                             call_expression->getEnLineNo(source),
+                                             call_expression->getEnColNo(source),
                                              "Size not provided for array",
                                              "Pass a size argument for the array");
             }
@@ -885,7 +867,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             if (first_resolve_type == resolveType::StructType) {
                 // Type + size constructor pattern
                 if (!_checkType(second_type, gc_int)) {
-                    errors::raiseWrongTypeError(this->file_path, this->source, call_expression->arguments[1], second_type, {gc_int}, "Second argument must be an integer size");
+                    errors::raiseWrongTypeError(this->file_path, this->source.string, call_expression->arguments[1], second_type, {gc_int}, "Second argument must be an integer size");
                 }
 
                 llvm::Value* raw_array;
@@ -932,7 +914,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                 auto [array_alloca, struct_record] = setupArrayStruct(first_type, raw_array, llConstInt::get(this->ll_int, 2));
                 return {array_alloca, array_alloca, struct_record, resolveType::StructInst};
             } else {
-                errors::raiseWrongTypeError(this->file_path, this->source, call_expression->arguments[0], first_type, {}, "First argument must be either a type or instance");
+                errors::raiseWrongTypeError(this->file_path, this->source.string, call_expression->arguments[0], first_type, {}, "First argument must be either a type or instance");
             }
         } else {
             // Create array type for multiple elements
@@ -973,9 +955,9 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         auto [value, alloca, _param_type, ptt] = this->_resolveValue(arg);
         auto param_type = std::get<RecordStructType*>(_param_type);
         if (ptt == resolveType::Module) {
-            errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass Module to the Function");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, arg, nullptr, {}, "Cant pass Module to the Function");
         } else if ((ptt == resolveType::StructType && param_type->name != "nullptr") && !this->env->isGenericStruct(name)) {
-            errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass type to the Function");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, arg, nullptr, {}, "Cant pass type to the Function");
         }
         params_types.push_back(param_type);
         if (!value && !alloca) {
@@ -1008,11 +990,11 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         return _callStruct(struct_record, call_expression, params_types, args);
     }
     errors::raiseCompletionError(this->file_path,
-                                 this->source,
-                                 call_expression->meta_data.st_line_no,
-                                 call_expression->meta_data.st_col_no,
-                                 call_expression->meta_data.end_line_no,
-                                 call_expression->meta_data.end_col_no,
+                                 this->source.string,
+                                 call_expression->getStLineNo(source),
+                                 call_expression->getStColNo(source),
+                                 call_expression->getEnLineNo(source),
+                                 call_expression->getEnColNo(source),
                                  "Function `" + name + "` not defined");
 };
 
@@ -1052,7 +1034,7 @@ Compiler::ResolvedValue Compiler::_callStruct(RecordStructType* struct_record, A
     } else {
         // Raise an error if __init__ is not defined
         errors::raiseNoOverloadError(this->file_path,
-                                     this->source,
+                                     this->source.string,
                                      {},
                                      call_expression,
                                      "Initialization method does not exist for struct " + struct_record->name + ".",
@@ -1117,7 +1099,7 @@ Compiler::_CallGstruct(const vector<RecordGenericStructType*>& gstructs, AST::Ca
             this->env->addRecord(struct_record);
 
             for (const auto& field : fields) {
-                if (field->type() == AST::NodeType::VariableDeclarationStatement) {
+                if (field->type == AST::NodeType::VariableDeclarationStatement) {
                     // Handle variable declarations within the struct
                     auto field_decl = field->castToVariableDeclarationStatement();
                     Str field_name = field_decl->name->castToIdentifierLiteral()->value;
@@ -1130,7 +1112,7 @@ Compiler::_CallGstruct(const vector<RecordGenericStructType*>& gstructs, AST::Ca
                     struct_record->addSubType(field_name, field_type);
 
                     // Check if the field type is a generic type
-                    if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
+                    if (field_decl->value_type->type == AST::NodeType::IdentifierLiteral) {
                         auto field_value = field_decl->value_type->name->castToIdentifierLiteral()->value;
                         bool is_generic = false;
 
@@ -1171,7 +1153,7 @@ Compiler::_CallGstruct(const vector<RecordGenericStructType*>& gstructs, AST::Ca
 
     // If no matching struct overload is found, raise an error and exit
     errors::raiseNoOverloadError(this->file_path,
-                                 this->source,
+                                 this->source.string,
                                  {},
                                  func_call,
                                  "Struct overload does not exist.",
@@ -1187,7 +1169,7 @@ void Compiler::_handleFieldDeclaration(RecordGenericStructType* gstruct, AST::No
 
     field_types.push_back(field_type->struct_type || field_type->name == "raw_array" ? this->ll_pointer : field_type->stand_alone_type);
 
-    if (field_decl->value_type->type() == AST::NodeType::IdentifierLiteral) {
+    if (field_decl->value_type->type == AST::NodeType::IdentifierLiteral) {
         auto field_value = field_decl->value_type->name->castToIdentifierLiteral()->value;
         bool is_generic = false;
 
@@ -1234,7 +1216,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
 
     // Iterate over each field in the struct
     for (auto field : fields) {
-        if (field->type() == AST::NodeType::VariableDeclarationStatement) {
+        if (field->type == AST::NodeType::VariableDeclarationStatement) {
             // Handle variable declarations within the struct
             auto field_decl = field->castToVariableDeclarationStatement();
             Str field_name = field_decl->name->castToIdentifierLiteral()->value;
@@ -1270,7 +1252,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
 void Compiler::_handleGenericSubType(AST::Node* field, AST::StructStatement* struct_statement, RecordStructType* struct_record, RecordStructType* field_type) {
     auto value_type = field->castToVariableDeclarationStatement()->value_type;
 
-    if (value_type->type() == AST::NodeType::IdentifierLiteral) {
+    if (value_type->type == AST::NodeType::IdentifierLiteral) {
         Str field_value = value_type->castToIdentifierLiteral()->value;
         bool is_generic = false;
 
@@ -1293,11 +1275,11 @@ void Compiler::_processFieldFunction(AST::Node* field, RecordStructType* struct_
     // Ensure the function is not generic
     if (!func_dec->generic.empty()) {
         errors::raiseCompletionError(this->file_path,
-                                     this->source,
-                                     func_dec->name->meta_data.st_line_no,
-                                     func_dec->name->meta_data.st_col_no,
-                                     func_dec->name->meta_data.end_line_no,
-                                     func_dec->name->meta_data.end_col_no,
+                                     this->source.string,
+                                     func_dec->name->getStLineNo(source),
+                                     func_dec->name->getStColNo(source),
+                                     func_dec->name->getEnLineNo(source),
+                                     func_dec->name->getEnColNo(source),
                                      "Struct Methods do not support Generic Functions",
                                      "Set the Generic on the struct");
     }
@@ -1334,7 +1316,7 @@ void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
     llvm_ir_builder.SetInsertPoint(dump_block);
     llvm_ir_builder.CreateUnreachable();
 
-    enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true, true));
+    enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true, true, false));
     this->env->addRecord(enum_struct);
 }
 
@@ -1342,7 +1324,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
     auto left = infixed_expression->left;
     auto right = infixed_expression->right;
     auto [left_value, left_alloca, _left_type, ltt] = this->_resolveValue(left);
-    if (right->type() == AST::NodeType::IdentifierLiteral) {
+    if (right->type == AST::NodeType::IdentifierLiteral) {
         if (ltt == resolveType::Module) {
             auto module = std::get<RecordModule*>(_left_type);
             auto name = right->castToIdentifierLiteral()->value;
@@ -1354,7 +1336,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 return Compiler::ResolvedValue(nullptr, nullptr, module->getGenericStruct(name), resolveType::GStructType);
             } else {
                 errors::raiseDoesntContainError(this->file_path,
-                                                this->source,
+                                                this->source.string,
                                                 right->castToIdentifierLiteral(),
                                                 left,
                                                 "no member `" + name + "` not found in module " + module->name,
@@ -1363,7 +1345,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
         } else if (ltt == resolveType::StructInst) {
             auto left_type = std::get<RecordStructType*>(_left_type);
             if (left_type->is_enum_kind) {
-                errors::raiseDoesntContainError(this->file_path, this->source, right->castToIdentifierLiteral(), left, "Cant access the enum varient from its varient " + left_type->name);
+                errors::raiseDoesntContainError(this->file_path, this->source.string, right->castToIdentifierLiteral(), left, "Cant access the enum varient from its varient " + left_type->name);
             }
             if (left_type->sub_types.contains(right->castToIdentifierLiteral()->value)) {
                 unsigned short idx = 0;
@@ -1379,7 +1361,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 return {nullptr, gep, type, resolveType::StructInst};
             } else {
                 errors::raiseDoesntContainError(this->file_path,
-                                                this->source,
+                                                this->source.string,
                                                 right->castToIdentifierLiteral(),
                                                 left,
                                                 "no member `" + right->castToIdentifierLiteral()->value + "` not found in struct " + left_type->name,
@@ -1395,7 +1377,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                             resolveType::StructInst};
                 } else {
                     errors::raiseDoesntContainError(this->file_path,
-                                                    this->source,
+                                                    this->source.string,
                                                     right->castToIdentifierLiteral(),
                                                     left,
                                                     "no member `" + right->castToIdentifierLiteral()->value + "` not found in enum " + left_type->name,
@@ -1403,7 +1385,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 }
             }
         }
-    } else if (right->type() == AST::NodeType::CallExpression) {
+    } else if (right->type == AST::NodeType::CallExpression) {
         auto call_expression = right->castToCallExpression();
         auto name = call_expression->name->castToIdentifierLiteral()->value;
         auto params = call_expression->arguments;
@@ -1413,7 +1395,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
         for (auto arg : params) {
             auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
             // Cannot pass modules as function arguments
-            if (ptt == resolveType::Module) { errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass Module to the Function"); }
+            if (ptt == resolveType::Module) { errors::raiseWrongTypeError(this->file_path, this->source.string, arg, nullptr, {}, "Cant pass Module to the Function"); }
 
             bool isStructType = ptt == resolveType::StructType;
             bool isNonNullptr = isStructType && std::get<RecordStructType*>(param_type)->name != "nullptr";
@@ -1422,7 +1404,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             bool isGenericStructType = ptt == resolveType::GStructType;
 
             if ((isStructType && isNonNullptr && isNotGenericStructMember && isNotRawArray) || isGenericStructType) {
-                errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass type to the Function.");
+                errors::raiseWrongTypeError(this->file_path, this->source.string, arg, nullptr, {}, "Cant pass type to the Function.");
             }
             params_types.push_back(std::get<RecordStructType*>(param_type));
             arg_allocas.push_back(val_alloca);
@@ -1450,7 +1432,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 return this->_callStruct(left_type->get_struct(name), call_expression, params_types, args);
             } else {
                 errors::raiseDoesntContainError(this->file_path,
-                                                this->source,
+                                                this->source.string,
                                                 call_expression->name->castToIdentifierLiteral(),
                                                 left,
                                                 "Struct Or Function " + name + " overload Dose Not Exit.",
@@ -1485,7 +1467,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 return {returnValue, nullptr, method->return_type, resolveType::StructInst};
             } else {
                 errors::raiseNoOverloadError(this->file_path,
-                                             this->source,
+                                             this->source.string,
                                              {},
                                              call_expression,
                                              "method does not exist for struct " + left_type->name + ".",
@@ -1494,12 +1476,12 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
         }
     }
     errors::raiseCompletionError(this->file_path,
-                                 this->source,
-                                 right->meta_data.st_line_no,
-                                 right->meta_data.st_col_no,
-                                 right->meta_data.end_line_no,
-                                 right->meta_data.end_col_no,
-                                 "Member access should be identifier or method not " + AST::nodeTypeToString(right->type()));
+                                 this->source.string,
+                                 right->getStLineNo(source),
+                                 right->getStColNo(source),
+                                 right->getEnLineNo(source),
+                                 right->getEnColNo(source),
+                                 "Member access should be identifier or method not " + AST::nodeTypeToString(right->type));
 };
 
 Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
@@ -1529,7 +1511,7 @@ Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
              left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else {
-        errors::raiseWrongInfixError(this->file_path, this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct");
+        errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct");
     }
 };
 
@@ -1576,7 +1558,7 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
         } else if (_checkType(to, gc_bool)) {
             return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, 0))), .variant = to, .type = resolveType::StructType};
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert int to " + to->name);
+            errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert int to " + to->name);
         }
     } else if (_checkType(fromtype, gc_int32)) {
         auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_int32, fromalloca) : fromloadedval;
@@ -1593,7 +1575,7 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
         } else if (_checkType(to, gc_bool)) {
             return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(32, 0))), .variant = to, .type = resolveType::StructType};
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert int32 to " + to->name);
+            errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert int32 to " + to->name);
         }
     } else if (_checkType(fromtype, gc_uint)) {
         auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_uint, fromalloca) : fromloadedval;
@@ -1610,7 +1592,7 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
         } else if (_checkType(to, gc_bool)) {
             return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(64, 0))), .variant = to, .type = resolveType::StructType};
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert uint to " + to->name);
+            errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert uint to " + to->name);
         }
     } else if (_checkType(fromtype, gc_uint32)) {
         auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_uint32, fromalloca) : fromloadedval;
@@ -1627,7 +1609,7 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
         } else if (_checkType(to, gc_bool)) {
             return {.value = llvm_ir_builder.CreateICmpNE(from, llvm::ConstantInt::get(this->llvm_context, llvm::APInt(32, 0))), .variant = to, .type = resolveType::StructType};
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert uint32 to " + to->name);
+            errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert uint32 to " + to->name);
         }
     } else if (_checkType(fromtype, gc_float)) {
         auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_float, fromalloca) : fromloadedval;
@@ -1644,7 +1626,7 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
         } else if (_checkType(to, gc_bool)) {
             return {.value = llvm_ir_builder.CreateFCmpONE(from, llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(0.0))), .variant = to, .type = resolveType::StructType};
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert float to " + to->name);
+            errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert float to " + to->name);
         }
     } else if (_checkType(fromtype, gc_float32)) {
         auto from = fromalloca ? llvm_ir_builder.CreateLoad(ll_float32, fromalloca) : fromloadedval;
@@ -1661,13 +1643,13 @@ Compiler::ResolvedValue Compiler::convertType(const ResolvedValue& from, RecordS
         } else if (_checkType(to, gc_bool)) {
             return {.value = llvm_ir_builder.CreateFCmpONE(from, llvm::ConstantFP::get(this->llvm_context, llvm::APFloat(0.0))), .variant = to, .type = resolveType::StructType};
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert float32 to " + to->name);
+            errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert float32 to " + to->name);
         }
     } else if (_checkType(fromtype, gc_str)) {
         // TODO
         std::cout << "Converting str to something (not implemented)" << std::endl;
     }
-    errors::raiseWrongTypeError(this->file_path, this->source, nullptr, fromtype, {to}, "Cannot convert " + fromtype->name + " to " + to->name);
+    errors::raiseWrongTypeError(this->file_path, this->source.string, nullptr, fromtype, {to}, "Cannot convert " + fromtype->name + " to " + to->name);
 }
 
 bool Compiler::canConvertType(RecordStructType* from, RecordStructType* to) {
@@ -1688,7 +1670,7 @@ bool Compiler::canConvertType(RecordStructType* from, RecordStructType* to) {
     for (const auto& [fromType, toType] : convertibleTypes) {
         if (from->name == fromType && to->name == toType) { return true; }
     }
-    if (from->struct_type && from->is_method("", {from}, std::unordered_map<std::string, bool>{{"autocast", true}}, to, true)) { return true; }
+    if (from->struct_type && from->is_method("", {from}, to, true, true)) { return true; }
     return false;
 };
 
@@ -1701,7 +1683,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto [right_value, right_alloca, _right_type, rtt] = this->_resolveValue(right);
     if (ltt != resolveType::StructInst && !(ltt == resolveType::StructType && std::get<RecordStructType*>(_left_type)->name == "nullptr") ||
         (rtt != resolveType::StructInst && !(rtt == resolveType::StructType && std::get<RecordStructType*>(_right_type)->name == "nullptr"))) {
-        errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Cant " + token::tokenTypeToString(op) + " 2 types or modules");
+        errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Cant " + token::tokenTypeToString(op) + " 2 types or modules");
     }
     auto left_val = left_value;
     auto right_val = right_value;
@@ -1709,7 +1691,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
     auto right_type = std::get<RecordStructType*>(_right_type);
     if (left_type->is_enum_kind && right_type->is_enum_kind) {
         if (!_checkType(left_type, right_type)) {
-            errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Cant " + token::tokenTypeToString(op) + " 2 diffrent types enums");
+            errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Cant " + token::tokenTypeToString(op) + " 2 diffrent types enums");
         }
         auto left_val = left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, left_alloca);
         auto right_val = right_value ? right_value : this->llvm_ir_builder.CreateLoad(left_type->stand_alone_type, right_alloca);
@@ -1747,7 +1729,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
+                errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
             }
         }
     }
@@ -1816,7 +1798,7 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return this->_StructInfixCall("__pow__", "**", left_type, right_type, left, right, left_value, left_alloca, right_value, right_alloca);
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Cant operator: `" + token::tokenTypeToString(op) + "` 2 structs", "");
+                errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Cant operator: `" + token::tokenTypeToString(op) + "` 2 structs", "");
             }
         }
     }
@@ -1901,23 +1883,23 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
             }
             case (token::TokenType::And): {
                 if (left_type->name != "bool" || right_type->name != "bool") {
-                    errors::raiseWrongTypeError(this->file_path, this->source, left, left_type, {gc_bool}, "Operands must be of type bool for & operator");
+                    errors::raiseWrongTypeError(this->file_path, this->source.string, left, left_type, {gc_bool}, "Operands must be of type bool for & operator");
                 }
                 auto inst = this->llvm_ir_builder.CreateAnd(left_val_converted, right_val_converted);
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::Or): {
                 if (left_type->name != "bool" || right_type->name != "bool") {
-                    errors::raiseWrongTypeError(this->file_path, this->source, left, left_type, {gc_bool}, "Operands must be of type bool for | operator");
+                    errors::raiseWrongTypeError(this->file_path, this->source.string, left, left_type, {gc_bool}, "Operands must be of type bool for | operator");
                 }
                 auto inst = this->llvm_ir_builder.CreateOr(left_val_converted, right_val_converted);
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Power operator not supported for int");
+                errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Power operator not supported for int");
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
+                errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
             }
         }
     } else if (common_type->stand_alone_type->isDoubleTy() || common_type->stand_alone_type->isFloatTy()) {
@@ -1966,14 +1948,14 @@ Compiler::ResolvedValue Compiler::_visitInfixExpression(AST::InfixExpression* in
                 return {inst, nullptr, gc_bool, resolveType::StructInst};
             }
             case (token::TokenType::AsteriskAsterisk): {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Power operator not supported for float");
+                errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Power operator not supported for float");
             }
             default: {
-                errors::raiseWrongInfixError(this->file_path, this->source, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
+                errors::raiseWrongInfixError(this->file_path, this->source.string, left, right, token::tokenTypeToString(op), "Unknown operator: " + token::tokenTypeToString(op));
             }
         }
     } else {
-        errors::raiseWrongTypeError(this->file_path, this->source, infixed_expression, common_type, {gc_int, this->env->getStruct("float")}, "Unknown Type", "Check the types of the operands.");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, infixed_expression, common_type, {gc_int, this->env->getStruct("float")}, "Unknown Type", "Check the types of the operands.");
     }
 };
 
@@ -1981,7 +1963,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateLeftOperand(AST::IndexExpre
     auto [left, left_alloca, _left_generic, ltt] = this->_resolveValue(index_expression->left);
 
     if (ltt != resolveType::StructInst) {
-        errors::raiseCantIndexError(this->file_path, this->source, index_expression, false, "Cannot index Module or type", "Ensure the left-hand side is an raw_array or a valid indexable type.");
+        errors::raiseCantIndexError(this->file_path, this->source.string, index_expression, false, "Cannot index Module or type", "Ensure the left-hand side is an raw_array or a valid indexable type.");
     }
 
     auto left_generic = std::get<RecordStructType*>(_left_generic);
@@ -1992,7 +1974,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateIndexOperand(AST::IndexExpr
     auto [index, __, _index_generic, itt] = this->_resolveValue(index_expression->index);
 
     if (itt != resolveType::StructInst) {
-        errors::raiseCantIndexError(this->file_path, this->source, index_expression, true, "Index must be an integer, not a Module or type", "Ensure the index is an integer.");
+        errors::raiseCantIndexError(this->file_path, this->source.string, index_expression, true, "Index must be an integer, not a Module or type", "Ensure the index is an integer.");
     }
 
     auto index_generic = std::get<RecordStructType*>(_index_generic);
@@ -2004,7 +1986,7 @@ Compiler::_handleraw_arrayIndexing(llvm::Value* left, RecordStructType* left_gen
     // Validate that the index is of type 'int'
     if (!_checkType(index_generic, gc_int) && !_checkType(index_generic, this->env->getStruct("int32")) && !_checkType(index_generic, this->env->getStruct("uint")) &&
         !_checkType(index_generic, this->env->getStruct("uint32"))) {
-        errors::raiseCantIndexError(this->file_path, this->source, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.");
+        errors::raiseCantIndexError(this->file_path, this->source.string, index_expression, true, "Index must be an integer not `" + index_generic->name + "`", "Ensure the index is an integer.");
     }
 
     // Get the element type
@@ -2020,7 +2002,7 @@ Compiler::_handleraw_arrayIndexing(llvm::Value* left, RecordStructType* left_gen
 }
 
 [[noreturn]] void Compiler::_raiseNoIndexMethodError(RecordStructType* left_generic, AST::IndexExpression* index_expression) {
-    errors::raiseNoOverloadError(this->file_path, this->source, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "Define the __index__ method.");
+    errors::raiseNoOverloadError(this->file_path, this->source.string, {}, index_expression, "__index__ method does not exist for struct " + left_generic->name + ".", "Define the __index__ method.");
 }
 
 Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* index_expression) {
@@ -2044,7 +2026,7 @@ Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* in
         if (!_checkType(index_generic, gc_int) && !_checkType(index_generic, this->env->getStruct("int32")) && !_checkType(index_generic, this->env->getStruct("uint")) &&
             !_checkType(index_generic, this->env->getStruct("uint32"))) {
             errors::raiseCantIndexError(this->file_path,
-                                        this->source,
+                                        this->source.string,
                                         index_expression,
                                         true,
                                         "Index must be an integer (int, int32, uint, uint32) not `" + index_generic->name + "`",
@@ -2075,7 +2057,7 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     auto var_name = variable_declaration_statement->name->castToIdentifierLiteral();
 
     // Check if the variable is already declared
-    if (this->env->isVariable(var_name->value)) { errors::raiseDuplicateVariableError(this->file_path, this->source, var_name->value, variable_declaration_statement, "Variable is already declared"); }
+    if (this->env->isVariable(var_name->value)) { errors::raiseDuplicateVariableError(this->file_path, this->source.string, var_name->value, variable_declaration_statement, "Variable is already declared"); }
 
     auto var_value = variable_declaration_statement->value;
     RecordStructType* var_type = variable_declaration_statement->value_type ? this->_parseType(variable_declaration_statement->value_type) : nullptr;
@@ -2083,11 +2065,11 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     if (!var_value && variable_declaration_statement->is_const) {
         errors::raiseCompletionError(
             file_path,
-            source,
-            variable_declaration_statement->meta_data.st_line_no,
-            variable_declaration_statement->meta_data.st_col_no,
-            variable_declaration_statement->meta_data.end_line_no,
-            variable_declaration_statement->meta_data.end_col_no,
+            source.string,
+            variable_declaration_statement->getStLineNo(source),
+            variable_declaration_statement->getStColNo(source),
+            variable_declaration_statement->getEnLineNo(source),
+            variable_declaration_statement->getEnColNo(source),
             "Cant Decelare constant Variable with undefine value",
             "remove the const kw"
         );
@@ -2115,7 +2097,7 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     auto var_generic = std::get<RecordStructType*>(_var_generic);
 
     if (vartt != resolveType::StructInst && !(vartt == resolveType::StructType && var_generic->name == "nullptr")) {
-        errors::raiseWrongTypeError(this->file_path, this->source, var_value, nullptr, {var_type}, "Cannot assign module or type to variable");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, var_value, nullptr, {var_type}, "Cannot assign module or type to variable");
     }
 
     if (variable_declaration_statement->value_type && !_checkType(var_generic, var_type)) {
@@ -2125,13 +2107,13 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
             var_value_alloca = converted.alloca;
             var_generic = std::get<RecordStructType*>(converted.variant);
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, var_value, var_generic, {var_type}, "Cannot assign mismatched type");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, var_value, var_generic, {var_type}, "Cannot assign mismatched type");
         }
     }
     if (global && var_value) {
-        if (var_generic->struct_type) { errors::raiseWrongTypeError(this->file_path, this->source, var_value, var_generic, {}, "Global variable cannot be of struct type"); }
+        if (var_generic->struct_type) { errors::raiseWrongTypeError(this->file_path, this->source.string, var_value, var_generic, {}, "Global variable cannot be of struct type"); }
         if (!llvm::isa<llvm::Constant>(var_value_resolved)) {
-            errors::raiseWrongTypeError(this->file_path, this->source, var_value, var_generic, {}, "Global variable initializer must be a constant");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, var_value, var_generic, {}, "Global variable initializer must be a constant");
         }
         auto gv = new llvm::GlobalVariable(*this->llvm_module,
                                            var_generic->stand_alone_type,
@@ -2165,22 +2147,22 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
     auto assignmentType = std::get<RecordStructType*>(_assignmentType);
 
     if (vtt == resolveType::ConstStructInst) {
-        errors::raiseCompletionError(file_path, source,
-            variable_assignment_statement->name->meta_data.st_line_no,
-            variable_assignment_statement->name->meta_data.st_col_no,
-            variable_assignment_statement->name->meta_data.end_line_no,
-            variable_assignment_statement->name->meta_data.end_col_no,
+        errors::raiseCompletionError(file_path, source.string,
+            variable_assignment_statement->name->getStLineNo(source),
+            variable_assignment_statement->name->getStColNo(source),
+            variable_assignment_statement->name->getEnLineNo(source),
+            variable_assignment_statement->name->getEnColNo(source),
             "Cant assign to the constant variable"
         );
     }
     if ((vtt != resolveType::StructInst) && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
-        errors::raiseWrongTypeError(this->file_path, this->source, var_value, nullptr, {assignmentType}, "Cannot assign module or type to variable");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, var_value, nullptr, {assignmentType}, "Cannot assign module or type to variable");
     }
 
     auto [_, alloca, _var_type, att] = this->_resolveValue(variable_assignment_statement->name);
     auto var_type = std::get<RecordStructType*>(_var_type);
     if (!alloca) {
-        errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true);
+        errors::raiseWrongTypeError(file_path, source.string, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true);
     }
 
     if (!_checkType(var_type, assignmentType)) {
@@ -2190,7 +2172,7 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
             value_alloca = converted.alloca;
             assignmentType = std::get<RecordStructType*>(converted.variant);
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, var_value, var_type, {var_type}, "Cannot assign mismatched type");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, var_value, var_type, {var_type}, "Cannot assign mismatched type");
         }
     }
 
@@ -2216,11 +2198,11 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
 
     // Check for null condition value and raise error if necessary
     if (!condition_value.value && !condition_value.alloca) {
-        errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, nullptr, {}, "Switch condition cannot be a module or type");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, switch_statement->condition, nullptr, {}, "Switch condition cannot be a module or type");
     }
 
     if (std::get<RecordStructType*>(condition_value.variant)->struct_type) {
-        errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, std::get<RecordStructType*>(condition_value.variant), {}, "Switch condition cannot be a struct type");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, switch_statement->condition, std::get<RecordStructType*>(condition_value.variant), {}, "Switch condition cannot be a struct type");
     }
 
     // Load from alloca if available, otherwise use the value directly
@@ -2241,20 +2223,20 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
     for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
         auto [case_expr, case_stmt] = switch_statement->cases[i];
         ResolvedValue case_value = _resolveValue(case_expr);
-        if (!case_value.value && !case_value.alloca) { errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case cannot be a module or type"); }
+        if (!case_value.value && !case_value.alloca) { errors::raiseWrongTypeError(this->file_path, this->source.string, case_expr, nullptr, {}, "Switch case cannot be a module or type"); }
         if (std::get<RecordStructType*>(case_value.variant)->struct_type) {
-            errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, std::get<RecordStructType*>(case_value.variant), {}, "Switch case cannot be a struct type");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, switch_statement->condition, std::get<RecordStructType*>(case_value.variant), {}, "Switch case cannot be a struct type");
         }
         llvm::Value* case_val = case_value.value
             ? case_value.value
             : (case_value.alloca ? this->llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(case_value.variant)->stand_alone_type, case_value.alloca) : nullptr);
         if (!enviornment::_checkType(std::get<RecordStructType*>(case_value.variant), std::get<RecordStructType*>(condition_value.variant))) {
-            errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case type mismatch");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, case_expr, nullptr, {}, "Switch case type mismatch");
         }
         if (llvm::isa<llvm::ConstantInt>(case_val)) {
             switch_inst->addCase(llvm::cast<llvm::ConstantInt>(case_val), case_blocks[i]);
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case value must be a constant integer");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, case_expr, nullptr, {}, "Switch case value must be a constant integer");
         }
     }
 
@@ -2297,7 +2279,6 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
     if (this->env->isVariable(identifier_literal->value)) {
         auto variable = this->env->getVariable(identifier_literal->value);
         auto currentStructType = variable->variable_type;
-        currentStructType->meta_data = identifier_literal->meta_data;
         if (variable->is_const) {
             if (currentStructType->struct_type || currentStructType->name == "raw_array")
                 return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
@@ -2315,7 +2296,7 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
     } else if (this->env->isGenericStruct(identifier_literal->value)) {
         return {nullptr, nullptr, this->env->getGenericStruct(identifier_literal->value), resolveType::GStructType};
     }
-    errors::raiseNotDefinedError(this->file_path, this->source, identifier_literal, "Variable or function or struct `" + identifier_literal->value + "` not defined", "Recheck the Name");
+    errors::raiseNotDefinedError(this->file_path, this->source.string, identifier_literal, "Variable or function or struct `" + identifier_literal->value + "` not defined", "Recheck the Name");
 }
 
 Compiler::ResolvedValue Compiler::_resolveInfixExpression(AST::InfixExpression* infix_expression) {
@@ -2342,7 +2323,7 @@ Compiler::ResolvedValue Compiler::_resolveArrayLiteral(AST::ArrayLiteral* raw_ar
 }
 
 Compiler::ResolvedValue Compiler::_resolveValue(AST::Node* node) {
-    switch (node->type()) {
+    switch (node->type) {
         case AST::NodeType::IntegerLiteral:
             return this->_resolveIntegerLiteral(node->castToIntegerLiteral());
         case AST::NodeType::FloatLiteral:
@@ -2363,13 +2344,13 @@ Compiler::ResolvedValue Compiler::_resolveValue(AST::Node* node) {
             return this->_resolveArrayLiteral(node->castToArrayLiteral());
         default:
             errors::raiseUnknownNodeTypeError(this->file_path,
-                                              this->source,
-                                              AST::nodeTypeToString(node->type()),
-                                              node->meta_data.st_line_no,
-                                              node->meta_data.st_col_no,
-                                              node->meta_data.end_line_no,
-                                              node->meta_data.end_col_no,
-                                              "Unknown node type: " + AST::nodeTypeToString(node->type()));
+                                              this->source.string,
+                                              AST::nodeTypeToString(node->type),
+                                              node->getStLineNo(source),
+                                              node->getStColNo(source),
+                                              node->getEnLineNo(source),
+                                              node->getEnColNo(source),
+                                              "Unknown node type: " + AST::nodeTypeToString(node->type));
     }
 }
 
@@ -2432,7 +2413,7 @@ Compiler::ResolvedValue Compiler::_visitArrayLiteral(AST::ArrayLiteral* raw_arra
 // Implementation of _validateraw_arrayElement
 void Compiler::_validateraw_arrayElement(AST::Node* element, RecordStructType*& first_generic) {
     auto [value, value_alloca, _generic, vtt] = this->_resolveValue(element);
-    if (vtt != resolveType::StructInst) { errors::raiseArrayTypeError(this->file_path, this->source, element, first_generic, "Cannot add Module or type in raw_array"); }
+    if (vtt != resolveType::StructInst) { errors::raiseArrayTypeError(this->file_path, this->source.string, element, first_generic, "Cannot add Module or type in raw_array"); }
 }
 
 // Implementation of _handleTypeConversion
@@ -2446,7 +2427,7 @@ void Compiler::_handleTypeConversion(AST::Expression* element, ResolvedValue& re
             resolved_value.alloca = converted.alloca;
             resolved_value.variant = converted.variant;
         } else {
-            errors::raiseArrayTypeError(this->file_path, this->source, element, first_generic, "raw_array with multiple types or generics");
+            errors::raiseArrayTypeError(this->file_path, this->source.string, element, first_generic, "raw_array with multiple types or generics");
         }
     }
 }
@@ -2456,7 +2437,7 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
     auto [return_value, return_alloca, _return_type, _] = _resolveAndValidateReturnValue(value);
     if (_ == resolveType::ConstStructInst && !this->env->current_function->is_const_return) {
         errors::raiseWrongTypeError(this->file_path,
-                                    this->source,
+                                    this->source.string,
                                     value,
                                     this->env->current_function->return_type,
                                     {this->env->current_function->return_type},
@@ -2464,7 +2445,7 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
     }
     auto return_type = std::get<RecordStructType*>(_return_type);
     if (this->env->current_function == nullptr) {
-        errors::raiseNodeOutsideError("Return outside function", this->source, return_statement, errors::OutsideNodeType::Return, "Return statement outside of a function");
+        errors::raiseNodeOutsideError("Return outside function", this->source.string, return_statement, errors::OutsideNodeType::Return, "Return statement outside of a function");
     }
 
     _checkAndConvertReturnType(value, return_value, return_alloca, return_type);
@@ -2483,7 +2464,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression
             throw DoneRet();
         } else {
             errors::raiseWrongTypeError(this->file_path,
-                                        this->source,
+                                        this->source.string,
                                         value,
                                         std::get<RecordStructType*>(resolved_value.variant),
                                         {this->env->current_function->return_type},
@@ -2504,7 +2485,7 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& 
             if (!return_value) {
                 if (!return_value && !return_alloca) {
                     errors::raiseWrongTypeError(this->file_path,
-                                                this->source,
+                                                this->source.string,
                                                 value,
                                                 return_type,
                                                 {this->env->current_function->return_type},
@@ -2513,7 +2494,7 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& 
             }
             return_type = std::get<RecordStructType*>(converted_type);
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, value, return_type, {this->env->current_function->return_type}, "Return Type mismatch & also no viable conversion avalable");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, value, return_type, {this->env->current_function->return_type}, "Return Type mismatch & also no viable conversion avalable");
         }
     }
 }
@@ -2568,9 +2549,9 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                                                          // modify down the road
 
                     for (auto field : fields) {
-                        if (field->type() == AST::NodeType::VariableDeclarationStatement) {
+                        if (field->type == AST::NodeType::VariableDeclarationStatement) {
                             _handleFieldDeclaration(gstruct, field, struct_record, field_types, struct_name);
-                        } else if (field->type() == AST::NodeType::FunctionStatement) {
+                        } else if (field->type == AST::NodeType::FunctionStatement) {
                             auto func_dec = field->castToFunctionStatement();
                             if (func_dec->generic.size() != 0) { continue; }
                             this->_visitFunctionDeclarationStatement(func_dec, struct_record);
@@ -2586,10 +2567,10 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                 return struct_record;
             }
 
-            errors::raiseNoOverloadError(this->file_path, this->source, {}, type->name, "No GStruct Viable");
+            errors::raiseNoOverloadError(this->file_path, this->source.string, {}, type->name, "No GStruct Viable");
         }
 
-        errors::raiseWrongTypeError(this->file_path, this->source, type->name, nullptr, {}, "module is not a Type");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, type->name, nullptr, {}, "module is not a Type");
     }
 
     auto struct_ = std::get<RecordStructType*>(_struct);
@@ -2608,10 +2589,10 @@ void Compiler::_visitIfElseStatement(AST::IfElseStatement* if_statement) {
     // Ensure the condition is of type StructInst and can be converted to bool if
     // necessary
     if (resolved_cond.type != resolveType::StructInst) {
-        errors::raiseWrongTypeError(this->file_path, this->source, if_statement->condition, nullptr, {gc_bool}, "If-else condition can't be module or type");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, if_statement->condition, nullptr, {gc_bool}, "If-else condition can't be module or type");
     } else if (!_checkType(std::get<RecordStructType*>(resolved_cond.variant), gc_bool)) {
         if (!this->canConvertType(std::get<RecordStructType*>(resolved_cond.variant), gc_bool)) {
-            errors::raiseWrongTypeError(this->file_path, this->source, if_statement->condition, nullptr, {gc_bool}, "If-else condition can't be module or type");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, if_statement->condition, nullptr, {gc_bool}, "If-else condition can't be module or type");
         } else {
             resolved_cond = this->convertType(resolved_cond, gc_bool);
         }
@@ -2684,7 +2665,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
 
     // Ensure the condition is of type StructInst
     if (condition_resolve_type != resolveType::StructInst) {
-        errors::raiseWrongTypeError(this->file_path, this->source, condition, nullptr, {gc_bool}, "While loop condition cannot be a module or type.");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, condition, nullptr, {gc_bool}, "While loop condition cannot be a module or type.");
     }
 
     // Retrieve the actual condition type
@@ -2696,7 +2677,7 @@ void Compiler::_visitWhileStatement(AST::WhileStatement* while_statement) {
             auto converted = this->convertType({condition_val, condition_alloca, conditionType}, gc_bool);
             condition_val = converted.value;
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, condition, conditionType, {gc_bool}, "While loop condition must be of type bool.");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, condition, conditionType, {gc_bool}, "While loop condition must be of type bool.");
         }
     }
 
@@ -2804,7 +2785,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
 
     // Ensure the condition is of type StructInst
     if (condition_resolve_type != resolveType::StructInst) {
-        errors::raiseWrongTypeError(this->file_path, this->source, condition, nullptr, {gc_bool}, "While loop condition cannot be a module or type.");
+        errors::raiseWrongTypeError(this->file_path, this->source.string, condition, nullptr, {gc_bool}, "While loop condition cannot be a module or type.");
     }
 
     // Retrieve the actual condition type
@@ -2816,7 +2797,7 @@ void Compiler::_visitForStatement(AST::ForStatement* for_statement) {
             auto converted = this->convertType({condition_val, condition_alloca, conditionType}, gc_bool);
             condition_val = converted.value;
         } else {
-            errors::raiseWrongTypeError(this->file_path, this->source, condition, conditionType, {gc_bool}, "While loop condition must be of type bool.");
+            errors::raiseWrongTypeError(this->file_path, this->source.string, condition, conditionType, {gc_bool}, "While loop condition must be of type bool.");
         }
     }
 
@@ -2908,7 +2889,7 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
     auto [iterable_value, iterable_alloca, _iterable_type, resolve_type] = this->_resolveValue(for_statement->from);
 
     // Ensure the resolved type is a struct instance
-    if (resolve_type != resolveType::StructInst) { errors::raiseWrongTypeError(this->file_path, this->source, for_statement->from, nullptr, {}, "Cannot loop over a module or type"); }
+    if (resolve_type != resolveType::StructInst) { errors::raiseWrongTypeError(this->file_path, this->source.string, for_statement->from, nullptr, {}, "Cannot loop over a module or type"); }
 
     // Get the actual struct type of the iterable
     auto iterable_type = std::get<RecordStructType*>(_iterable_type);
@@ -2923,9 +2904,9 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
         bool has_next = iterable_type->is_method("__next__", {iterable_type, iterator_type});
         bool has_done = iterable_type->is_method("__done__", {iterable_type, iterator_type}, {}, gc_bool);
         if (!has_next) {
-            errors::raiseNotDefinedError(this->file_path, this->source, for_statement->from, "__next__ method not defined in struct `" + iterable_type->name + "`");
+            errors::raiseNotDefinedError(this->file_path, this->source.string, for_statement->from, "__next__ method not defined in struct `" + iterable_type->name + "`");
         } else if (!has_done) {
-            errors::raiseNotDefinedError(this->file_path, this->source, for_statement->from, "__done__ method not defined in struct `" + iterable_type->name + "`");
+            errors::raiseNotDefinedError(this->file_path, this->source.string, for_statement->from, "__done__ method not defined in struct `" + iterable_type->name + "`");
         }
 
         // Get the current LLVM function
@@ -3105,11 +3086,11 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     std::filesystem::path gc_source_path = this->file_path.parent_path() / (relative_path + ".gc");
     if (!std::filesystem::exists(gc_source_path)) {
         errors::raiseCompletionError(this->file_path,
-                                     this->source,
-                                     import_statement->meta_data.st_line_no,
-                                     import_statement->meta_data.st_col_no,
-                                     import_statement->meta_data.end_line_no,
-                                     import_statement->meta_data.end_col_no,
+                                     this->source.string,
+                                     import_statement->getStLineNo(source),
+                                     import_statement->getStColNo(source),
+                                     import_statement->getEnLineNo(source),
+                                     import_statement->getEnColNo(source),
                                      "Imported file not found: " + gc_source_path.string());
     }
 
@@ -3121,8 +3102,8 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
 
     // Read the source code from the file
     Str gc_source = Utils::readFileToString(gc_source_path.string());
-    Str previous_source = this->source;
-    this->source = gc_source;
+    str previous_source = this->source;
+    this->source = gc_source.c_str();
 
     // Parse the source code into an AST
     auto toks = Lexer(gc_source.c_str(), gc_source_path).Tokenize();
@@ -3144,7 +3125,7 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
 
     // Iterate over each statement in the imported program
     for (auto& stmt : program->statements) {
-        switch (stmt->type()) {
+        switch (stmt->type) {
             case AST::NodeType::FunctionStatement:
                 this->_importFunctionDeclarationStatement(stmt->castToFunctionStatement(), import_module, local_file_record);
                 break;

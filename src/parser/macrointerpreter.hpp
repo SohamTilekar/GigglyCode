@@ -7,6 +7,7 @@
 #include "../lexer/token.hpp"
 #include "AST/ast.hpp"
 #include "parser.hpp"
+#include "../config.hpp"
 
 enum class MIObjectType {
     Int,

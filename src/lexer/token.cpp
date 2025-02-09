@@ -1,11 +1,15 @@
 #include "./token.hpp"
+#include "lexer.hpp"
 
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <unordered_map>
+#include <utility>
 
-std::string token::Token::toString(std::string source, bool color) const {
+using namespace token;
+
+std::string Token::toString(std::string source, bool color) const {
     // Define ANSI escape codes for colors
     const std::string colorReset = "\x1b[0m";
     const std::string colorRed = "\x1b[91m";
@@ -239,11 +243,11 @@ std::string token::tokenTypeToString(TokenType type) {
     }
 }
 
-uint32_t token::Token::getStLineNo(const char* source) const {
+uint32_t Token::getStLineNo(str source) const {
     uint32_t line_no = 1;
     uint32_t pos = 0;
-    while (pos < this->pos && pos < strlen(source)) {
-        if (source[pos] == '\n') {
+    while (pos < this->pos && pos < source.len) {
+        if (source.string[pos] == '\n') {
             line_no++;
         }
         pos++;
@@ -251,11 +255,11 @@ uint32_t token::Token::getStLineNo(const char* source) const {
     return line_no;
 }
 
-uint32_t token::Token::getEnLineNo(const char* source) const {
+uint32_t Token::getEnLineNo(str source) const {
     uint32_t line_no = 1;
     uint32_t pos = 0;
-    while (pos < this->getEnPos(source) && pos < strlen(source)) {
-        if (source[pos] == '\n') {
+    while (pos < this->getEnPos(source) && pos < source.len) {
+        if (source.string[pos] == '\n') {
             line_no++;
         }
         pos++;
@@ -263,12 +267,12 @@ uint32_t token::Token::getEnLineNo(const char* source) const {
     return line_no;
 }
 
-uint32_t token::Token::getStColNo(const char* source) const {
+uint32_t Token::getStColNo(str source) const {
     uint32_t line_no = 1;
     uint32_t col_no = 1;
     uint32_t pos = 0;
-    while (pos < this->pos && pos < strlen(source)) {
-        if (source[pos] == '\n') {
+    while (pos < this->pos && pos < source.len) {
+        if (source.string[pos] == '\n') {
             line_no++;
             col_no = 1;
         } else {
@@ -279,12 +283,12 @@ uint32_t token::Token::getStColNo(const char* source) const {
     return col_no;
 }
 
-uint32_t token::Token::getEnColNo(const char* source) const {
+uint32_t Token::getEnColNo(str source) const {
     uint32_t line_no = 1;
     uint32_t col_no = 1;
     uint32_t pos = 0;
-    while (pos < this->getEnPos(source) && pos < strlen(source)) {
-        if (source[pos] == '\n') {
+    while (pos < this->getEnPos(source) && pos < source.len) {
+        if (source.string[pos] == '\n') {
             line_no++;
             col_no = 1;
         } else {
@@ -295,7 +299,7 @@ uint32_t token::Token::getEnColNo(const char* source) const {
     return col_no;
 }
 
-uint32_t token::Token::getEnPos(const char* source) const {
+uint32_t Token::getEnPos(str source) const {
     switch (this->type) {
         case TokenType::EndOfFile:
             return this->pos;
@@ -397,462 +401,272 @@ uint32_t token::Token::getEnPos(const char* source) const {
     }
 }
 
-// Create helpwer functions first
+std::string handleEscapeSequences(str source, size_t pos, QuoteType delimiter) {
+    std::string literal;
+    char endChar;
+    int endCount;
 
-const std::string token::Token::getLiteral(const char* source) const {
-    switch (this->type) {
-        case TokenType::EndOfFile:
-            return "";
-        case TokenType::Equals:
-            return "=";
-        case TokenType::GreaterThan:
-            return ">";
-        case TokenType::LessThan:
-            return "<";
-        case TokenType::Dot:
-            return ".";
-        case TokenType::Plus:
-            return "+";
-        case TokenType::Dash:
-            return "-";
-        case TokenType::Asterisk:
-            return "*";
-        case TokenType::Percent:
-            return "%";
-        case TokenType::Refrence:
-            return "&";
-        case TokenType::LeftParen:
-            return "(";
-        case TokenType::RightParen:
-            return ")";
-        case TokenType::LeftBrace:
-            return "{";
-        case TokenType::RightBrace:
-            return "}";
-        case TokenType::LeftBracket:
-            return "[";
-        case TokenType::RightBracket:
-            return "]";
-        case TokenType::Colon:
-            return ":";
-        case TokenType::Comma:
-            return ",";
-        case TokenType::AtTheRate:
-            return "@";
-        case TokenType::Pipe:
-            return "|";
-        case TokenType::Semicolon:
-            return ";";
-        case TokenType::GreaterThanOrEqual:
-            return ">=";
-        case TokenType::LessThanOrEqual:
-            return "<=";
-        case TokenType::EqualEqual:
-            return "==";
-        case TokenType::NotEquals:
-            return "!=";
-        case TokenType::PlusEqual:
-            return "+=";
-        case TokenType::DashEqual:
-            return "-=";
-        case TokenType::AsteriskEqual:
-            return "*=";
-        case TokenType::PercentEqual:
-            return "%=";
-        case TokenType::CaretEqual:
-            return "^=";
-        case TokenType::ForwardSlashEqual:
-            return "/=";
-        case TokenType::BackwardSlashEqual:
-            return "\\=";
-        case TokenType::Is:
-            return "is";
-        case TokenType::Increment:
-            return "++";
-        case TokenType::Decrement:
-            return "--";
-        case TokenType::BitwiseAnd:
-            return "&&";
-        case TokenType::BitwiseOr:
-            return "||";
-        case TokenType::BitwiseXor:
-            return "^";
-        case TokenType::BitwiseNot:
-            return "~";
-        case TokenType::LeftShift:
-            return "<<";
-        case TokenType::RightShift:
-            return ">>";
-        case TokenType::AsteriskAsterisk:
-            return "**";
-        case TokenType::ForwardSlash:
-            return "/";
-        case TokenType::BackwardSlash:
-            return "\\";
-        case TokenType::RightArrow:
-            return "->";
-        case TokenType::Or:
-            return "or";
-        case TokenType::If:
-            return "if";
-        case TokenType::In:
-            return "in";
-        case TokenType::As:
-            return "as";
-        case TokenType::Ellipsis:
-            return "...";
-        case TokenType::And:
-            return "and";
-        case TokenType::Not:
-            return "not";
-        case TokenType::Def:
-            return "def";
-        case TokenType::New:
-            return "new";
-        case TokenType::Try:
-            return "try";
-        case TokenType::Use:
-            return "use";
-        case TokenType::For:
-            return "for";
-        case TokenType::Else:
-            return "else";
-        case TokenType::ElIf:
-            return "elif";
-        case TokenType::Enum:
-            return "enum";
-        case TokenType::True:
-            return "true";
-        case TokenType::None:
-            return "none";
-        case TokenType::Case:
-            return "case";
-        case TokenType::Other:
-            return "other";
-        case TokenType::Catch:
-            return "catch";
-        case TokenType::Raise:
-            return "raise";
-        case TokenType::False:
-            return "false";
-        case TokenType::While:
-            return "while";
-        case TokenType::Break:
-            return "break";
-        case TokenType::Const:
-            return "const";
-        case TokenType::Struct:
-            return "struct";
-        case TokenType::Import:
-            return "import";
-        case TokenType::Return:
-            return "return";
-        case TokenType::Switch:
-            return "switch";
-        case TokenType::IfBreak:
-            return "ifbreak";
-        case TokenType::Continue:
-            return "continue";
-        case TokenType::Volatile:
-            return "volatile";
-        case TokenType::NotBreak:
-            return "notbreak";
-        case TokenType::StringDSQ: {
-            std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (source[i] == '\\') {
-
-                    i++;
-                        switch (source[i]) {
-                            case '"':
-                                literal += "\"";
-                                break;
-                            case '\'':
-                                literal += "'";
-                                break;
-                            case 'n':
-                                literal += "\n";
-                                break;
-                            case 't':
-                                literal += "\t";
-                                break;
-                            case 'r':
-                                literal += "\r";
-                                break;
-                            case 'b':
-                                literal += "\b";
-                                break;
-                            case 'f':
-                                literal += "\f";
-                                break;
-                            case 'v':
-                                literal += "\v";
-                                break;
-                            case '\\':
-                                literal += "\\";
-                                break;
-                            case 'x': { // Hexadecimal escape sequence \xHH
-                                std::string hex_str = "";
-                                i++;
-                                hex_str += source[i];
-                                i++;
-                                hex_str += source[i];
-                                char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
-                                literal += char_val;
-                                break;
-                            }
-                            case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.
-                                        // \uHHHH
-                            case 'U': // \UHHHHHHHH
-                                // For simplicity and consistency with how other unhandled escapes are
-                                // dealt with, we treat these as literal characters for now
-                                [[fallthrough]];
-                            default: // If not a recognized escape sequence, treat literally.
-                                literal += std::string("\\") + source[i];
-                                break;
-                        }
-                } else if (source[i] == '"') {
+    switch (delimiter) {
+        case QuoteType::DoubleSingleQuote:
+            endChar = '"';
+            endCount = 1;
+            break;
+        case QuoteType::SingleSingleQuote:
+            endChar = '\'';
+            endCount = 1;
+            break;
+        case QuoteType::DoubleTripleQuote:
+            endChar = '"';
+            endCount = 3;
+            break;
+        case QuoteType::SingleTripleQuote:
+            endChar = '\'';
+            endCount = 3;
+            break;
+        case QuoteType::None:
+            std::unreachable();
+    }
+    [[likely]] for (size_t i = pos; i < source.len; ++i) {
+        [[unlikely]] if (source.string[i] == '\\') {
+            i++;
+            switch (source.string[i]) {
+                case '"':
+                    literal += "\"";
                     break;
-                } else {
-                    literal += source[i];
-                }
-            }
-            return literal;
-        }
-        case TokenType::StringSSQ: {
-            std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (source[i] == '\\') {
-                    i++;
-                    switch (source[i]) {
-                        case '"':
-                            literal += "\"";
-                            break;
-                        case '\'':
-                            literal += "'";
-                            break;
-                        case 'n':
-                            literal += "\n";
-                            break;
-                        case 't':
-                            literal += "\t";
-                            break;
-                        case 'r':
-                            literal += "\r";
-                            break;
-                        case 'b':
-                            literal += "\b";
-                            break;
-                        case 'f':
-                            literal += "\f";
-                            break;
-                        case 'v':
-                            literal += "\v";
-                            break;
-                        case '\\':
-                            literal += "\\";
-                            break;
-                        case 'x': { // Hexadecimal escape sequence \xHH
-                            std::string hex_str = "";
-                            i++;
-                            hex_str += source[i];
-                            i++;
-                            hex_str += source[i];
-                            char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
-                            literal += char_val;
-                            break;
-                        }
-                        case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.
-                                    // \uHHHH
-                        case 'U': // \UHHHHHHHH
-                            // For simplicity and consistency with how other unhandled escapes are
-                            // dealt with, we treat these as literal characters for now
-                            [[fallthrough]];
-                        default: // If not a recognized escape sequence, treat literally.
-                            literal += std::string("\\") + source[i];
-                            break;
-                    }
-                } else if (source[i] == '\'') {
+                case '\'':
+                    literal += "'";
                     break;
-                } else {
-                    literal += source[i];
-                }
-            }
-            return literal;
-        }
-        case TokenType::StringDTQ: {
-            std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (source[i] == '\\') {
-
+                case 'n':
+                    literal += "\n";
+                    break;
+                case 't':
+                    literal += "\t";
+                    break;
+                case 'r':
+                    literal += "\r";
+                    break;
+                case 'b':
+                    literal += "\b";
+                    break;
+                case 'f':
+                    literal += "\f";
+                    break;
+                case 'v':
+                    literal += "\v";
+                    break;
+                case '\\':
+                    literal += "\\";
+                    break;
+                case 'x': {
+                    std::string hex_str = "";
                     i++;
-                        switch (source[i]) {
-                            case '"':
-                                literal += "\"";
-                                break;
-                            case '\'':
-                                literal += "'";
-                                break;
-                            case 'n':
-                                literal += "\n";
-                                break;
-                            case 't':
-                                literal += "\t";
-                                break;
-                            case 'r':
-                                literal += "\r";
-                                break;
-                            case 'b':
-                                literal += "\b";
-                                break;
-                            case 'f':
-                                literal += "\f";
-                                break;
-                            case 'v':
-                                literal += "\v";
-                                break;
-                            case '\\':
-                                literal += "\\";
-                                break;
-                            case 'x': { // Hexadecimal escape sequence \xHH
-                                std::string hex_str = "";
-                                i++;
-                                hex_str += source[i];
-                                i++;
-                                hex_str += source[i];
-                                char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
-                                literal += char_val;
-                                break;
-                            }
-                            case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.
-                                        // \uHHHH
-                            case 'U': // \UHHHHHHHH
-                                // For simplicity and consistency with how other unhandled escapes are
-                                // dealt with, we treat these as literal characters for now
-                                [[fallthrough]];
-                            default: // If not a recognized escape sequence, treat literally.
-                                literal += std::string("\\") + source[i];
-                                break;
-                        }
-                } else if (source[i] == '"') {
-                    size_t count = 0;
-                    while (source[i] == '"') {
-                        count++;
-                        i++;
-                    }
-                    if (count == 3) break;
-                } else {
-                    literal += source[i];
-                }
-            }
-            return literal;
-        }
-        case TokenType::StringSTQ: {
-            std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (source[i] == '\\') {
-
+                    hex_str += source.string[i];
                     i++;
-                        switch (source[i]) {
-                            case '"':
-                                literal += "\"";
-                                break;
-                            case '\'':
-                                literal += "'";
-                                break;
-                            case 'n':
-                                literal += "\n";
-                                break;
-                            case 't':
-                                literal += "\t";
-                                break;
-                            case 'r':
-                                literal += "\r";
-                                break;
-                            case 'b':
-                                literal += "\b";
-                                break;
-                            case 'f':
-                                literal += "\f";
-                                break;
-                            case 'v':
-                                literal += "\v";
-                                break;
-                            case '\\':
-                                literal += "\\";
-                                break;
-                            case 'x': { // Hexadecimal escape sequence \xHH
-                                std::string hex_str = "";
-                                i++;
-                                hex_str += source[i];
-                                i++;
-                                hex_str += source[i];
-                                char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
-                                literal += char_val;
-                                break;
-                            }
-                            case 'u': // Unicode escape sequences (UTF-8 encoding) are more complex.
-                                        // \uHHHH
-                            case 'U': // \UHHHHHHHH
-                                // For simplicity and consistency with how other unhandled escapes are
-                                // dealt with, we treat these as literal characters for now
-                                [[fallthrough]];
-                            default: // If not a recognized escape sequence, treat literally.
-                                literal += std::string("\\") + source[i];
-                                break;
-                        }
-                } else if (source[i] == '\'') {
-                    size_t count = 0;
-                    while (source[i] == '\'') {
-                        count++;
-                        i++;
+                    hex_str += source.string[i];
+                    try {
+                        char char_val = static_cast<char>(std::stoul(hex_str, nullptr, 16));
+                        literal += char_val;
+                    } catch (const std::invalid_argument& e) {
+                        literal += "\\x" + hex_str;
                     }
-                    if (count == 3) break;
-                } else {
-                    literal += source[i];
+                    break;
                 }
+                case 'u': {
+                    std::string hex_str = "";
+                    for (int j = 0; j < 4; ++j) {
+                        i++;
+                        if (i >= source.len || !isxdigit(source.string[i])) {
+                            literal += "\\u";
+                            break;
+                        }
+                        hex_str += source.string[i];
+                    }
+                    try {
+                        char32_t char_val = std::stoul(hex_str, nullptr, 16);
+                        literal += char_val;
+                    } catch (const std::invalid_argument& e) {
+                        literal += "\\u" + hex_str;
+                    }
+                    break;
+                }
+                case 'U': {
+                    std::string hex_str = "";
+                    for (int j = 0; j < 8; ++j) {
+                        i++;
+                        if (i >= source.len || !isxdigit(source.string[i])) {
+                            //Handle error - incomplete unicode escape sequence
+                            literal += "\\U";
+                            break;
+                        }
+                        hex_str += source.string[i];
+                    }
+                    try {
+                        char32_t char_val = std::stoul(hex_str, nullptr, 16);
+                        literal += char_val;
+                    } catch (const std::invalid_argument& e) {
+                        literal += "\\U" + hex_str;
+                    }
+                    break;
+                }
+                default:
+                    literal += "\\" + std::string(1, source.string[i]);
+                    break;
             }
-            return literal;
+        } else [[unlikely]] if (source.string[i] == endChar) {
+            int count = 0;
+            [[unlikely]] while (source.string[i] == endChar && i < source.len) {
+                count++;
+                i++;
+            }
+            [[unlikely]] if (count == endCount) {
+                i--; // Adjust index to prevent skipping characters
+                break;
+            } else {
+                literal += endChar;
+            }
+        } else {
+            literal += source.string[i];
         }
-        case TokenType::Integer: {
+    }
+    return literal;
+}
+
+const std::string Token::getLiteral(str source) const {
+    static const std::unordered_map<TokenType, std::string> tokenLiteralMap = {
+        {TokenType::Illegal, ""},
+        {TokenType::EndOfFile, ""},
+        {TokenType::Equals, "="},
+        {TokenType::GreaterThan, ">"},
+        {TokenType::LessThan, "<"},
+        {TokenType::Dot, "."},
+        {TokenType::Plus, "+"},
+        {TokenType::Dash, "-"},
+        {TokenType::Asterisk, "*"},
+        {TokenType::Percent, "%"},
+        {TokenType::Refrence, "&"},
+        {TokenType::LeftParen, "("},
+        {TokenType::RightParen, ")"},
+        {TokenType::LeftBrace, "{"},
+        {TokenType::RightBrace, "}"},
+        {TokenType::LeftBracket, "["},
+        {TokenType::RightBracket, "]"},
+        {TokenType::Colon, ":"},
+        {TokenType::Comma, ","},
+        {TokenType::AtTheRate, "@"},
+        {TokenType::Pipe, "|"},
+        {TokenType::Semicolon, ";"},
+        {TokenType::GreaterThanOrEqual, ">="},
+        {TokenType::LessThanOrEqual, "<="},
+        {TokenType::EqualEqual, "=="},
+        {TokenType::NotEquals, "!="},
+        {TokenType::PlusEqual, "+="},
+        {TokenType::DashEqual, "-="},
+        {TokenType::AsteriskEqual, "*="},
+        {TokenType::PercentEqual, "%="},
+        {TokenType::CaretEqual, "^="},
+        {TokenType::ForwardSlashEqual, "/="},
+        {TokenType::BackwardSlashEqual, "\\="},
+        {TokenType::Is, "is"},
+        {TokenType::Increment, "++"},
+        {TokenType::Decrement, "--"},
+        {TokenType::BitwiseAnd, "&&"},
+        {TokenType::BitwiseOr, "||"},
+        {TokenType::BitwiseXor, "^"},
+        {TokenType::BitwiseNot, "~"},
+        {TokenType::LeftShift, "<<"},
+        {TokenType::RightShift, ">>"},
+        {TokenType::AsteriskAsterisk, "**"},
+        {TokenType::ForwardSlash, "/"},
+        {TokenType::BackwardSlash, "\\"},
+        {TokenType::RightArrow, "->"},
+        {TokenType::Or, "or"},
+        {TokenType::If, "if"},
+        {TokenType::In, "in"},
+        {TokenType::As, "as"},
+        {TokenType::Ellipsis, "..."},
+        {TokenType::And, "and"},
+        {TokenType::Not, "not"},
+        {TokenType::Def, "def"},
+        {TokenType::New, "new"},
+        {TokenType::Try, "try"},
+        {TokenType::Use, "use"},
+        {TokenType::For, "for"},
+        {TokenType::Else, "else"},
+        {TokenType::ElIf, "elif"},
+        {TokenType::Enum, "enum"},
+        {TokenType::True, "true"},
+        {TokenType::None, "none"},
+        {TokenType::Case, "case"},
+        {TokenType::Other, "other"},
+        {TokenType::Catch, "catch"},
+        {TokenType::Raise, "raise"},
+        {TokenType::False, "false"},
+        {TokenType::While, "while"},
+        {TokenType::Break, "break"},
+        {TokenType::Const, "const"},
+        {TokenType::Struct, "struct"},
+        {TokenType::Import, "import"},
+        {TokenType::Return, "return"},
+        {TokenType::Switch, "switch"},
+        {TokenType::IfBreak, "ifbreak"},
+        {TokenType::Continue, "continue"},
+        {TokenType::Volatile, "volatile"},
+        {TokenType::NotBreak, "notbreak"}
+    };
+
+    auto it = tokenLiteralMap.find(this->type);
+    [[likely]] if (it != tokenLiteralMap.end()) {
+        return it->second;
+    } else {
+        [[unlikely]] if (this->type == TokenType::StringDSQ) return handleEscapeSequences(source, this->pos, QuoteType::DoubleSingleQuote);
+        [[unlikely]] if (this->type == TokenType::StringSSQ) return handleEscapeSequences(source, this->pos, QuoteType::SingleSingleQuote);
+        [[unlikely]] if (this->type == TokenType::StringDTQ) return handleEscapeSequences(source, this->pos, QuoteType::DoubleTripleQuote);
+        [[unlikely]] if (this->type == TokenType::StringSTQ) return handleEscapeSequences(source, this->pos, QuoteType::SingleTripleQuote);
+        [[unlikely]] if (this->type == TokenType::Integer) {
             std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (!_isDigit(source[i])) break;
-                literal += source[i];
+            [[likely]] for (size_t i = this->pos; i < source.len; ++i) {
+                [[unlikely]] if (!_isDigit(source.string[i])) break;
+                literal += source.string[i];
             }
             return literal;
         }
-        case TokenType::Float: {
+        [[unlikely]] if (this->type == TokenType::Float) {
             std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (!_isDigit(source[i]) && source[i] != '.') break;
-                literal += source[i];
+            [[likely]] for (size_t i = this->pos; i < source.len; ++i) {
+                [[unlikely]] if (!_isDigit(source.string[i]) && source.string[i] != '.') break;
+                literal += source.string[i];
             }
             return literal;
         }
-        case TokenType::Identifier: {
+        [[unlikely]] if (this->type == TokenType::Identifier) {
             std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (!_isLetter(source[i]) && source[i] != '_') break;
-                literal += source[i];
+            [[likely]] for (size_t i = this->pos; i < source.len; ++i) {
+                [[unlikely]] if (!_isLetter(source.string[i]) && source.string[i] != '_') break;
+                literal += source.string[i];
             }
             return literal;
         }
-        case TokenType::Illegal:
-            return "";
-        case TokenType::Coment: {
+        [[unlikely]] if (this->type == TokenType::Coment) {
             std::string literal;
-            for (size_t i = this->pos; i < strlen(source); ++i) {
-                if (source[i] == '\n') break;
-                literal += source[i];
+            [[likely]] for (size_t i = this->pos; i < source.len; ++i) {
+                [[unlikely]] if (source.string[i] == '\n') break;
+                literal += source.string[i];
             }
             return literal;
         }
-        default:
-            return "";
+        std::unreachable();
     }
 }
 
-void token::Token::print(std::string source) const {
+const std::string Token::getIdentLiteral(str source) const {
+    std::string literal;
+    [[likely]] for (size_t i = this->pos; i < source.len; ++i) {
+        [[unlikely]] if (!_isLetter(source.string[i]) && source.string[i] != '_') break;
+        literal += source.string[i];
+    }
+    return literal;
+};
+
+void Token::print(std::string source) const {
     std::cout << toString(source) << std::endl;
 }

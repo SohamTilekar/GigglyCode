@@ -11,9 +11,9 @@
 #include "parser.hpp"
 
 using namespace parser;
-#ifdef LOG
+#ifdef DEBUG_PARSER
 #define LOG_MSG(msg) Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, msg);
-#define LOG_TOK() Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, this->current_token.toString(tokens.source, false));
+#define LOG_TOK() Logger::getInstance().log(__FILE__, __FUNCTION__, __LINE__, this->current_token.toString(tokens.source.string, false));
 #else
 #define LOG_MSG(msg)
 #define LOG_TOK()
@@ -49,14 +49,11 @@ Parser::Parser(token::Tokens tokens, std::string file_path) : tokens(tokens), fi
 }
 
 Parser::~Parser() {
-    for (auto pair : macros) { delete pair.second; }
+    for (auto pair : macros) { pair.second->del(); }
 }
 
 AST::Program* Parser::parseProgram() {
     auto program = new AST::Program;
-    int startLineNo = current_token.getStLineNo(tokens.source);
-    int startColNo = current_token.getStColNo(tokens.source);
-
     LOG_MSG("Starting to parse program.");
 
     // Parse statements until EndOfFile token is reached
@@ -82,18 +79,21 @@ AST::Program* Parser::parseProgram() {
                 continue;
             }
         }
+        auto tok = current_token;
         auto statement = this->_parseStatement(); // [stmtFT] -> [stmtLT]
-        if (statement) {
+
+        if (statement->type == AST::NodeType::VariableDeclarationStatement
+            ||statement->type == AST::NodeType::FunctionStatement
+            ||statement->type == AST::NodeType::StructStatement
+            ||statement->type == AST::NodeType::EnumStatement
+            ||statement->type == AST::NodeType::ImportStatement) {
             program->statements.push_back(statement);
             LOG_MSG("Parsed a statement.");
-        }
+        } else
+            errors::raiseSyntaxError(this->file_path, tok, this->tokens.source.string, "Invalid Statement", "Only variable declarations, function declarations, struct declarations, enum declarations, and import statements are allowed at the top level.");
         this->_nextToken(); // [stmtLT] -> [stmtFT | EOF]
         LOG_TOK()
     } // [EOF]
-
-    int endLineNo = current_token.getEnLineNo(tokens.source);
-    int endColNo = current_token.getStColNo(tokens.source);
-    program->set_meta_data(startLineNo, startColNo, endLineNo, endColNo);
 
     LOG_MSG("Finished parsing program.");
 
@@ -137,41 +137,38 @@ AST::Statement* Parser::_parseStatement() {
         case TokenType::Volatile:
             this->_nextToken(); // [volatileFT] -> [Identifier!]
             LOG_TOK()
-            return this->_parseVariableDeclaration(nullptr, -1, -1, true); // [Identifier!FT] -> [;]
+            return this->_parseVariableDeclaration(nullptr, true); // [Identifier!FT] -> [;]
         case TokenType::Const:
             this->_nextToken(); // [volatileFT] -> [Identifier!]
             LOG_TOK()
-            return this->_parseVariableDeclaration(nullptr, -1, -1, false, true); // [Identifier!FT] -> [;]
+            return this->_parseVariableDeclaration(nullptr, false, true); // [Identifier!FT] -> [;]
         default:
             return this->_parseExpressionStatement(); // [ExpressionFT] -> [;]
     }
 }
 
 AST::Statement* Parser::_interpretIdentifier() {
-    int stLineNo = current_token.getEnLineNo(tokens.source);
-    int stColNo = current_token.getStColNo(tokens.source);
-    auto identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+    auto identifier = _parseIdentifier();
 
     if (_peekTokenIs(TokenType::Colon)) {
         // Variable declaration
-        return _parseVariableDeclaration(identifier, stLineNo, stColNo);
+        return _parseVariableDeclaration(identifier);
     }
 
     if (_peekTokenIs(TokenType::Equals)) {
         // Variable assignment
-        return _parseVariableAssignment(identifier, stLineNo, stColNo);
+        return _parseVariableAssignment(identifier);
     }
 
     if (_peekTokenIs(TokenType::LeftParen)) {
         // Function call
-        auto functionCall = _parseFunctionCall(identifier, stLineNo, stColNo);
-        auto stmt = new AST::ExpressionStatement(functionCall);
-        _expectPeek(TokenType::Semicolon); // Expect ';' after function call
+        auto functionCall = _parseFunctionCall(identifier);
+        auto stmt = new AST::ExpressionStatement(identifier->firstToken, current_token, functionCall);
+        _expectPeek(TokenType::Semicolon);
         return stmt;
     }
 
-    // Default to expression statement
-    return _parseExpressionStatement(identifier, stLineNo, stColNo);
+    return _parseExpressionStatement(identifier);
 }
 
 AST::Statement* Parser::_parseDeco() {
@@ -183,11 +180,11 @@ AST::Statement* Parser::_parseDeco() {
     } else if (name == "autocast") {
         return this->_parseAutocastDeco(); // [IdentifierFT] -> [)]
     } else if (name == "macros") {
-        errors::raiseSyntaxError(this->file_path, this->current_token, this->tokens.source, "Macro define localy", "Define macro globaly it cant be declared localy");
+        errors::raiseSyntaxError(this->file_path, this->current_token, this->tokens.source.string, "Macro define localy", "Define macro globaly it cant be declared localy");
     }
     errors::raiseSyntaxError(this->file_path,
                              this->current_token,
-                             this->tokens.source,
+                             this->tokens.source.string,
                              "Unknown Deco type: " + name,
                              "Check the deco name for case sensitivity. Valid "
                              "options: `autocast` or `generic`.");
@@ -211,7 +208,7 @@ AST::Statement* Parser::_parseGenericDeco() {
 
     while (this->current_token.type != TokenType::RightParen) {
         if (this->_currentTokenIs(TokenType::Identifier)) {
-            auto identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+            auto identifier = _parseIdentifier();
             this->_expectPeek(TokenType::Colon); // [Identifier] -> [:]
             this->_nextToken();                  // [:] -> [Type]
             LOG_TOK()
@@ -227,7 +224,7 @@ AST::Statement* Parser::_parseGenericDeco() {
                 } else break;
             }
 
-            generics.push_back(new AST::Type(identifier, type, false));
+            generics.push_back(new AST::Type(identifier->firstToken, current_token, identifier, type, false));
             if (this->_peekTokenIs(TokenType::Comma)) {
                 this->_nextToken(); // [Type] -> [,]
                 LOG_TOK()
@@ -253,11 +250,11 @@ AST::Statement* Parser::_parseGenericDeco() {
         return _struct;
     } else if (this->_currentTokenIs(TokenType::AtTheRate)) {
         auto _deco = this->_parseDeco(); // [@] -> [Decorator Statement]
-        if (_deco->type() == AST::NodeType::FunctionStatement) {
+        if (_deco->type == AST::NodeType::FunctionStatement) {
             auto deco = _deco->castToFunctionStatement();
             deco->generic = generics;
             return deco;
-        } else if (_deco->type() == AST::NodeType::StructStatement) {
+        } else if (_deco->type == AST::NodeType::StructStatement) {
             auto deco = _deco->castToStructStatement();
             deco->generics = generics;
             return deco;
@@ -272,13 +269,13 @@ AST::Statement* Parser::_parseAutocastDeco() {
 
     if (this->_currentTokenIs(TokenType::Def)) {
         auto func = this->_parseFunctionStatement(); // [Def] -> [Function Statement]
-        func->extra_info.insert("autocast", true);
+        func->autocast = true;
         return func;
     } else if (this->_currentTokenIs(TokenType::AtTheRate)) {
         auto _deco = this->_parseDeco(); // [@] -> [Decorator Statement]
-        if (_deco->type() == AST::NodeType::FunctionStatement) {
+        if (_deco->type == AST::NodeType::FunctionStatement) {
             auto deco = _deco->castToFunctionStatement();
-            deco->extra_info.insert("autocast", true);
+            deco->autocast = true;
             return deco;
         }
     }
@@ -290,12 +287,12 @@ std::vector<AST::FunctionParameter*> Parser::_parseFunctionParameters() {
     std::vector<AST::FunctionParameter*> parameters;
     while (this->current_token.type != TokenType::RightParen) {
         if (this->current_token.type == TokenType::Identifier) {
-            auto identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+            auto identifier = _parseIdentifier();
             this->_expectPeek(TokenType::Colon); // Expect ':' after parameter name
             this->_nextToken();                  // Move to parameter type
             LOG_TOK()
             auto type = this->_parseType();
-            parameters.push_back(new AST::FunctionParameter(identifier, type, false));
+            parameters.push_back(new AST::FunctionParameter(identifier->firstToken, current_token, identifier, type, false));
             this->_expectPeek({TokenType::Comma, TokenType::RightParen});
             if (this->_currentTokenIs(TokenType::Comma)) {
                 this->_nextToken(); // Consume ',' and continue
@@ -305,14 +302,15 @@ std::vector<AST::FunctionParameter*> Parser::_parseFunctionParameters() {
                 break;
             }
         } else if (this->current_token.type == TokenType::Const) {
+            auto first_pos = current_token.pos;
             this->_nextToken(); // Consume 'const' keyword
             LOG_TOK()
+            this->_expectPeek(TokenType::Identifier);
             this->_nextToken(); // Move to parameter type
             LOG_TOK()
             auto type = this->_parseType();
-            this->_expectPeek(TokenType::Identifier); // Expect identifier after 'const'
-            auto identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
-            parameters.push_back(new AST::FunctionParameter(identifier, type, true));
+            auto identifier = _parseIdentifier();
+            parameters.push_back(new AST::FunctionParameter(first_pos, current_token, identifier, type, true));
             this->_expectPeek({TokenType::Comma, TokenType::RightParen});
             if (this->_currentTokenIs(TokenType::Comma)) {
                 this->_nextToken(); // Consume ',' and continue
@@ -333,12 +331,12 @@ std::vector<AST::FunctionParameter*> Parser::_parseClosureParameters() {
     std::vector<AST::FunctionParameter*> closure_parameters;
     while (!this->_currentTokenIs(TokenType::RightParen)) {
         if (this->_currentTokenIs(TokenType::Identifier)) {
-            auto identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+            auto identifier = _parseIdentifier();
             this->_expectPeek(TokenType::Colon); // Expect ':' after closure parameter name
             this->_nextToken();                  // Move to closure parameter type
             LOG_TOK()
             auto type = this->_parseType();
-            closure_parameters.push_back(new AST::FunctionParameter(identifier, type, false));
+            closure_parameters.push_back(new AST::FunctionParameter(identifier->firstToken, current_token, identifier, type, false));
             this->_nextToken(); // Consume ',' or ')'
             LOG_TOK()
             if (this->_currentTokenIs(TokenType::Comma)) {
@@ -360,15 +358,12 @@ std::vector<AST::FunctionParameter*> Parser::_parseClosureParameters() {
 }
 
 AST::FunctionStatement* Parser::_parseFunctionStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
+    auto first_pos = this->current_token.pos;
+    this->_expectPeek(TokenType::Identifier);
+    auto name = _parseIdentifier();
 
-    this->_expectPeek(TokenType::Identifier); // Expect function name
-    auto name = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
-    name->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
-
-    this->_expectPeek(TokenType::LeftParen); // Expect '(' after function name
-    this->_nextToken();                      // Move to parameters
+    this->_expectPeek(TokenType::LeftParen);
+    this->_nextToken();
     LOG_TOK()
 
     auto parameters = _parseFunctionParameters();
@@ -411,18 +406,14 @@ AST::FunctionStatement* Parser::_parseFunctionStatement() {
     }
 
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
 
-    auto function_statement = new AST::FunctionStatement(name, parameters, closure_parameters, return_type, return_const, body, std::vector<AST::Type*>{});
+    auto function_statement = new AST::FunctionStatement(first_pos, current_token, name, parameters, closure_parameters, return_type, return_const, body, std::vector<AST::Type*>{});
 
-    function_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return function_statement;
 }
 
 AST::WhileStatement* Parser::_parseWhileStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
-
+    auto first_pos = this->current_token.pos;
     _expectPeek(TokenType::LeftParen); // Expect '(' after 'while'
     _nextToken();                      // Move to condition expression
     LOG_TOK()
@@ -438,18 +429,13 @@ AST::WhileStatement* Parser::_parseWhileStatement() {
     LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
 
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
 
-    auto while_statement = new AST::WhileStatement(condition, body, modifiers.ifbreak, modifiers.notbreak);
-
-    while_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto while_statement = new AST::WhileStatement(first_pos, current_token, condition, body, modifiers.ifbreak, modifiers.notbreak);
     return while_statement;
 }
 
 AST::Statement* Parser::_parseForStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
-
+    auto first_pos = this->current_token.pos;
     if (_peekTokenIs(TokenType::LeftParen)) {
         _nextToken();
         LOG_TOK()
@@ -468,13 +454,11 @@ AST::Statement* Parser::_parseForStatement() {
         auto body = _parseStatement();                   // Parse the loop body
         LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
         uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-        uint32_t end_col_no = current_token.getStColNo(tokens.source);
-        auto for_statement = new AST::ForStatement(init, condition, updater, body, modifiers.ifbreak, modifiers.notbreak);
-        for_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+        auto for_statement = new AST::ForStatement(first_pos, current_token, init, condition, updater, body, modifiers.ifbreak, modifiers.notbreak);
         return for_statement;
     }
     _expectPeek(TokenType::Identifier); // Expect identifier in 'for identifier in ...
-    auto get = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+    auto get = _parseIdentifier();
     _expectPeek(TokenType::In); // Expect 'in' keyword
     _nextToken();               // Move to the 'from' expression
     LOG_TOK()
@@ -484,9 +468,7 @@ AST::Statement* Parser::_parseForStatement() {
     auto body = _parseStatement();                   // Parse the loop body
     LoopModifiers modifiers = _parseLoopModifiers(); // Parse any loop modifiers
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto for_statement = new AST::ForEachStatement(get, from, body, modifiers.ifbreak, modifiers.notbreak);
-    for_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto for_statement = new AST::ForEachStatement(first_pos, current_token, get, from, body, modifiers.ifbreak, modifiers.notbreak);
     return for_statement;
 }
 
@@ -511,50 +493,41 @@ parser::Parser::LoopModifiers parser::Parser::_parseLoopModifiers() {
 }
 
 AST::BreakStatement* Parser::_parseBreakStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
-    this->_nextToken(); // [breakFT] -> [Optional Loop Number]
+    auto first_pos = this->current_token.pos;
+    this->_nextToken(); // [breakFT] -> [Optional Loop Number | ;]
     LOG_TOK()
-    uint32_t loopNum = 0;
-    uint32_t idx_stcol_no = -1;
-    uint32_t idx_endcol_no = -1;
+    uint8_t loopNum = 0;
+    uint32_t pos = UINT24_MAX;
     if (this->_currentTokenIs(TokenType::Integer)) {
         loopNum = std::stoi(current_token.getLiteral(tokens.source)); // [IntegerFT] -> [Next Token]
-        idx_stcol_no = current_token.getStColNo(tokens.source);
-        idx_endcol_no = current_token.getEnColNo(tokens.source);
+        pos = current_token.pos;
         this->_nextToken(); // [Next Token] remains unchanged
         LOG_TOK()
     }
-    uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto break_statement = new AST::BreakStatement(loopNum);
-    break_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-    break_statement->extra_info.insert("idx_stcol_no", idx_stcol_no);
-    break_statement->extra_info.insert("idx_endcol_no", uint32_t(idx_endcol_no - 1));
+    auto break_statement = new AST::BreakStatement(first_pos, current_token, loopNum);
+    break_statement->pos = pos;
     return break_statement;
 }
 
 AST::ContinueStatement* Parser::_parseContinueStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
-    this->_nextToken(); // [continueFT] -> [Optional Loop Number]
+    auto first_pos = this->current_token.pos;
+    this->_nextToken(); // [continueFT] -> [Optional Loop Number | ;]
     LOG_TOK()
-    int loopNum = 0;
+    uint8_t loopNum = 0;
+    uint32_t pos = UINT24_MAX;
     if (this->_currentTokenIs(TokenType::Integer)) {
         loopNum = std::stoi(current_token.getLiteral(tokens.source)); // [IntegerFT] -> [Next Token]
-        this->_nextToken();                         // [Next Token] remains unchanged
+        pos = current_token.pos;
+        this->_nextToken(); // [Next Token] remains unchanged
         LOG_TOK()
     }
-    uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto continue_statement = new AST::ContinueStatement(loopNum);
-    continue_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto continue_statement = new AST::ContinueStatement(first_pos, current_token, loopNum);
+    continue_statement->pos = pos;
     return continue_statement;
 }
 
 AST::ImportStatement* Parser::_parseImportStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
+    auto first_pos = this->current_token.pos;
     this->_expectPeek({TokenType::StringSSQ, TokenType::StringSTQ, TokenType::StringDSQ, TokenType::StringDTQ}); // [importFT] -> [String]
     auto path = this->current_token.getLiteral(tokens.source);
     std::string as = "";
@@ -564,30 +537,24 @@ AST::ImportStatement* Parser::_parseImportStatement() {
         as = this->current_token.getLiteral(tokens.source);
     }
     this->_expectPeek(TokenType::Semicolon); // [String] -> [;]
-    auto import_statement = new AST::ImportStatement(path, as);
+    auto import_statement = new AST::ImportStatement(first_pos, current_token, path, as);
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    import_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return import_statement;
 }
 
-AST::Expression* Parser::_parseFunctionCall(AST::Expression* identifier, uint32_t st_line_no, uint32_t st_col_no) {
+AST::CallExpression* Parser::_parseFunctionCall(AST::IdentifierLiteral* identifier) {
+    auto first_pos = this->current_token.pos;
     if (!identifier) {
-        st_line_no = current_token.getStLineNo(tokens.source);
-        st_col_no = current_token.getStColNo(tokens.source);
-        identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+        identifier = _parseIdentifier();
     }
-    identifier->set_meta_data(st_line_no, st_col_no, current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
     this->_nextToken(); // [Identifier] -> [(] or [LeftParen]
     LOG_TOK()
     bool is_new_call_local = is_new_call;
     is_new_call = false;
     auto args = this->_parse_expression_list(TokenType::RightParen); // [(] -> [Arguments] -> [)]
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto call_expression = new AST::CallExpression(identifier, args);
+    auto call_expression = new AST::CallExpression(first_pos, current_token, identifier, args);
     call_expression->_new = is_new_call_local;
-    call_expression->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return call_expression;
 }
 
@@ -613,49 +580,42 @@ std::vector<AST::Expression*> Parser::_parse_expression_list(TokenType end) {
 }
 
 AST::ReturnStatement* Parser::_parseReturnStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
+    auto first_pos = this->current_token.pos;
     if (this->_peekTokenIs(TokenType::Semicolon)) {
-        this->_nextToken(); // [returnFT] -> [;]
         LOG_TOK()
         uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-        uint32_t end_col_no = current_token.getStColNo(tokens.source);
-        auto return_statement = new AST::ReturnStatement();
-        return_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+        auto return_statement = new AST::ReturnStatement(first_pos, current_token);
+        this->_nextToken(); // [returnFT] -> [;]
         return return_statement;
     }
     this->_nextToken(); // [returnFT] -> [Expression]
     LOG_TOK()
     auto expr = this->_parseExpression(PrecedenceType::LOWEST);
+    uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
+    auto return_statement = new AST::ReturnStatement(first_pos, current_token, expr);
     if (this->_peekTokenIs(TokenType::Semicolon)) {
         this->_nextToken(); // [Expression] -> [;]
         LOG_TOK()
     }
-    uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto return_statement = new AST::ReturnStatement(expr);
-    return_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return return_statement;
 }
 
 AST::RaiseStatement* Parser::_parseRaiseStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
+    auto first_pos = this->current_token.pos;
     this->_nextToken(); // [raiseFT] -> [Expression]
     LOG_TOK()
     auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Expression] remains unchanged
+    uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
+    auto raise_statement = new AST::RaiseStatement(first_pos, current_token, expr);
     if (this->_peekTokenIs(TokenType::Semicolon)) {
         this->_nextToken();
         LOG_TOK()
     } // [Expression] -> [;]
-    uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto raise_statement = new AST::RaiseStatement(expr);
-    raise_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return raise_statement;
 }
 
 AST::BlockStatement* Parser::_parseBlockStatement() {
+    auto first_pos = this->current_token.pos;
     this->_nextToken(); // [{FT] -> [First Statement]
     LOG_TOK()
 
@@ -666,45 +626,37 @@ AST::BlockStatement* Parser::_parseBlockStatement() {
         this->_nextToken(); // [StatementLT] -> [Next Statement or }]
         LOG_TOK()
     }
+    auto block_statement = new AST::BlockStatement(first_pos, current_token, statements);
+
     if (this->_peekTokenIs(TokenType::Semicolon)) {
         this->_nextToken();
         LOG_TOK()
     } // [}LT] -> [;]
 
-    auto block_statement = new AST::BlockStatement(statements);
-    block_statement->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
     return block_statement;
 }
 
-AST::Statement* Parser::_parseExpressionStatement(AST::Expression* first_token, uint32_t st_line_no, uint32_t st_col_no) {
+AST::Statement* Parser::_parseExpressionStatement(AST::Expression* first_token) {
     if (!first_token) {
-        st_line_no = current_token.getStLineNo(tokens.source);
-        st_col_no = current_token.getStColNo(tokens.source);
-        if (current_token.type == TokenType::Identifier) first_token = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
-        else if (current_token.type == TokenType::Integer) first_token = new AST::IntegerLiteral(std::atoll(this->current_token.getLiteral(tokens.source).c_str()));
-        else if (current_token.type == TokenType::Float) first_token = new AST::FloatLiteral(std::atof(this->current_token.getLiteral(tokens.source).c_str()));
-        else if (current_token.type == TokenType::StringSSQ) first_token = new AST::StringLiteral(this->current_token.getLiteral(tokens.source));
-        else if (current_token.type == TokenType::StringSTQ) first_token = new AST::StringLiteral(this->current_token.getLiteral(tokens.source));
-        else if (current_token.type == TokenType::StringDSQ) first_token = new AST::StringLiteral(this->current_token.getLiteral(tokens.source));
-        else if (current_token.type == TokenType::StringDTQ) first_token = new AST::StringLiteral(this->current_token.getLiteral(tokens.source));
+        if (current_token.type == TokenType::Identifier) first_token = new AST::IdentifierLiteral(first_token->firstToken, first_token->lastToken, this->current_token.getLiteral(tokens.source));
+        else if (current_token.type == TokenType::Integer) first_token = new AST::IntegerLiteral(first_token->firstToken, first_token->lastToken, std::atoll(this->current_token.getLiteral(tokens.source).c_str()));
+        else if (current_token.type == TokenType::Float) first_token = new AST::FloatLiteral(first_token->firstToken, first_token->lastToken, std::atof(this->current_token.getLiteral(tokens.source).c_str()));
+        else if (current_token.type == TokenType::StringSSQ) first_token = new AST::StringLiteral(first_token->firstToken, first_token->lastToken, this->current_token.getLiteral(tokens.source));
+        else if (current_token.type == TokenType::StringSTQ) first_token = new AST::StringLiteral(first_token->firstToken, first_token->lastToken, this->current_token.getLiteral(tokens.source));
+        else if (current_token.type == TokenType::StringDSQ) first_token = new AST::StringLiteral(first_token->firstToken, first_token->lastToken, this->current_token.getLiteral(tokens.source));
+        else if (current_token.type == TokenType::StringDTQ) first_token = new AST::StringLiteral(first_token->firstToken, first_token->lastToken, this->current_token.getLiteral(tokens.source));
     }
-    auto expr = this->_parseExpression(PrecedenceType::LOWEST, first_token, st_line_no,
-                                       st_col_no); // [Expression] remains unchanged
-    if (this->_peekTokenIs(TokenType::Equals)) return this->_parseVariableAssignment(expr, expr->meta_data.st_col_no,
-                                                                                     expr->meta_data.end_col_no); // [Variable Assignment]
+    auto expr = this->_parseExpression(PrecedenceType::LOWEST, first_token); // [Expression] remains unchanged
+    if (this->_peekTokenIs(TokenType::Equals)) return this->_parseVariableAssignment(expr); // [Variable Assignment]
+    auto stmt = new AST::ExpressionStatement(first_token->firstToken, current_token, expr);
     this->_expectPeek(TokenType::Semicolon); // [ExpressionLT] -> [;]
-    auto stmt = new AST::ExpressionStatement(expr);
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    stmt->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return stmt;
 }
 
-AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, uint32_t st_line_no, uint32_t st_col_no, bool is_volatile, bool is_const) {
+AST::VariableDeclarationStatement* Parser::_parseVariableDeclaration(AST::Expression* identifier, bool is_volatile, bool is_const) {
     if (!identifier) {
-        st_line_no = current_token.getStLineNo(tokens.source);
-        st_col_no = current_token.getStColNo(tokens.source);
-        identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+        identifier = _parseIdentifier();
     }
     this->_expectPeek(TokenType::Colon); // [Identifier] -> [:]
     AST::Type* type = nullptr;
@@ -712,41 +664,32 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, u
         this->_nextToken(); // [:] -> [Type]
         LOG_TOK()
         type = this->_parseType(); // [Type] remains unchanged
-        if (type->name->type() == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto") {
-            delete type;
+        if (type->name->type == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto") {
+            type->del();
             type = nullptr;
         }
     }
     if (this->_peekTokenIs(TokenType::Semicolon)) {
+        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier->firstToken, current_token, identifier, type, nullptr, is_volatile, is_const);
         this->_nextToken(); // [Type] -> [;]
         LOG_TOK()
         uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-        uint32_t end_col_no = current_token.getStColNo(tokens.source);
-        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, nullptr, is_volatile, is_const);
-        variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-        variableDeclarationStatement->meta_data.more_data.insert("name_line_no", st_line_no);
-        variableDeclarationStatement->meta_data.more_data.insert("name_col_no", st_col_no);
-        variableDeclarationStatement->meta_data.more_data.insert("name_end_col_no", current_token.getEnColNo(tokens.source));
         return variableDeclarationStatement;
     } else if (this->_expectPeek(TokenType::Equals)) {
         this->_nextToken(); // [Type] -> [=] or [Type] -> [;]
         LOG_TOK()
         auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Expression] remains unchanged
+        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier->firstToken, current_token, identifier, type, expr, is_volatile, is_const);
         this->_expectPeek(TokenType::Semicolon);
         LOG_TOK()
         uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-        uint32_t end_col_no = current_token.getStColNo(tokens.source);
-        auto variableDeclarationStatement = new AST::VariableDeclarationStatement(identifier, type, expr, is_volatile, is_const);
-        variableDeclarationStatement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
-        variableDeclarationStatement->meta_data.more_data.insert("name_line_no", st_line_no);
-        variableDeclarationStatement->meta_data.more_data.insert("name_col_no", st_col_no);
-        variableDeclarationStatement->meta_data.more_data.insert("name_end_col_no", current_token.getEnColNo(tokens.source));
         return variableDeclarationStatement;
     }
     return nullptr;
 }
 
 AST::TryCatchStatement* Parser::_parseTryCatchStatement() {
+    auto first_pos = this->current_token.pos;
     this->_nextToken(); // [tryFT] -> [Statement]
     LOG_TOK()
     auto try_block = this->_parseStatement(); // [Statement] -> [Next Token]
@@ -760,7 +703,7 @@ AST::TryCatchStatement* Parser::_parseTryCatchStatement() {
         LOG_TOK()
         auto exception_type = this->_parseType(); // [Exception Type] remains unchanged
         this->_expectPeek(TokenType::Identifier); // [Exception Type] -> [Identifier]
-        auto exception_var = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+        auto exception_var = _parseIdentifier();
         this->_expectPeek(TokenType::RightParen); // [Identifier] -> [)]
         this->_nextToken();                       // [)] -> [Catch Block Statement]
         LOG_TOK()
@@ -773,10 +716,11 @@ AST::TryCatchStatement* Parser::_parseTryCatchStatement() {
         return nullptr;
     }
 
-    return new AST::TryCatchStatement(try_block, catch_blocks);
+    return new AST::TryCatchStatement(first_pos, current_token, try_block, catch_blocks);
 }
 
 AST::SwitchCaseStatement* Parser::_parseSwitchCaseStatement() {
+    auto first_pos = this->current_token.pos;
     this->_expectPeek(TokenType::LeftParen); // [switchFT] -> [(]
     LOG_TOK()
     this->_nextToken(); // [(] -> [ExpresionFT]
@@ -810,27 +754,27 @@ AST::SwitchCaseStatement* Parser::_parseSwitchCaseStatement() {
     }
     this->_expectPeek(TokenType::RightBrace);
     LOG_TOK()
-    return new AST::SwitchCaseStatement(condition, case_blocks, other);
+    return new AST::SwitchCaseStatement(first_pos, current_token, condition, case_blocks, other);
 }
 
 AST::Expression* Parser::_parseInfixIdenifier() {
+    auto first_pos = this->current_token.pos;
     if (this->current_token.type != TokenType::Identifier) {
         std::cerr << "Cannot parse infixIdentifier Expression. Token: " << token::tokenTypeToString(this->current_token.type) << std::endl;
         exit(1);
     }
-    if (!this->_peekTokenIs(TokenType::Dot)) { return new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source)); }
-    auto li = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+    if (!this->_peekTokenIs(TokenType::Dot)) { return _parseIdentifier(); }
+    auto li = _parseIdentifier();
     this->_nextToken(); // [Identifier] -> [.]
     LOG_TOK()
     this->_nextToken(); // [.] -> [Next Identifier]
     LOG_TOK()
-    return new AST::InfixExpression(li, TokenType::Dot, ".",
+    return new AST::InfixExpression(first_pos, current_token, li, TokenType::Dot, ".",
                                     this->_parseInfixIdenifier()); // [Next Identifier] remains unchanged
 }
 
 AST::Type* Parser::_parseType() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
+    auto first_pos = this->current_token.pos;
     AST::Expression* name;
     name = this->_parseInfixIdenifier(); // [Type] -> [Infix Identifier]
     std::vector<AST::Type*> generics;
@@ -857,37 +801,28 @@ AST::Type* Parser::_parseType() {
         ref = true;
     }
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto generic_type_node = new AST::Type(name, generics, ref);
-    generic_type_node->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto generic_type_node = new AST::Type(first_pos, current_token, name, generics, ref);
     return generic_type_node;
 }
 
-AST::Statement* Parser::_parseVariableAssignment(AST::Expression* identifier, uint32_t st_line_no, uint32_t st_col_no) {
+AST::VariableAssignmentStatement* Parser::_parseVariableAssignment(AST::Expression* identifier) {
     if (!identifier) {
-        st_line_no = current_token.getStLineNo(tokens.source);
-        st_col_no = current_token.getStColNo(tokens.source);
-        identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+        identifier = _parseIdentifier();
     }
     this->_expectPeek(TokenType::Equals); // [Identifier] -> [=]
     this->_nextToken();                   // [=] -> [Expression]
     LOG_TOK()
     auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Expression] remains unchanged
-    this->_nextToken();                                         // [Expression] -> [;]
-    LOG_TOK()
-    auto stmt = new AST::VariableAssignmentStatement(identifier, expr);
+    auto stmt = new AST::VariableAssignmentStatement(identifier->firstToken, current_token, identifier, expr);
+    this->_expectPeek(TokenType::Semicolon);
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    stmt->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return stmt;
 }
 
 AST::StructStatement* Parser::_parseStructStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
-
+    auto first_pos = this->current_token.pos;
     this->_expectPeek(TokenType::Identifier); // [structFT] -> [Identifier]
-    AST::Expression* name = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+    AST::Expression* name = _parseIdentifier();
 
     this->_expectPeek(TokenType::LeftBrace); // [Identifier] -> [{]
     this->_nextToken();                      // [{] -> [Struct Body]
@@ -912,25 +847,22 @@ AST::StructStatement* Parser::_parseStructStatement() {
         this->_nextToken(); // [StatementLT] -> [Next Statement or }]
         LOG_TOK()
     }
+
+    auto struct_stmt = new AST::StructStatement(first_pos, current_token, name, statements);
+
     if (this->peek_token.type == TokenType::Semicolon) {
         this->_nextToken();
         LOG_TOK()
     } // [}] -> [;]
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-
-    auto struct_stmt = new AST::StructStatement(name, statements);
-    struct_stmt->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return struct_stmt;
 }
 
-AST::Expression* Parser::_parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression, uint32_t st_line_no, uint32_t st_col_no) {
+AST::Expression* Parser::_parseExpression(PrecedenceType precedence, AST::Expression* parsed_expression) {
     if (!parsed_expression) {
-        st_line_no = current_token.getStLineNo(tokens.source);
-        st_col_no = current_token.getStColNo(tokens.source);
         auto iter = prefix_parse_fns.find(current_token.type);
         if (iter == prefix_parse_fns.end()) {
-            errors::raiseNoPrefixParseFnError(this->file_path, current_token, this->tokens.source, "No prefix parse function for " + token::tokenTypeToString(current_token.type));
+            errors::raiseNoPrefixParseFnError(this->file_path, current_token, this->tokens.source.string, "No prefix parse function for " + token::tokenTypeToString(current_token.type));
             return nullptr;
         }
         auto prefix_fn = iter->second;
@@ -946,13 +878,11 @@ AST::Expression* Parser::_parseExpression(PrecedenceType precedence, AST::Expres
     }
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
     uint32_t end_col_no = current_token.getEnColNo(tokens.source) - 1;
-    parsed_expression->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return parsed_expression;
 }
 
-AST::Statement* Parser::_parseIfElseStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
+AST::IfElseStatement* Parser::_parseIfElseStatement() {
+    auto first_pos = this->current_token.pos;
     this->_expectPeek(TokenType::LeftParen); // [ifFT] -> [(]
     this->_nextToken();                      // [(] -> [Condition]
     LOG_TOK()
@@ -970,18 +900,14 @@ AST::Statement* Parser::_parseIfElseStatement() {
         alternative = this->_parseStatement(); // [Alternative] -> [Next Token]
     }
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-    auto if_else_statement = new AST::IfElseStatement(condition, consequence, alternative);
-    if_else_statement->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto if_else_statement = new AST::IfElseStatement(first_pos, current_token, condition, consequence, alternative);
     return if_else_statement;
 }
 
 AST::EnumStatement* Parser::_parseEnumStatement() {
-    uint32_t st_line_no = current_token.getStLineNo(tokens.source);
-    uint32_t st_col_no = current_token.getStColNo(tokens.source);
-
+    auto first_pos = this->current_token.pos;
     this->_expectPeek(TokenType::Identifier); // [enumFT] -> [Identifier]
-    AST::Expression* name = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
+    AST::Expression* name = _parseIdentifier();
 
     this->_expectPeek(TokenType::LeftBrace); // [Identifier] -> [{]
     this->_nextToken();                      // [{] -> [Enum Body]
@@ -1000,48 +926,32 @@ AST::EnumStatement* Parser::_parseEnumStatement() {
         this->_nextToken(); // [StatementLT] -> [Next Statement or }]
         LOG_TOK()
     }
+    auto enum_stmt = new AST::EnumStatement(first_pos, current_token, name, fields);
+
     if (this->peek_token.type == TokenType::Semicolon) {
         this->_nextToken();
         LOG_TOK()
     } // [}] -> [;]
     uint32_t end_line_no = current_token.getEnLineNo(tokens.source);
-    uint32_t end_col_no = current_token.getStColNo(tokens.source);
-
-    auto enum_stmt = new AST::EnumStatement(name, fields);
-    enum_stmt->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return enum_stmt;
 };
 
 AST::Expression* Parser::_parseInfixExpression(AST::Expression* leftNode) {
-    uint32_t st_line_no = leftNode->meta_data.st_line_no;
-    uint32_t st_col_no = leftNode->meta_data.st_col_no;
-    auto infix_expr = new AST::InfixExpression(leftNode, this->current_token.type, this->current_token.getLiteral(tokens.source));
-    infix_expr->meta_data.more_data.insert("operator_line_no", this->current_token.getEnLineNo(tokens.source));
-    infix_expr->meta_data.more_data.insert("operator_st_col_no", this->current_token.getStColNo(tokens.source));
-    infix_expr->meta_data.more_data.insert("operator_end_col_no", this->current_token.getEnColNo(tokens.source));
     auto precedence = this->_currentPrecedence();
+    auto opp = current_token;
     this->_nextToken(); // [Operator] -> [Next Expression]
     LOG_TOK()
-    infix_expr->right = this->_parseExpression(precedence); // [Next Expression] remains unchanged
-    uint32_t end_line_no = infix_expr->right->meta_data.end_line_no;
-    uint32_t end_col_no = infix_expr->right->meta_data.end_col_no;
-    infix_expr->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto right = this->_parseExpression(precedence); // [Next Expression] remains unchanged
+    auto infix_expr = new AST::InfixExpression(leftNode->firstToken, current_token,leftNode, opp.type, this->current_token.getLiteral(tokens.source));
+    infix_expr->right = right;
     return infix_expr;
 }
 
 AST::Expression* Parser::_parseIndexExpression(AST::Expression* leftNode) {
-    uint32_t st_line_no = leftNode->meta_data.st_line_no;
-    uint32_t st_col_no = leftNode->meta_data.st_col_no;
-    auto index_expr = new AST::IndexExpression(leftNode);
-    index_expr->meta_data.more_data.insert("index_line_no", this->current_token.getEnLineNo(tokens.source));
-    index_expr->meta_data.more_data.insert("index_st_col_no", this->current_token.getStColNo(tokens.source));
-    index_expr->meta_data.more_data.insert("index_end_col_no", this->current_token.getEnColNo(tokens.source));
     this->_nextToken(); // [LeftBracket] -> [Index Expression]
     LOG_TOK()
-    index_expr->index = this->_parseExpression(PrecedenceType::LOWEST);
-    uint32_t end_line_no = index_expr->index->meta_data.end_line_no;
-    uint32_t end_col_no = index_expr->index->meta_data.end_col_no;
-    index_expr->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
+    auto index = this->_parseExpression(PrecedenceType::LOWEST);
+    auto index_expr = new AST::IndexExpression(leftNode->firstToken, current_token, leftNode, index);
     this->_expectPeek(TokenType::RightBracket); // [Index Expression] -> [RightBracket]
     return index_expr;
 }
@@ -1050,35 +960,27 @@ AST::Expression* Parser::_parseGroupedExpression() {
     this->_nextToken(); // [LeftParen] -> [Grouped Expression]
     LOG_TOK()
     uint32_t st_line_no = this->current_token.getEnLineNo(tokens.source);
-    uint32_t st_col_no = this->current_token.getStColNo(tokens.source);
     auto expr = this->_parseExpression(PrecedenceType::LOWEST); // [Grouped ExpressionFT] -> [Grouped
                                                                 // ExpressionLT]
     this->_expectPeek(TokenType::RightParen);                   // [Grouped Expression] -> [RightParen]
     uint32_t end_line_no = this->current_token.getEnLineNo(tokens.source);
     uint32_t end_col_no = this->current_token.getEnColNo(tokens.source);
-    expr->set_meta_data(st_line_no, st_col_no, end_line_no, end_col_no);
     return expr;
 }
 
-AST::Expression* Parser::_parseIntegerLiteral() {
+AST::IntegerLiteral* Parser::_parseIntegerLiteral() {
     auto literal = current_token.getLiteral(tokens.source);
-    auto expr = new AST::IntegerLiteral(std::stoll(literal));
-    expr->meta_data.st_line_no = current_token.getStLineNo(tokens.source);
-    expr->meta_data.st_col_no = current_token.getStColNo(tokens.source);
-    expr->meta_data.end_line_no = current_token.getEnLineNo(tokens.source);
-    expr->meta_data.end_col_no = current_token.getEnColNo(tokens.source);
+    auto expr = new AST::IntegerLiteral(current_token.pos, current_token, std::stoll(literal));
     return expr;
 }
 
-AST::Expression* Parser::_parseFloatLiteral() {
-    auto expr = new AST::FloatLiteral(std::stod(current_token.getLiteral(tokens.source)));
-    expr->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
+AST::FloatLiteral* Parser::_parseFloatLiteral() {
+    auto expr = new AST::FloatLiteral(current_token.pos, current_token, std::stod(current_token.getLiteral(tokens.source)));
     return expr;
 }
 
-AST::Expression* Parser::_parseBooleanLiteral() {
-    auto expr = new AST::BooleanLiteral(current_token.type == TokenType::True);
-    expr->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
+AST::BooleanLiteral* Parser::_parseBooleanLiteral() {
+    auto expr = new AST::BooleanLiteral(current_token.pos, current_token, current_token.type == TokenType::True);
     return expr;
 }
 
@@ -1086,16 +988,14 @@ AST::Expression* Parser::_parseNew() {
     this->_expectPeek({TokenType::Identifier, TokenType::LeftBracket}); // [newFT] -> [Identifier | LeftBracket]
     if (this->_currentTokenIs(TokenType::Identifier)) is_new_call = true;
     else if (this->_currentTokenIs(TokenType::LeftBracket)) is_new_arr = true;
-    else { _currentTokenError(current_token.type, {TokenType::Identifier, TokenType::LeftBracket}, "Expected an identifier or a left bracket after 'new'."); }
     auto x = this->_parseExpression(PrecedenceType::LOWEST); // [new] -> [Expression]
     if (this->_currentTokenIs(TokenType::Identifier)) is_new_call = false;
     else if (this->_currentTokenIs(TokenType::LeftBracket)) is_new_arr = false;
     return x;
 }
 
-AST::Expression* Parser::_parseStringLiteral() {
-    auto expr = new AST::StringLiteral(current_token.getLiteral(tokens.source));
-    expr->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
+AST::StringLiteral* Parser::_parseStringLiteral() {
+    auto expr = new AST::StringLiteral(current_token.pos, current_token, current_token.getLiteral(tokens.source));
     return expr;
 }
 
@@ -1176,13 +1076,14 @@ PrecedenceType Parser::_peekPrecedence() {
     }
 }
 
-AST::Expression* Parser::_parseArrayLiteral() {
+AST::ArrayLiteral* Parser::_parseArrayLiteral() {
+    auto first_pos = this->current_token.pos;
     auto elements = std::vector<AST::Expression*>();
     bool is_new_arr_local = is_new_arr;
     is_new_arr = false;
     if (this->_peekTokenIs(TokenType::RightBracket)) {
         errors::raiseCompletionError(this->file_path,
-                                     this->tokens.source,
+                                     this->tokens.source.string,
                                      this->current_token.getStLineNo(tokens.source),
                                      this->current_token.getStColNo(tokens.source) + 1,
                                      this->peek_token.getEnLineNo(tokens.source),
@@ -1196,16 +1097,19 @@ AST::Expression* Parser::_parseArrayLiteral() {
         auto expr = _parseExpression(PrecedenceType::LOWEST); // [Element] remains unchanged
         if (expr) { elements.push_back(expr); }
     }
-    auto array = new AST::ArrayLiteral(elements, is_new_arr_local);
-    array->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
+    auto array = new AST::ArrayLiteral(first_pos, current_token, elements, is_new_arr_local);
     return array;
 }
 
-AST::Expression* Parser::_parseIdentifier() {
-    auto identifier = new AST::IdentifierLiteral(this->current_token.getLiteral(tokens.source));
-    identifier->set_meta_data(current_token.getStLineNo(tokens.source), current_token.getStColNo(tokens.source), current_token.getEnLineNo(tokens.source), current_token.getEnColNo(tokens.source));
+AST::IdentifierLiteral* Parser::_parseIdentifier() {
+    auto identifier = new AST::IdentifierLiteral(current_token.pos, current_token, this->current_token.getIdentLiteral(tokens.source));
+    return identifier;
+}
+
+AST::Expression* Parser::_InterpretExpresionIdentifier() {
+    auto identifier = _parseIdentifier();
     if (_peekTokenIs(TokenType::LeftParen)) {
-        auto functionCall = _parseFunctionCall(identifier, current_token.getEnLineNo(tokens.source), current_token.getStColNo(tokens.source));
+        auto functionCall = _parseFunctionCall(identifier);
         return functionCall;
     }
     return identifier;
@@ -1217,7 +1121,7 @@ void Parser::_peekTokenError(TokenType type, std::vector<TokenType> expected_typ
         if (!expected_types_str.empty()) { expected_types_str += ", "; }
         expected_types_str += token::tokenTypeToString(expected_type);
     }
-    errors::raiseSyntaxError(this->file_path, peek_token, this->tokens.source, "Expected one of: " + expected_types_str + " but got " + token::tokenTypeToString(type), suggestedFix);
+    errors::raiseSyntaxError(this->file_path, peek_token, this->tokens.source.string, "Expected one of: " + expected_types_str + " but got " + token::tokenTypeToString(type), suggestedFix);
 }
 
 void Parser::_currentTokenError(TokenType type, std::vector<TokenType> expected_types, std::string suggestedFix) {
@@ -1226,5 +1130,5 @@ void Parser::_currentTokenError(TokenType type, std::vector<TokenType> expected_
         if (!expected_types_str.empty()) { expected_types_str += ", "; }
         expected_types_str += token::tokenTypeToString(expected_type);
     }
-    errors::raiseSyntaxError(this->file_path, this->current_token, this->tokens.source, "Expected one of: " + expected_types_str + " but got " + token::tokenTypeToString(type), suggestedFix);
+    errors::raiseSyntaxError(this->file_path, this->current_token, this->tokens.source.string, "Expected one of: " + expected_types_str + " but got " + token::tokenTypeToString(type), suggestedFix);
 }
