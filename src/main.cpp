@@ -27,8 +27,6 @@
 #define DEBUG_LEXER
 #define DEBUG_PARSER
 
-constexpr char DEBUG_LEXER_OUTPUT_PATH[] = "./dump/lexer_output.log";
-constexpr char DEBUG_PARSER_OUTPUT_PATH[] = "./dump/parser_output.yaml";
 
 // =======================================
 // Helper Function to Run External Commands
@@ -455,23 +453,17 @@ class Compiler {
 #ifdef DEBUG_LEXER
         std::cout << "=========== Lexer Debug ===========" << std::endl;
         Lexer debugLexer(fileContent, file_path);
-        if (std::filesystem::path(DEBUG_LEXER_OUTPUT_PATH).string().empty()) {
-            while (debugLexer.current_char != "") {
-                token::Token token = debugLexer.nextToken();
-                std::cout << token.toString(true) << std::endl;
-            }
-        } else {
-            std::ofstream debugOutput(DEBUG_LEXER_OUTPUT_PATH, std::ios::trunc);
-            if (!debugOutput) {
-                std::cerr << "Error: Could not open debug output file " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
-                return;
-            }
-            while (debugLexer.current_char != "") {
-                token::Token token = debugLexer.nextToken();
-                debugOutput << token.toString(false) << std::endl;
-            }
-            std::cout << "Lexer debug output written to " << DEBUG_LEXER_OUTPUT_PATH << std::endl;
+        std::filesystem::path outputPath = buildDir / "lexer_output.log";
+        std::ofstream debugOutput(outputPath, std::ios::trunc);
+        if (!debugOutput) {
+            std::cerr << "Error: Could not open debug output file " << outputPath.string() << std::endl;
+            return;
         }
+        while (debugLexer.current_char != "") {
+            token::Token token = debugLexer.nextToken();
+            debugOutput << token.toString(false) << std::endl;
+        }
+        std::cout << "Lexer debug output written to " << outputPath.string() << std::endl;
 #endif
     }
 
@@ -486,16 +478,13 @@ class Compiler {
         parser::Parser debugParser(&debug_lexer);
         auto program = debugParser.parseProgram();
         std::cout << "=========== Parser Debug ===========" << std::endl;
-        if (!std::filesystem::path(DEBUG_PARSER_OUTPUT_PATH).string().empty()) {
-            std::ofstream file(DEBUG_PARSER_OUTPUT_PATH, std::ios::trunc);
-            if (file) {
-                file << program->toStr() << std::endl;
-                std::cout << "Parser debug output written to " << DEBUG_PARSER_OUTPUT_PATH << std::endl;
-            } else {
-                errors::raiseCompilationError("Unable to open parser debug output file.");
-            }
+        std::filesystem::path outputPath = buildDir / "parser_output.yaml";
+        std::ofstream file(outputPath, std::ios::trunc);
+        if (file) {
+            file << program->toStr() << std::endl;
+            std::cout << "Parser debug output written to " << outputPath.string() << std::endl;
         } else {
-            std::cout << program->toStr();
+            errors::raiseCompilationError("Unable to open parser debug output file: " + outputPath.string());
         }
         delete program;
 #endif

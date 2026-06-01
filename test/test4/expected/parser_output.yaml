@@ -1,0 +1,126 @@
+type: Program
+statements:
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: val"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 2
+          volatile: false
+        - type: UNKNOWN
+          condition:
+            type: IdentifierLiteral
+            value: val
+          case:
+            - case:
+                type: IntegerLiteral
+                value: 1
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "Value is 1.\n"
+            - case:
+                type: IntegerLiteral
+                value: 2
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "Value is 2.\n"
+            - case:
+                type: IntegerLiteral
+                value: 3
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "Value is 3.\n"
+          other:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Value is unknown.\n"
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: counter"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 0
+          volatile: false
+        - type: WhileStatement
+          condition:
+            type: InfixedExpression
+            operator: LessThan(`<`)
+            left_node:
+              type: IdentifierLiteral
+              value: counter
+            right_node:
+              type: IntegerLiteral
+              value: 5
+          body:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Counter: %i\n"
+                    - type: IdentifierLiteral
+                      value: counter
+              - type: VariableAssignmentStatement
+                name: "type: IdentifierLiteral\nvalue: counter"
+                value:
+                  type: InfixedExpression
+                  operator: Plus(`+`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: counter
+                  right_node:
+                    type: IntegerLiteral
+                    value: 1
+          ifbreak: "null"
+          notbreak: "null"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

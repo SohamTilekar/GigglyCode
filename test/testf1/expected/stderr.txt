@@ -1,0 +1,14 @@
+Warning: GC_STD_DIR environment variable is not set.
+
+❌ Type Mismatch ❌
+
+❌ Error: Cannot assign mismatched type
+Expected type: int but got str
+
+/mnt/soham/soham_code/GigglyCode/test/testf1/src/main.gc:4:14
+
+   3 │ def main()[...
+   4 │     X: int = [1;35...
+     │              ^^
+   5 │     return[...
+

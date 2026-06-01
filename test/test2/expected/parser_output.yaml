@@ -1,0 +1,385 @@
+type: Program
+statements:
+  - type: StructDecelerationStatement
+    name: "type: IdentifierLiteral\nvalue: ListNode"
+    fields:
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: value"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: T"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: next"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: ListNode"
+          generics:
+            - type: Type
+              name: "type: IdentifierLiteral\nvalue: T"
+              generics: []
+        value: "null"
+        volatile: false
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: ListNode"
+              generics:
+                - type: Type
+                  name: "type: IdentifierLiteral\nvalue: T"
+                  generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: value"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: T"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: next"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: ListNode"
+              generics:
+                - type: Type
+                  name: "type: IdentifierLiteral\nvalue: T"
+                  generics: []
+        return_type: "null"
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: value"
+              value:
+                type: IdentifierLiteral
+                value: value
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: next"
+              value:
+                type: IdentifierLiteral
+                value: next
+        generic: []
+    generics:
+      - type: Type
+        name: "type: IdentifierLiteral\nvalue: T"
+        generics:
+          - type: Type
+            name: "type: IdentifierLiteral\nvalue: Any"
+            generics: []
+  - type: StructDecelerationStatement
+    name: "type: IdentifierLiteral\nvalue: LinkedList"
+    fields:
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: head"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: ListNode"
+          generics:
+            - type: Type
+              name: "type: IdentifierLiteral\nvalue: T"
+              generics: []
+        value: "null"
+        volatile: false
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: LinkedList"
+              generics:
+                - type: Type
+                  name: "type: IdentifierLiteral\nvalue: T"
+                  generics: []
+        return_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: void"
+          generics: []
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: head"
+              value:
+                type: IdentifierLiteral
+                value: nullptr
+        generic: []
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: add"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: LinkedList"
+              generics:
+                - type: Type
+                  name: "type: IdentifierLiteral\nvalue: T"
+                  generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: value"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: T"
+              generics: []
+        return_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: void"
+          generics: []
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: newNode"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: ListNode"
+                generics:
+                  - type: Type
+                    name: "type: IdentifierLiteral\nvalue: T"
+                    generics: []
+              value:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: ListNode"
+                arguments:
+                  - type: IdentifierLiteral
+                    value: T
+                  - type: IdentifierLiteral
+                    value: value
+                  - type: IdentifierLiteral
+                    value: nullptr
+              volatile: false
+            - type: IfElseStatement
+              condition:
+                type: InfixedExpression
+                operator: EqualEqual(`==`)
+                left_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: self
+                  right_node:
+                    type: IdentifierLiteral
+                    value: head
+                right_node:
+                  type: IdentifierLiteral
+                  value: nullptr
+              consequence:
+                type: BlockStatement
+                statements:
+                  - type: VariableAssignmentStatement
+                    name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: head"
+                    value:
+                      type: IdentifierLiteral
+                      value: newNode
+              alternative:
+                type: BlockStatement
+                statements:
+                  - type: VariableDeclarationStatement
+                    name: "type: IdentifierLiteral\nvalue: current"
+                    value_type:
+                      type: Type
+                      name: "type: IdentifierLiteral\nvalue: ListNode"
+                      generics:
+                        - type: Type
+                          name: "type: IdentifierLiteral\nvalue: T"
+                          generics: []
+                    value:
+                      type: InfixedExpression
+                      operator: Dot(`.`)
+                      left_node:
+                        type: IdentifierLiteral
+                        value: self
+                      right_node:
+                        type: IdentifierLiteral
+                        value: head
+                    volatile: false
+                  - type: WhileStatement
+                    condition:
+                      type: InfixedExpression
+                      operator: NotEquals(`!=`)
+                      left_node:
+                        type: InfixedExpression
+                        operator: Dot(`.`)
+                        left_node:
+                          type: IdentifierLiteral
+                          value: current
+                        right_node:
+                          type: IdentifierLiteral
+                          value: next
+                      right_node:
+                        type: IdentifierLiteral
+                        value: nullptr
+                    body:
+                      type: BlockStatement
+                      statements:
+                        - type: VariableAssignmentStatement
+                          name: "type: IdentifierLiteral\nvalue: current"
+                          value:
+                            type: InfixedExpression
+                            operator: Dot(`.`)
+                            left_node:
+                              type: IdentifierLiteral
+                              value: current
+                            right_node:
+                              type: IdentifierLiteral
+                              value: next
+                    ifbreak: "null"
+                    notbreak: "null"
+                  - type: VariableAssignmentStatement
+                    name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: current\nright_node:\n  type: IdentifierLiteral\n  value: next"
+                    value:
+                      type: IdentifierLiteral
+                      value: newNode
+        generic: []
+    generics:
+      - type: Type
+        name: "type: IdentifierLiteral\nvalue: T"
+        generics:
+          - type: Type
+            name: "type: IdentifierLiteral\nvalue: Any"
+            generics: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: LinkedList"
+            arguments:
+              - type: IdentifierLiteral
+                value: int
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: intList"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: LinkedList"
+            generics:
+              - type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+          value:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: LinkedList"
+            arguments:
+              - type: IdentifierLiteral
+                value: int
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: intList
+            right_node:
+              type: CallExpression
+              name: "type: IdentifierLiteral\nvalue: add"
+              arguments:
+                - type: IntegerLiteral
+                  value: 10
+        - type: ExpressionStatement
+          Expression:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: intList
+            right_node:
+              type: CallExpression
+              name: "type: IdentifierLiteral\nvalue: add"
+              arguments:
+                - type: IntegerLiteral
+                  value: 20
+        - type: ExpressionStatement
+          Expression:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: intList
+            right_node:
+              type: CallExpression
+              name: "type: IdentifierLiteral\nvalue: add"
+              arguments:
+                - type: IntegerLiteral
+                  value: 30
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: current"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: ListNode"
+            generics:
+              - type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+          value:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: intList
+            right_node:
+              type: IdentifierLiteral
+              value: head
+          volatile: false
+        - type: WhileStatement
+          condition:
+            type: InfixedExpression
+            operator: NotEquals(`!=`)
+            left_node:
+              type: IdentifierLiteral
+              value: current
+            right_node:
+              type: IdentifierLiteral
+              value: nullptr
+          body:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "List node value: %lld\n"
+                    - type: InfixedExpression
+                      operator: Dot(`.`)
+                      left_node:
+                        type: IdentifierLiteral
+                        value: current
+                      right_node:
+                        type: IdentifierLiteral
+                        value: value
+              - type: VariableAssignmentStatement
+                name: "type: IdentifierLiteral\nvalue: current"
+                value:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: current
+                  right_node:
+                    type: IdentifierLiteral
+                    value: next
+          ifbreak: "null"
+          notbreak: "null"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

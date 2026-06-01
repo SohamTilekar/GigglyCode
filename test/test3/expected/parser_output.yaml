@@ -1,0 +1,122 @@
+type: Program
+statements:
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: subtract"
+    parameters:
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: a"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: b"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: ReturnStatement
+          value:
+            type: InfixedExpression
+            operator: Dash(`-`)
+            left_node:
+              type: IdentifierLiteral
+              value: a
+            right_node:
+              type: IdentifierLiteral
+              value: b
+    generic: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: subtract"
+    parameters:
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: a"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: float"
+          generics: []
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: b"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: float"
+          generics: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: float"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "%f:%f\n"
+              - type: IdentifierLiteral
+                value: a
+              - type: IdentifierLiteral
+                value: b
+        - type: ReturnStatement
+          value:
+            type: InfixedExpression
+            operator: Dash(`-`)
+            left_node:
+              type: IdentifierLiteral
+              value: a
+            right_node:
+              type: IdentifierLiteral
+              value: b
+    generic: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Subtract integers: %i\n"
+              - type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: subtract"
+                arguments:
+                  - type: IntegerLiteral
+                    value: 10
+                  - type: IntegerLiteral
+                    value: 5
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Subtract floats: %f\n"
+              - type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: subtract"
+                arguments:
+                  - type: FloatLiteral
+                    value: 10.5
+                  - type: FloatLiteral
+                    value: 5.5
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

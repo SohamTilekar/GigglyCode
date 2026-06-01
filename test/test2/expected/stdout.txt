@@ -1,0 +1,3 @@
+List node value: 10
+List node value: 20
+List node value: 30

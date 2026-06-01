@@ -427,7 +427,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             param_struct_types.push_back(param_type);
             param_references.push_back(param->value_type->refrence);
             param_const.push_back(param->constant);
-            llvm_param_types.push_back(param_type->struct_type || name == "raw_array" ? this->ll_pointer : param_type->stand_alone_type);
+            llvm_param_types.push_back(param_type->struct_type || param_type->name == "raw_array" ? this->ll_pointer : param_type->stand_alone_type);
         }
 
         // Determine the LLVM return type
@@ -722,7 +722,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         llvm::Value* raw_array;
         if (call_expression->_new) {
             // Create array type and calculate allocation size
-            llvm::Type* element_type = raw_array_type->struct_type || name == "raw_array" ? this->ll_pointer : raw_array_type->stand_alone_type;
+            llvm::Type* element_type = raw_array_type->struct_type || raw_array_type->name == "raw_array" ? this->ll_pointer : raw_array_type->stand_alone_type;
             auto array_type = llvm::ArrayType::get(element_type, 0);
             llvm::Value* element_size = this->llvm_ir_builder.CreateGEP(element_type, llvm::ConstantPointerNull::get(element_type->getPointerTo()), llConstInt::get(this->ll_int, 1));
             llvm::Value* alloc_size = this->llvm_ir_builder.CreateMul(this->llvm_ir_builder.CreatePtrToInt(element_size, this->ll_int), size_val);
@@ -732,7 +732,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             raw_array = this->llvm_ir_builder.CreateCall(malloc_fn->function, {alloc_size});
         } else {
             // Create the LLVM raw_array type
-            raw_array = this->llvm_ir_builder.CreateAlloca(raw_array_type->struct_type || name == "raw_array" ? this->ll_pointer : raw_array_type->stand_alone_type,
+            raw_array = this->llvm_ir_builder.CreateAlloca(raw_array_type->struct_type || raw_array_type->name == "raw_array" ? this->ll_pointer : raw_array_type->stand_alone_type,
                                                            size_val ? size_val : this->llvm_ir_builder.CreateLoad(this->ll_int, size_alloca));
         }
 
@@ -836,7 +836,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             auto [type_val, type_alloca, _type_type, rtype] = this->_resolveValue(call_expression->arguments[0]);
             auto type_type = std::get<RecordStructType*>(_type_type);
             if (rtype == resolveType::StructInst) {
-                auto raw_array_type = llvm::ArrayType::get(type_type->struct_type || name == "raw_array" ? this->ll_pointer : type_type->stand_alone_type, 1);
+                auto raw_array_type = llvm::ArrayType::get(type_type->struct_type || type_type->name == "raw_array" ? this->ll_pointer : type_type->stand_alone_type, 1);
                 llvm::Value* raw_array;
 
                 // Allocate memory for the raw_array
@@ -906,7 +906,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                 return {array_alloca, array_alloca, struct_record, resolveType::StructInst};
             } else if (first_resolve_type == resolveType::StructInst && second_resolve_type == resolveType::StructInst) {
                 // Two instances constructor pattern
-                auto raw_array_type = llvm::ArrayType::get(first_type->struct_type || name == "raw_array" ? this->ll_pointer : first_type->stand_alone_type, 2);
+                auto raw_array_type = llvm::ArrayType::get(first_type->struct_type || first_type->name == "raw_array" ? this->ll_pointer : first_type->stand_alone_type, 2);
                 llvm::Value* raw_array;
 
                 if (call_expression->_new) {
@@ -1470,7 +1470,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 }
             }
             params_types.insert(params_types.begin(), left_type);
-            args.insert(args.begin(), left_value ? left_value : left_alloca);
+            llvm::Value* self_val = left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca);
+            args.insert(args.begin(), self_val);
             arg_allocas.insert(arg_allocas.begin(), left_value ? left_value : left_alloca);
             auto name = right->castToCallExpression()->name->castToIdentifierLiteral()->value;
             if (left_type->is_method(name, params_types)) {
@@ -1518,15 +1519,15 @@ Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
         auto func_record = left_type->get_method(op_method, params_type1);
         auto returnValue = this->llvm_ir_builder.CreateCall(
             func_record->function,
-            {left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca),
-             right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca)});
+            {left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca),
+             right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type || right_type->name == "raw_array" ? this->ll_pointer : right_type->stand_alone_type, right_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else if (right_type->is_method(op_method, params_type2)) {
         auto func_record = right_type->get_method(op_method, params_type2);
         auto returnValue = this->llvm_ir_builder.CreateCall(
             func_record->function,
-            {right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type ? right_type->struct_type : right_type->stand_alone_type, right_alloca),
-             left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type ? left_type->struct_type : left_type->stand_alone_type, left_alloca)});
+            {right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type || right_type->name == "raw_array" ? this->ll_pointer : right_type->stand_alone_type, right_alloca),
+             left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else {
         errors::raiseWrongInfixError(this->file_path, this->source, left, right, op, "Cant " + op + " 2 structs", "Add the `" + op_method + "` method in structs in either one of the struct");
@@ -2056,7 +2057,7 @@ Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* in
         auto element_ptr_type = element_type->stand_alone_type;
 
         // Calculate the element pointer
-        auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left_alloca ? this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca) : left, index, "element");
+        auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left_alloca ? this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca) : left, index_alloca ? this->llvm_ir_builder.CreateLoad(index_generic->stand_alone_type, index_alloca) : index, "element");
         // Load the element value
         llvm::Value* load = this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
 
@@ -2104,7 +2105,9 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
             auto var = new RecordVariable(var_name->value, nullptr, gv, var_type);
             this->env->addRecord(var);
         } else {
-            llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_type->struct_type || var_type->name == "raw_array" ? this->ll_pointer : var_type->stand_alone_type);
+            llvm::Function* current_func = this->llvm_ir_builder.GetInsertBlock()->getParent();
+            llvm::IRBuilder<> temp_builder(&current_func->getEntryBlock(), current_func->getEntryBlock().begin());
+            llvm::Value* alloca = temp_builder.CreateAlloca(var_type->struct_type || var_type->name == "raw_array" ? this->ll_pointer : var_type->stand_alone_type);
             auto var = new RecordVariable(var_name->value, nullptr, alloca, var_type);
             this->env->addRecord(var);
         }
@@ -2142,7 +2145,9 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
         auto var = new RecordVariable(var_name->value, nullptr, gv, var_generic, variable_declaration_statement->is_const);
         this->env->addRecord(var);
     } else {
-        llvm::Value* alloca = this->llvm_ir_builder.CreateAlloca(var_generic->struct_type || var_generic->name == "raw_array" ? this->ll_pointer : var_generic->stand_alone_type);
+        llvm::Function* current_func = this->llvm_ir_builder.GetInsertBlock()->getParent();
+        llvm::IRBuilder<> temp_builder(&current_func->getEntryBlock(), current_func->getEntryBlock().begin());
+        llvm::Value* alloca = temp_builder.CreateAlloca(var_generic->struct_type || var_generic->name == "raw_array" ? this->ll_pointer : var_generic->stand_alone_type);
         if (var_generic->struct_type || var_generic->name == "raw_array") {
             this->llvm_ir_builder.CreateStore(var_value_resolved ? var_value_resolved : this->llvm_ir_builder.CreateLoad(this->ll_pointer, var_value_alloca),
                                               alloca,

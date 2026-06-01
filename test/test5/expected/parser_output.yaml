@@ -1,0 +1,129 @@
+type: Program
+statements:
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: arr"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: raw_array"
+            generics:
+              - type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+          value:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: raw_array"
+            arguments:
+              - type: IdentifierLiteral
+                value: int
+              - type: IntegerLiteral
+                value: 5
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: i"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 0
+          volatile: false
+        - type: WhileStatement
+          condition:
+            type: InfixedExpression
+            operator: LessThan(`<`)
+            left_node:
+              type: IdentifierLiteral
+              value: i
+            right_node:
+              type: IntegerLiteral
+              value: 5
+          body:
+            type: BlockStatement
+            statements:
+              - type: VariableAssignmentStatement
+                name: "type: IndexExpression\nleft_node:\n  type: IdentifierLiteral\n  value: arr\nindex:\n  type: IdentifierLiteral\n  value: i"
+                value:
+                  type: InfixedExpression
+                  operator: Asterisk(`*`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: i
+                  right_node:
+                    type: IntegerLiteral
+                    value: 10
+              - type: VariableAssignmentStatement
+                name: "type: IdentifierLiteral\nvalue: i"
+                value:
+                  type: InfixedExpression
+                  operator: Plus(`+`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: i
+                  right_node:
+                    type: IntegerLiteral
+                    value: 1
+          ifbreak: "null"
+          notbreak: "null"
+        - type: VariableAssignmentStatement
+          name: "type: IdentifierLiteral\nvalue: i"
+          value:
+            type: IntegerLiteral
+            value: 0
+        - type: WhileStatement
+          condition:
+            type: InfixedExpression
+            operator: LessThan(`<`)
+            left_node:
+              type: IdentifierLiteral
+              value: i
+            right_node:
+              type: IntegerLiteral
+              value: 5
+          body:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Array element %i : %i\n"
+                    - type: IdentifierLiteral
+                      value: i
+                    - type: IndexExpression
+                      left_node:
+                        type: IdentifierLiteral
+                        value: arr
+                      index:
+                        type: IdentifierLiteral
+                        value: i
+              - type: VariableAssignmentStatement
+                name: "type: IdentifierLiteral\nvalue: i"
+                value:
+                  type: InfixedExpression
+                  operator: Plus(`+`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: i
+                  right_node:
+                    type: IntegerLiteral
+                    value: 1
+          ifbreak: "null"
+          notbreak: "null"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

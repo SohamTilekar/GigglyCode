@@ -1,0 +1,5 @@
+Array element 0 : 0
+Array element 1 : 10
+Array element 2 : 20
+Array element 3 : 30
+Array element 4 : 40

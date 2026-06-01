@@ -1,44 +1,39 @@
-cstd:
-	@echo ---------------------------------------------------------
-	cmake --build ./build --config Debug --target all -j 4 --
-	@echo ---------------------------------------------------------
-	-./build/gigly ./std/ -o ./dump/std
-	@echo ---------------------------------------------------------
-	ld -r ./std/build/obj/*.o -o ./dump/std.o
+.PHONY: run runr orun lldb gdb cppcheck format test test-gen configure-debug configure-release build-debug build-release
 
+configure-debug:
+	cmake -B build -DCMAKE_BUILD_TYPE=Debug
 
-run:
+configure-release:
+	cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+build-debug:
+	cmake --build ./build --config Debug --target all -j 4
+
+build-release:
+	cmake --build ./build --config Release --target all -j 4
+
+run: build-debug
 	@echo ---------------------------------------------------------
-	cmake --build ./build --config Debug --target all -j 4 --
-	@echo ---------------------------------------------------------
-	./build/gigly ./hells/ -o ./dump/exec
+	./build/gigly ./dump/ -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec $(ARGS)
 
-runr:
+runr: build-release
 	@echo ---------------------------------------------------------
-	cmake --build ./build --config Release --target all -j 4 --
-	@echo ---------------------------------------------------------
-	./build/gigly ./hells/ -o ./dump/exec
+	./build/gigly ./dump/ -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec $(ARGS)
 
-orun:
+orun: build-debug
 	@echo ---------------------------------------------------------
-	cmake --build ./build --config Debug --target all -j 4 --
-	@echo ---------------------------------------------------------
-	./build/gigly ./hells/ -O3 -o ./dump/exec
+	./build/gigly ./dump/ -O3 -o ./dump/exec
 	@echo ---------------------------------------------------------
 	./dump/exec
 
-lldb:
-	@echo ---------------------------------------------------------
-	cmake --build ./build --config Debug --target all -j 4 --
+lldb: build-debug
 	lldb ./build/gigly
 
-gdb:
-	@echo ---------------------------------------------------------
-	cmake --build ./build --config Debug --target all -j 4 --
+gdb: build-debug
 	gdb ./build/gigly
 
 cppcheck:
@@ -47,11 +42,11 @@ cppcheck:
 format:
 	clang-format -i src/compiler/compiler.cpp src/compiler/compiler.hpp src/compiler/enviornment/enviornment.cpp src/compiler/enviornment/enviornment.hpp src/errors/errors.cpp src/errors/errors.hpp src/lexer/lexer.cpp src/lexer/lexer.hpp src/lexer/token.cpp src/lexer/token.hpp src/parser/AST/ast.cpp src/parser/AST/ast.hpp src/parser/parser.cpp src/parser/parser.hpp src/main.cpp
 
-aout:
-	./dump/a.out
+test: build-debug
+	python3 test/run_tests.py
 
-exec:
-	./dump/exec
+test-gen: build-debug
+	python3 test/run_tests.py -g
 
 setenv:
 	export GC_STD_OBJ="/mnt/soham/soham_code/GigglyCode/dump/std.o"

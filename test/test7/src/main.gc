@@ -1,0 +1,32 @@
+def main() -> int {
+    # Test case 1: Loop completes normally (condition becomes false), so notbreak should execute
+    i: int = 0;
+    while (i < 3) {
+        printf("Loop normal: %i\n", i);
+        i = i + 1;
+    }
+    notbreak {
+        printf("Normal completion: notbreak block executed\n");
+    }
+    ifbreak {
+        printf("Normal completion: ifbreak block executed (ERROR: should not run)\n");
+    };
+
+    # Test case 2: Loop breaks, so ifbreak should execute
+    j: int = 0;
+    while (j < 3) {
+        printf("Loop break: %i\n", j);
+        if (j == 1) {
+            break;
+        };
+        j = j + 1;
+    }
+    notbreak {
+        printf("Break completion: notbreak block executed (ERROR: should not run)\n");
+    }
+    ifbreak {
+        printf("Break completion: ifbreak block executed\n");
+    };
+
+    return 0;
+}

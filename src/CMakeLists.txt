@@ -1,28 +1,3 @@
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
-endif()
-
-cmake_minimum_required(VERSION 3.22)
-
-project(GigglyCode LANGUAGES CXX)
-
-set(BUILD_ARCH "-m64")
-set(TARGET_64 ON)
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-find_package(LLVM REQUIRED CONFIG)
-include_directories(${LLVM_INCLUDE_DIRS})
-add_definitions(${LLVM_DEFINITIONS})
-
-find_package(Clang REQUIRED CONFIG)
-include_directories(${CLANG_INCLUDE_DIRS})
-add_definitions(${CLANG_DEFINITIONS})
-
-find_package(yaml-cpp REQUIRED CONFIG)
-include_directories(${YAML_CPP_INCLUDE_DIR})
-add_definitions(${YAML_CPP_LIBRARY_DIR})
-
 add_subdirectory(lexer)
 add_subdirectory(parser)
 add_subdirectory(compiler)
@@ -50,7 +25,10 @@ target_link_libraries(gigly parser)
 target_link_libraries(gigly compiler)
 
 target_include_directories(gigly PUBLIC
-    "${PROJECT_SOURCE_DIR}/src/lexer"
-    "${PROJECT_SOURCE_DIR}/src/parser"
-    "${PROJECT_SOURCE_DIR}/src/compiler"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lexer"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parser"
+    "${CMAKE_CURRENT_SOURCE_DIR}/compiler"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
 )
+

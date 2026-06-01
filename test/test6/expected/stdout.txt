@@ -1,0 +1,13 @@
+Delta X: -10
+Delta Y: -10
+Delta X Squared: 100
+Delta Y Squared: 100
+Sum of Squares: 200
+Distance: 14.142136
+Length of the side of the square is: 14.142136
+Delta X: -10
+Delta Y: -10
+Delta X Squared: 100
+Delta Y Squared: 100
+Sum of Squares: 200
+Distance: 14.142136

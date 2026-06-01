@@ -1,4 +1,5 @@
 def subtract(a: int, b: int) -> int {
+    printf("%i:%i\n", a, b);
     return a - b;
 };
 

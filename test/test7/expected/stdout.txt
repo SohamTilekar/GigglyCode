@@ -1,0 +1,7 @@
+Loop normal: 0
+Loop normal: 1
+Loop normal: 2
+Normal completion: notbreak block executed
+Loop break: 0
+Loop break: 1
+Break completion: ifbreak block executed

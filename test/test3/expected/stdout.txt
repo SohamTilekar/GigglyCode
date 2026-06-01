@@ -1,0 +1,2 @@
+Subtract integers: 5
+Subtract floats: 0.000000

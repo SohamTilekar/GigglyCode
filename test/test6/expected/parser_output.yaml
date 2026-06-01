@@ -1,0 +1,451 @@
+type: Program
+statements:
+  - type: StructDecelerationStatement
+    name: "type: IdentifierLiteral\nvalue: Point"
+    fields:
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: X"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: Y"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: X"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: int"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: Y"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: int"
+              generics: []
+        return_type: "null"
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: X"
+              value:
+                type: IdentifierLiteral
+                value: X
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: Y"
+              value:
+                type: IdentifierLiteral
+                value: Y
+        generic: []
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+        return_type: "null"
+        body:
+          type: BlockStatement
+          statements: []
+        generic: []
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __sub__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: _other"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+        return_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: float"
+          generics: []
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: deltaX"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+              value:
+                type: InfixedExpression
+                operator: Dash(`-`)
+                left_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: self
+                  right_node:
+                    type: IdentifierLiteral
+                    value: X
+                right_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: _other
+                  right_node:
+                    type: IdentifierLiteral
+                    value: X
+              volatile: false
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: deltaY"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+              value:
+                type: InfixedExpression
+                operator: Dash(`-`)
+                left_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: self
+                  right_node:
+                    type: IdentifierLiteral
+                    value: Y
+                right_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: _other
+                  right_node:
+                    type: IdentifierLiteral
+                    value: Y
+              volatile: false
+            - type: ExpressionStatement
+              Expression:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: printf"
+                arguments:
+                  - type: StringLiteral
+                    value: "Delta X: %d\n"
+                  - type: IdentifierLiteral
+                    value: deltaX
+            - type: ExpressionStatement
+              Expression:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: printf"
+                arguments:
+                  - type: StringLiteral
+                    value: "Delta Y: %d\n"
+                  - type: IdentifierLiteral
+                    value: deltaY
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: deltaX_squared"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+              value:
+                type: InfixedExpression
+                operator: Asterisk(`*`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: deltaX
+                right_node:
+                  type: IdentifierLiteral
+                  value: deltaX
+              volatile: false
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: deltaY_squared"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+              value:
+                type: InfixedExpression
+                operator: Asterisk(`*`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: deltaY
+                right_node:
+                  type: IdentifierLiteral
+                  value: deltaY
+              volatile: false
+            - type: ExpressionStatement
+              Expression:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: printf"
+                arguments:
+                  - type: StringLiteral
+                    value: "Delta X Squared: %d\n"
+                  - type: IdentifierLiteral
+                    value: deltaX_squared
+            - type: ExpressionStatement
+              Expression:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: printf"
+                arguments:
+                  - type: StringLiteral
+                    value: "Delta Y Squared: %d\n"
+                  - type: IdentifierLiteral
+                    value: deltaY_squared
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: sum_of_squares"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+              value:
+                type: InfixedExpression
+                operator: Plus(`+`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: deltaX_squared
+                right_node:
+                  type: IdentifierLiteral
+                  value: deltaY_squared
+              volatile: false
+            - type: ExpressionStatement
+              Expression:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: printf"
+                arguments:
+                  - type: StringLiteral
+                    value: "Sum of Squares: %d\n"
+                  - type: IdentifierLiteral
+                    value: sum_of_squares
+            - type: VariableDeclarationStatement
+              name: "type: IdentifierLiteral\nvalue: distance"
+              value_type:
+                type: Type
+                name: "type: IdentifierLiteral\nvalue: float"
+                generics: []
+              value:
+                type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: math
+                right_node:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: sqrt"
+                  arguments:
+                    - type: IdentifierLiteral
+                      value: sum_of_squares
+              volatile: false
+            - type: ExpressionStatement
+              Expression:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: printf"
+                arguments:
+                  - type: StringLiteral
+                    value: "Distance: %f\n"
+                  - type: IdentifierLiteral
+                    value: distance
+            - type: ReturnStatement
+              value:
+                type: IdentifierLiteral
+                value: distance
+        generic: []
+    generics: []
+  - type: StructDecelerationStatement
+    name: "type: IdentifierLiteral\nvalue: Square"
+    fields:
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: bottomLeft"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: Point"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: topLeft"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: Point"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Square"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: bottomLeft"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: topLeft"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+        return_type: "null"
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: bottomLeft"
+              value:
+                type: IdentifierLiteral
+                value: bottomLeft
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: topLeft"
+              value:
+                type: IdentifierLiteral
+                value: topLeft
+        generic: []
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Square"
+              generics: []
+        return_type: "null"
+        body:
+          type: BlockStatement
+          statements: []
+        generic: []
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: getLen"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Square"
+              generics: []
+        return_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: float"
+          generics: []
+        body:
+          type: BlockStatement
+          statements:
+            - type: ReturnStatement
+              value:
+                type: InfixedExpression
+                operator: Dash(`-`)
+                left_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: self
+                  right_node:
+                    type: IdentifierLiteral
+                    value: bottomLeft
+                right_node:
+                  type: InfixedExpression
+                  operator: Dot(`.`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: self
+                  right_node:
+                    type: IdentifierLiteral
+                    value: topLeft
+        generic: []
+    generics: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: sq_10by10"
+          value_type: "null"
+          value:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: Square"
+            arguments:
+              - type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: Point"
+                arguments:
+                  - type: IntegerLiteral
+                    value: 0
+                  - type: IntegerLiteral
+                    value: 0
+              - type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: Point"
+                arguments:
+                  - type: IntegerLiteral
+                    value: 10
+                  - type: IntegerLiteral
+                    value: 10
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Length of the side of the square is: %lf\n"
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: sq_10by10
+                right_node:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: getLen"
+                  arguments: []
+        - type: ReturnStatement
+          value:
+            type: InfixedExpression
+            operator: Dash(`-`)
+            left_node:
+              type: InfixedExpression
+              operator: Dot(`.`)
+              left_node:
+                type: IdentifierLiteral
+                value: sq_10by10
+              right_node:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: getLen"
+                arguments: []
+            right_node:
+              type: IntegerLiteral
+              value: 14
+    generic: []
