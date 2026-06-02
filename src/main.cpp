@@ -144,7 +144,10 @@ class EnvManager {
  * @param relativePath The relative path of the file.
  * @return compilationState::RecordFile* The file record.
  */
+static std::mutex fileRecordMutex;
+
 compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFolder* rootFolder, const std::filesystem::path& relativePath) {
+    std::lock_guard<std::mutex> lock(fileRecordMutex);
     compilationState::RecordFolder* currentFolder = rootFolder;
     for (const auto& part : relativePath.parent_path()) {
         bool found = false;
@@ -208,27 +211,13 @@ class Compiler {
 
         if (verbose) { std::cout << "Found " << files.size() << " file(s) to compile." << std::endl; }
 
-        // Multithreading setup
-        const unsigned int numThreads = std::thread::hardware_concurrency();
-        if (verbose) { std::cout << "Starting compilation with " << numThreads << " threads..." << std::endl; }
-
-        std::mutex queueMutex;
-        std::queue<std::filesystem::path> fileQueue;
-        for (const auto& file : files) { fileQueue.push(file); }
+        // Spawning one thread per file to avoid thread starvation deadlocks when waiting on imports
+        if (verbose) { std::cout << "Starting compilation with " << files.size() << " thread(s)..." << std::endl; }
 
         std::vector<std::thread> workers;
-        for (unsigned int i = 0; i < numThreads; ++i) {
-            workers.emplace_back([&]() {
-                while (true) {
-                    std::filesystem::path file;
-                    {
-                        std::lock_guard<std::mutex> lock(queueMutex);
-                        if (fileQueue.empty()) return;
-                        file = fileQueue.front();
-                        fileQueue.pop();
-                    }
-                    compileFile(file, rootFolder);
-                }
+        for (const auto& file : files) {
+            workers.emplace_back([this, file, rootFolder]() {
+                compileFile(file, rootFolder);
             });
         }
 
@@ -342,12 +331,16 @@ class Compiler {
         std::string fileContent, const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, compilationState::RecordFile* fileRecord) {
 // Debugging Lexer
 #ifdef DEBUG_LEXER
-        debugLexer(Utils::readFileToString(filePath), filePath);
+        if (filePath.filename() == "main.gc") {
+            debugLexer(Utils::readFileToString(filePath), filePath);
+        }
 #endif
 
 // Debugging Parser
 #ifdef DEBUG_PARSER
-        debugParser(Utils::readFileToString(filePath), filePath);
+        if (filePath.filename() == "main.gc") {
+            debugParser(Utils::readFileToString(filePath), filePath);
+        }
 #endif
 
         Lexer lexer(fileContent, filePath);
