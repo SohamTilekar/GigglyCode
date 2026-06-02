@@ -1,2 +1,4 @@
+Int: 10:5
 Subtract integers: 5
-Subtract floats: 0.000000
+Float: 10.500000:5.500000
+Subtract floats: 5.000000

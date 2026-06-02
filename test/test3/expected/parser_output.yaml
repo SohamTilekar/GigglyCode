@@ -22,6 +22,17 @@ statements:
     body:
       type: BlockStatement
       statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Int: %i:%i\n"
+              - type: IdentifierLiteral
+                value: a
+              - type: IdentifierLiteral
+                value: b
         - type: ReturnStatement
           value:
             type: InfixedExpression
@@ -61,7 +72,7 @@ statements:
             name: "type: IdentifierLiteral\nvalue: printf"
             arguments:
               - type: StringLiteral
-                value: "%f:%f\n"
+                value: "Float: %f:%f\n"
               - type: IdentifierLiteral
                 value: a
               - type: IdentifierLiteral

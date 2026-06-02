@@ -81,6 +81,9 @@ bool _checkFunctionParameterType(RecordFunction* func_record, std::vector<Record
 
 // Checks if a struct type has a specific method matching the given criteria
 bool RecordStructType::is_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
+    if (!exact) {
+        if (is_method(name, params_types, ex_info, return_type, true)) { return true; }
+    }
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
@@ -115,6 +118,10 @@ bool RecordStructType::is_method(const std::string& name, const std::vector<Reco
 
 // Retrieves a method from a struct type that matches the given criteria
 RecordFunction* RecordStructType::get_method(const std::string& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info, RecordStructType* return_type, bool exact) {
+    if (!exact) {
+        auto exact_method = get_method(name, params_types, ex_info, return_type, true);
+        if (exact_method) { return exact_method; }
+    }
     // Iterate through all methods of the struct
     for (const auto& [method_name, method] : this->methods) {
         bool match = true;
@@ -138,7 +145,7 @@ RecordFunction* RecordStructType::get_method(const std::string& name, const std:
         // Check if method name matches (if specified)
         bool name_matches = name.empty() || method->name == name;
         // Ensure function parameters match
-        bool params_match = _checkFunctionParameterType(method, params_types);
+        bool params_match = _checkFunctionParameterType(method, params_types, exact);
 
         // If all conditions are met, return the matching method
         if (return_correct && match && name_matches && params_match) { return method; }
@@ -149,6 +156,9 @@ RecordFunction* RecordStructType::get_method(const std::string& name, const std:
 
 // Checks if a module contains a specific function matching the given criteria
 bool RecordModule::isFunction(const std::string& name, const std::vector<RecordStructType*>& params_types, bool exact) {
+    if (!exact) {
+        if (isFunction(name, params_types, true)) { return true; }
+    }
     // Iterate through all records in the module
     for (const auto& [func_name, func_record] : record_map) {
         // Only consider function records
@@ -223,6 +233,10 @@ bool RecordModule::isGenericStruct(const std::string& name) {
 
 // Retrieves a function from the module that matches the given criteria
 RecordFunction* RecordModule::getFunction(const std::string& name, const std::vector<RecordStructType*>& params_types, bool exact) {
+    if (!exact) {
+        auto exact_func = getFunction(name, params_types, true);
+        if (exact_func) { return exact_func; }
+    }
     for (const auto& [func_name, func_record] : record_map) {
         if (func_record->type == RecordType::Function) {
             auto func = (RecordFunction*)func_record;
@@ -305,6 +319,9 @@ bool Enviornment::isVariable(const std::string& name, bool limit2current_scope) 
 
 // Checks if a function exists in the environment with matching parameters
 bool Enviornment::isFunction(const std::string& name, std::vector<RecordStructType*> params_types, bool limit2current_scope, bool exact) {
+    if (!exact) {
+        if (isFunction(name, params_types, limit2current_scope, true)) { return true; }
+    }
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::Function && record->name == name) {
             auto func = (RecordFunction*)record;
@@ -372,6 +389,10 @@ RecordVariable* Enviornment::getVariable(const std::string& name, bool limit2cur
 
 // Retrieves a function from the environment that matches the given criteria
 RecordFunction* Enviornment::getFunction(const std::string& name, std::vector<RecordStructType*> params_types, bool limit2current_scope, bool exact) {
+    if (!exact) {
+        auto exact_func = getFunction(name, params_types, limit2current_scope, true);
+        if (exact_func) { return exact_func; }
+    }
     for (const auto& [record_name, record] : record_map) {
         if (record->type == RecordType::Function && record->name == name) {
             auto func = (RecordFunction*)record;

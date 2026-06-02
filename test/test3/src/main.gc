@@ -1,10 +1,10 @@
 def subtract(a: int, b: int) -> int {
-    printf("%i:%i\n", a, b);
+    printf("Int: %i:%i\n", a, b);
     return a - b;
 };
 
 def subtract(a: float, b: float) -> float {
-    printf("%f:%f\n", a, b);
+    printf("Float: %f:%f\n", a, b);
     return a - b;
 };
 
