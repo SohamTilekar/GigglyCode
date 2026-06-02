@@ -1,0 +1,67 @@
+type: Program
+statements:
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: i"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value: "null"
+          volatile: false
+        - type: UNKNOWN
+          init:
+            type: VariableAssignmentStatement
+            name: "type: IdentifierLiteral\nvalue: i"
+            value:
+              type: IntegerLiteral
+              value: 0
+          condition:
+            type: InfixedExpression
+            operator: LessThan(`<`)
+            left_node:
+              type: IdentifierLiteral
+              value: i
+            right_node:
+              type: IntegerLiteral
+              value: 5
+          update:
+            type: VariableAssignmentStatement
+            name: "type: IdentifierLiteral\nvalue: i"
+            value:
+              type: InfixedExpression
+              operator: Plus(`+`)
+              left_node:
+                type: IdentifierLiteral
+                value: i
+              right_node:
+                type: IntegerLiteral
+                value: 1
+          body:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "i: %i\n"
+                    - type: IdentifierLiteral
+                      value: i
+          ifbreak: "null"
+          notbreak: "null"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

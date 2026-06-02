@@ -1,0 +1,3 @@
+const x = 42
+volatile y = 100
+volatile y modified = 101

@@ -1,0 +1,55 @@
+type: Program
+statements:
+  - type: UNKNOWN
+    name: "type: IdentifierLiteral\nvalue: Color"
+    fields:
+      - RED
+      - GREEN
+      - BLUE
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: c"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: Color"
+            generics: []
+          value:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: Color
+            right_node:
+              type: IdentifierLiteral
+              value: GREEN
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Enum value name: %s\n"
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: c
+                right_node:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: getName"
+                  arguments: []
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

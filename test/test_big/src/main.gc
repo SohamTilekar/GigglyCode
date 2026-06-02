@@ -1,0 +1,98 @@
+import "modules/helper";
+
+enum Status {
+    SUCCESS;
+    FAILED;
+    PENDING;
+};
+
+struct Point {
+    x: int;
+    y: int;
+
+    def __init__(self: Point, x: int, y: int) {
+        self.x = x;
+        self.y = y;
+    };
+
+    # Operator overloading for '-'
+    def __sub__(self: Point, other_: Point) -> Point {
+        return Point(self.x - other_.x, self.y - other_.y);
+    };
+};
+
+def printVal(x: int) {
+    printf("Overload Int: %i\n", x);
+}
+
+def printVal(x: float) {
+    printf("Overload Float: %f\n", x);
+}
+
+def main() -> int {
+    # 1. Const & Volatile Variables
+    const max_limit: int = 10;
+    volatile loop_cnt: int = 0;
+
+    # 2. Type Inference
+    inferred_int := 42;
+    inferred_float: auto = 3.14;
+
+    # 3. Enum Usage
+    st: Status = Status.SUCCESS;
+    printf("Status: %s\n", st.getName());
+
+    # 4. Imports & Generics
+    box: helper.Box[int] = helper.Box(int, inferred_int);
+    printf("Box Value: %i\n", box.getValue());
+    printf("Sum from helper: %i\n", helper.compute_sum(100, 200));
+
+    # 5. Overloading
+    printVal(inferred_int);
+    printVal(inferred_float);
+
+    # 6. Structs & Operator Overloading
+    p1 := Point(10, 20);
+    p2 := Point(3, 4);
+    p3 := p1 - p2;
+    printf("Point sub result: (%i, %i)\n", p3.x, p3.y);
+
+    # 7. Raw Arrays
+    arr: raw_array[int] = raw_array(int, 3);
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+    
+    # 8. C-style For Loop
+    i: int;
+    for (i = 0; i < 3; i = i + 1) {
+        printf("arr[%i] = %i\n", i, arr[i]);
+    }
+
+    # 9. Switch Case
+    val := 2;
+    switch (val) {
+        case (1) {
+            printf("Case 1\n");
+        } case (2) {
+            printf("Case 2\n");
+        } other {
+            printf("Other Case\n");
+        }
+    }
+
+    # 10. While Loop with modifiers
+    while (loop_cnt < 3) {
+        printf("Loop count: %i\n", loop_cnt);
+        loop_cnt = loop_cnt + 1;
+        if (loop_cnt == 5) {
+            break;
+        }
+    } notbreak {
+        printf("Loop completed without break!\n");
+    } ifbreak {
+        printf("Loop broke early!\n");
+    };
+
+    return 0;
+}

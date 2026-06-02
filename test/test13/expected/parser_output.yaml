@@ -1,0 +1,75 @@
+type: Program
+statements:
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: x"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 42
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: y"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 100
+          volatile: true
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "const x = %i\n"
+              - type: IdentifierLiteral
+                value: x
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "volatile y = %i\n"
+              - type: IdentifierLiteral
+                value: y
+        - type: VariableAssignmentStatement
+          name: "type: IdentifierLiteral\nvalue: y"
+          value:
+            type: InfixedExpression
+            operator: Plus(`+`)
+            left_node:
+              type: IdentifierLiteral
+              value: y
+            right_node:
+              type: IntegerLiteral
+              value: 1
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "volatile y modified = %i\n"
+              - type: IdentifierLiteral
+                value: y
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

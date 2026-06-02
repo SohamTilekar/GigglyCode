@@ -1,0 +1,49 @@
+type: Program
+statements:
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: x"
+          value_type: "null"
+          value:
+            type: IntegerLiteral
+            value: 42
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "x: %i\n"
+              - type: IdentifierLiteral
+                value: x
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: y"
+          value_type: "null"
+          value:
+            type: FloatLiteral
+            value: 24.5
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "y: %f\n"
+              - type: IdentifierLiteral
+                value: y
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

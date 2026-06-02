@@ -1,0 +1,8 @@
+def main() -> int {
+    counter: int = 0;
+    while (counter < 5) {
+        printf("Counter: %i\n", counter);
+        counter = counter + 1;
+    };
+    return 0;
+}

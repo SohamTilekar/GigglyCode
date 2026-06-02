@@ -1,0 +1,47 @@
+type: Program
+statements:
+  - type: ImportStatement
+    path: modules/math_utils
+    as: ""
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: res"
+          value_type: "null"
+          value:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: math_utils
+            right_node:
+              type: CallExpression
+              name: "type: IdentifierLiteral\nvalue: add"
+              arguments:
+                - type: IntegerLiteral
+                  value: 10
+                - type: IntegerLiteral
+                  value: 20
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "math_utils.add(10, 20) = %i\n"
+              - type: IdentifierLiteral
+                value: res
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

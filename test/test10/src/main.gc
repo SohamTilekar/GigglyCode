@@ -1,0 +1,11 @@
+def main() -> int {
+    # Type inference using colon-equals (:=)
+    x := 42;
+    printf("x: %i\n", x);
+
+    # Type inference using explicit auto keyword
+    y: auto = 24.5;
+    printf("y: %f\n", y);
+
+    return 0;
+}

@@ -1,0 +1,12 @@
+def main() -> int {
+    const x: int = 42;
+    volatile y: int = 100;
+
+    printf("const x = %i\n", x);
+    printf("volatile y = %i\n", y);
+
+    y = y + 1;
+    printf("volatile y modified = %i\n", y);
+
+    return 0;
+}

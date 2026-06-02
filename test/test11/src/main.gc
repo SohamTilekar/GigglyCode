@@ -1,0 +1,11 @@
+enum Color {
+    RED;
+    GREEN;
+    BLUE;
+};
+
+def main() -> int {
+    c: Color = Color.GREEN;
+    printf("Enum value name: %s\n", c.getName());
+    return 0;
+}

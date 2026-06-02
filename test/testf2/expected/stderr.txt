@@ -1,0 +1,12 @@
+Warning: GC_STD_DIR environment variable is not set.
+
+❌ Completion Error ❌
+
+❌ Error: Cant assign to the constant variable
+/mnt/soham/soham_code/GigglyCode/test/testf2/src/main.gc:3:5
+
+   2 │     const x: int [...
+   3 │     x = ...
+     │     ^
+   4 │     return[...
+

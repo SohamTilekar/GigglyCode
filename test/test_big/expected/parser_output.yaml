@@ -1,0 +1,603 @@
+type: Program
+statements:
+  - type: ImportStatement
+    path: modules/helper
+    as: ""
+  - type: UNKNOWN
+    name: "type: IdentifierLiteral\nvalue: Status"
+    fields:
+      - SUCCESS
+      - FAILED
+      - PENDING
+  - type: StructDecelerationStatement
+    name: "type: IdentifierLiteral\nvalue: Point"
+    fields:
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: x"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: VariableDeclarationStatement
+        name: "type: IdentifierLiteral\nvalue: y"
+        value_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+        value: "null"
+        volatile: false
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __init__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: x"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: int"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: y"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: int"
+              generics: []
+        return_type: "null"
+        body:
+          type: BlockStatement
+          statements:
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: x"
+              value:
+                type: IdentifierLiteral
+                value: x
+            - type: VariableAssignmentStatement
+              name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: self\nright_node:\n  type: IdentifierLiteral\n  value: y"
+              value:
+                type: IdentifierLiteral
+                value: y
+        generic: []
+      - type: FunctionStatement
+        name: "type: IdentifierLiteral\nvalue: __sub__"
+        parameters:
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: self"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+          - type: FunctionParameter
+            param_name: "type: IdentifierLiteral\nvalue: other_"
+            param_type:
+              type: Type
+              name: "type: IdentifierLiteral\nvalue: Point"
+              generics: []
+        return_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: Point"
+          generics: []
+        body:
+          type: BlockStatement
+          statements:
+            - type: ReturnStatement
+              value:
+                type: CallExpression
+                name: "type: IdentifierLiteral\nvalue: Point"
+                arguments:
+                  - type: InfixedExpression
+                    operator: Dash(`-`)
+                    left_node:
+                      type: InfixedExpression
+                      operator: Dot(`.`)
+                      left_node:
+                        type: IdentifierLiteral
+                        value: self
+                      right_node:
+                        type: IdentifierLiteral
+                        value: x
+                    right_node:
+                      type: InfixedExpression
+                      operator: Dot(`.`)
+                      left_node:
+                        type: IdentifierLiteral
+                        value: other_
+                      right_node:
+                        type: IdentifierLiteral
+                        value: x
+                  - type: InfixedExpression
+                    operator: Dash(`-`)
+                    left_node:
+                      type: InfixedExpression
+                      operator: Dot(`.`)
+                      left_node:
+                        type: IdentifierLiteral
+                        value: self
+                      right_node:
+                        type: IdentifierLiteral
+                        value: y
+                    right_node:
+                      type: InfixedExpression
+                      operator: Dot(`.`)
+                      left_node:
+                        type: IdentifierLiteral
+                        value: other_
+                      right_node:
+                        type: IdentifierLiteral
+                        value: y
+        generic: []
+    generics: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: printVal"
+    parameters:
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: x"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: int"
+          generics: []
+    return_type: "null"
+    body:
+      type: BlockStatement
+      statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Overload Int: %i\n"
+              - type: IdentifierLiteral
+                value: x
+    generic: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: printVal"
+    parameters:
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: x"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: float"
+          generics: []
+    return_type: "null"
+    body:
+      type: BlockStatement
+      statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Overload Float: %f\n"
+              - type: IdentifierLiteral
+                value: x
+    generic: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: max_limit"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 10
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: loop_cnt"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value:
+            type: IntegerLiteral
+            value: 0
+          volatile: true
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: inferred_int"
+          value_type: "null"
+          value:
+            type: IntegerLiteral
+            value: 42
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: inferred_float"
+          value_type: "null"
+          value:
+            type: FloatLiteral
+            value: 3.1400000000000001
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: st"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: Status"
+            generics: []
+          value:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: Status
+            right_node:
+              type: IdentifierLiteral
+              value: SUCCESS
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Status: %s\n"
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: st
+                right_node:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: getName"
+                  arguments: []
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: box"
+          value_type:
+            type: Type
+            name: "type: InfixedExpression\noperator: Dot(`.`)\nleft_node:\n  type: IdentifierLiteral\n  value: helper\nright_node:\n  type: IdentifierLiteral\n  value: Box"
+            generics:
+              - type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+          value:
+            type: InfixedExpression
+            operator: Dot(`.`)
+            left_node:
+              type: IdentifierLiteral
+              value: helper
+            right_node:
+              type: CallExpression
+              name: "type: IdentifierLiteral\nvalue: Box"
+              arguments:
+                - type: IdentifierLiteral
+                  value: int
+                - type: IdentifierLiteral
+                  value: inferred_int
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Box Value: %i\n"
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: box
+                right_node:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: getValue"
+                  arguments: []
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Sum from helper: %i\n"
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: helper
+                right_node:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: compute_sum"
+                  arguments:
+                    - type: IntegerLiteral
+                      value: 100
+                    - type: IntegerLiteral
+                      value: 200
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printVal"
+            arguments:
+              - type: IdentifierLiteral
+                value: inferred_int
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printVal"
+            arguments:
+              - type: IdentifierLiteral
+                value: inferred_float
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: p1"
+          value_type: "null"
+          value:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: Point"
+            arguments:
+              - type: IntegerLiteral
+                value: 10
+              - type: IntegerLiteral
+                value: 20
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: p2"
+          value_type: "null"
+          value:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: Point"
+            arguments:
+              - type: IntegerLiteral
+                value: 3
+              - type: IntegerLiteral
+                value: 4
+          volatile: false
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: p3"
+          value_type: "null"
+          value:
+            type: InfixedExpression
+            operator: Dash(`-`)
+            left_node:
+              type: IdentifierLiteral
+              value: p1
+            right_node:
+              type: IdentifierLiteral
+              value: p2
+          volatile: false
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: printf"
+            arguments:
+              - type: StringLiteral
+                value: "Point sub result: (%i, %i)\n"
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: p3
+                right_node:
+                  type: IdentifierLiteral
+                  value: x
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: p3
+                right_node:
+                  type: IdentifierLiteral
+                  value: y
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: arr"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: raw_array"
+            generics:
+              - type: Type
+                name: "type: IdentifierLiteral\nvalue: int"
+                generics: []
+          value:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: raw_array"
+            arguments:
+              - type: IdentifierLiteral
+                value: int
+              - type: IntegerLiteral
+                value: 3
+          volatile: false
+        - type: VariableAssignmentStatement
+          name: "type: IndexExpression\nleft_node:\n  type: IdentifierLiteral\n  value: arr\nindex:\n  type: IntegerLiteral\n  value: 0"
+          value:
+            type: IntegerLiteral
+            value: 10
+        - type: VariableAssignmentStatement
+          name: "type: IndexExpression\nleft_node:\n  type: IdentifierLiteral\n  value: arr\nindex:\n  type: IntegerLiteral\n  value: 1"
+          value:
+            type: IntegerLiteral
+            value: 20
+        - type: VariableAssignmentStatement
+          name: "type: IndexExpression\nleft_node:\n  type: IdentifierLiteral\n  value: arr\nindex:\n  type: IntegerLiteral\n  value: 2"
+          value:
+            type: IntegerLiteral
+            value: 30
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: i"
+          value_type:
+            type: Type
+            name: "type: IdentifierLiteral\nvalue: int"
+            generics: []
+          value: "null"
+          volatile: false
+        - type: UNKNOWN
+          init:
+            type: VariableAssignmentStatement
+            name: "type: IdentifierLiteral\nvalue: i"
+            value:
+              type: IntegerLiteral
+              value: 0
+          condition:
+            type: InfixedExpression
+            operator: LessThan(`<`)
+            left_node:
+              type: IdentifierLiteral
+              value: i
+            right_node:
+              type: IntegerLiteral
+              value: 3
+          update:
+            type: VariableAssignmentStatement
+            name: "type: IdentifierLiteral\nvalue: i"
+            value:
+              type: InfixedExpression
+              operator: Plus(`+`)
+              left_node:
+                type: IdentifierLiteral
+                value: i
+              right_node:
+                type: IntegerLiteral
+                value: 1
+          body:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "arr[%i] = %i\n"
+                    - type: IdentifierLiteral
+                      value: i
+                    - type: IndexExpression
+                      left_node:
+                        type: IdentifierLiteral
+                        value: arr
+                      index:
+                        type: IdentifierLiteral
+                        value: i
+          ifbreak: "null"
+          notbreak: "null"
+        - type: VariableDeclarationStatement
+          name: "type: IdentifierLiteral\nvalue: val"
+          value_type: "null"
+          value:
+            type: IntegerLiteral
+            value: 2
+          volatile: false
+        - type: UNKNOWN
+          condition:
+            type: IdentifierLiteral
+            value: val
+          case:
+            - case:
+                type: IntegerLiteral
+                value: 1
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "Case 1\n"
+            - case:
+                type: IntegerLiteral
+                value: 2
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "Case 2\n"
+          other:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Other Case\n"
+        - type: WhileStatement
+          condition:
+            type: InfixedExpression
+            operator: LessThan(`<`)
+            left_node:
+              type: IdentifierLiteral
+              value: loop_cnt
+            right_node:
+              type: IntegerLiteral
+              value: 3
+          body:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Loop count: %i\n"
+                    - type: IdentifierLiteral
+                      value: loop_cnt
+              - type: VariableAssignmentStatement
+                name: "type: IdentifierLiteral\nvalue: loop_cnt"
+                value:
+                  type: InfixedExpression
+                  operator: Plus(`+`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: loop_cnt
+                  right_node:
+                    type: IntegerLiteral
+                    value: 1
+              - type: IfElseStatement
+                condition:
+                  type: InfixedExpression
+                  operator: EqualEqual(`==`)
+                  left_node:
+                    type: IdentifierLiteral
+                    value: loop_cnt
+                  right_node:
+                    type: IntegerLiteral
+                    value: 5
+                consequence:
+                  type: BlockStatement
+                  statements:
+                    - type: BreakStatement
+                      loopNum: 0
+                alternative: "null"
+          ifbreak:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Loop broke early!\n"
+          notbreak:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "Loop completed without break!\n"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

@@ -1,0 +1,7 @@
+import "modules/math_utils";
+
+def main() -> int {
+    res := math_utils.add(10, 20);
+    printf("math_utils.add(10, 20) = %i\n", res);
+    return 0;
+}

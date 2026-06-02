@@ -1,0 +1,7 @@
+def test_func() -> int {
+    return "mismatch";
+}
+
+def main() -> int {
+    return 0;
+}
