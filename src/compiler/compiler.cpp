@@ -608,13 +608,13 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
     // Add the function record to the appropriate scope (struct, module, or global
     // environment)
-    if (struct_) {
+    if (struct_ && local_file_record) {
+        struct_->addMethod(name, func_record);
+        return;
+    } else if (struct_) {
         struct_->methods.emplace_back(name, func_record);
     } else if (module) {
         module->record_map.emplace_back(name, func_record);
-        return;
-    } else if (struct_ && local_file_record) {
-        struct_->addMethod(name, func_record);
         return;
     } else {
         this->env->addRecord(func_record);
@@ -1214,7 +1214,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
     if (!struct_statement->generics.empty()) {
         auto gsr = new RecordGenericStructType(struct_name, struct_statement, this->env);
         this->env->addRecord(gsr);
-        if (module) { module->record_map.emplace_back(struct_name, gsr); }
+        if (module) { module->record_map.emplace_back(struct_name, new RecordGenericStructType(*gsr)); }
         return;
     }
 
@@ -1261,7 +1261,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
 
     // Add the struct record to the module or environment
     if (module) {
-        module->record_map.emplace_back(struct_name, struct_record);
+        module->record_map.emplace_back(struct_name, new RecordStructType(*struct_record));
     } else {
         this->env->addRecord(new RecordStructType(*struct_record));
     }
@@ -1426,7 +1426,11 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             }
             params_types.push_back(std::get<RecordStructType*>(param_type));
             arg_allocas.push_back(val_alloca);
-            args.push_back(value ? value : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array" ? ll_pointer : std::get<RecordStructType*>(param_type)->stand_alone_type, val_alloca));
+            if (!value && !val_alloca) {
+                args.push_back(nullptr);
+            } else {
+                args.push_back(value ? value : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array" ? ll_pointer : std::get<RecordStructType*>(param_type)->stand_alone_type, val_alloca));
+            }
         }
         if (ltt == resolveType::Module) {
             auto left_type = std::get<RecordModule*>(_left_type);
@@ -2169,7 +2173,10 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
     auto [value, value_alloca, _assignmentType, vtt] = this->_resolveValue(var_value);
     auto assignmentType = std::get<RecordStructType*>(_assignmentType);
 
-    if (vtt == resolveType::ConstStructInst) {
+    auto [_, alloca, _var_type, att] = this->_resolveValue(variable_assignment_statement->name);
+    auto var_type = std::get<RecordStructType*>(_var_type);
+
+    if (att == resolveType::ConstStructInst) {
         errors::raiseCompletionError(file_path, source,
             variable_assignment_statement->name->meta_data.st_line_no,
             variable_assignment_statement->name->meta_data.st_col_no,
@@ -2178,12 +2185,10 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
             "Cant assign to the constant variable"
         );
     }
-    if ((vtt != resolveType::StructInst) && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
+    if ((vtt != resolveType::StructInst && vtt != resolveType::ConstStructInst) && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
         errors::raiseWrongTypeError(this->file_path, this->source, var_value, nullptr, {assignmentType}, "Cannot assign module or type to variable");
     }
 
-    auto [_, alloca, _var_type, att] = this->_resolveValue(variable_assignment_statement->name);
-    auto var_type = std::get<RecordStructType*>(_var_type);
     if (!alloca) {
         errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true);
     }
@@ -2581,12 +2586,12 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                             this->_visitFunctionDeclarationStatement(func_dec, struct_record);
                         }
                     }
+                    gstruct->env->addRecord(new RecordStructType(*struct_record));
                 } else {
                     delete struct_record;
                     struct_record = gstruct->env->getStruct(struct_name, false, generics);
                 }
 
-                gstruct->env->addRecord(new RecordStructType(*struct_record));
                 this->env = prev_env;
                 return struct_record;
             }
@@ -3130,9 +3135,10 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     this->source = gc_source;
 
     // Parse the source code into an AST
-    auto lexer = new Lexer(gc_source_path, gc_source);
+    auto lexer = new Lexer(gc_source, gc_source_path);
     auto parser = new parser::Parser(lexer);
     auto program = parser->parseProgram();
+    this->auto_free_programs.push_back(program);
     delete lexer;
     delete parser;
 
