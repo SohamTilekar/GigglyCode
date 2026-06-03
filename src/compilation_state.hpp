@@ -4,7 +4,21 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <filesystem>
 
+// =======================================
+// Helper Function to Run External Commands
+// =======================================
+std::string runCommand(const std::string& command, int& exit_code);
+
+// =======================================
+// Utility Namespace
+// =======================================
+namespace Utils {
+std::string readFileToString(const std::filesystem::path& filePath);
+size_t computeHash(const std::string& content);
+void createDirectories(const std::filesystem::path& path);
+} // namespace Utils
 
 namespace compilationState {
 
@@ -38,4 +52,8 @@ class RecordFolder {
         }
 };
 }
+
+// Global declaration for shared compilation record access
+compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFolder* rootFolder, const std::filesystem::path& relativePath);
+
 #endif

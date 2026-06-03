@@ -3092,13 +3092,6 @@ void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
     exit(1);
 }
 
-namespace Utils {
-const Str readFileToString(const std::filesystem::path& filePath); // Defined in main.cpp
-}
-
-compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFolder* rootFolder,
-                                                     const std::filesystem::path& relativePath); // Defined in `main.cpp`
-
 void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, RecordModule* module) {
     // Extract the relative path from the import statement
     Str relative_path = import_statement->relativePath;
@@ -3126,8 +3119,14 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     // Check if the file is already being compiled
     compilationState::RecordFile* local_file_record = findOrCreateFileRecord(this->file_record->parent, relative_path + ".gc");
 
-    // Wait until the file is compiled
-    while (!local_file_record->compiled) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+    // Wait until the file is compiled, or compile synchronously if callback is provided
+    if (!local_file_record->compiled) {
+        if (this->compile_dependency_cb) {
+            this->compile_dependency_cb(gc_source_path);
+        } else {
+            while (!local_file_record->compiled) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+        }
+    }
 
     // Read the source code from the file
     Str gc_source = Utils::readFileToString(gc_source_path.string());

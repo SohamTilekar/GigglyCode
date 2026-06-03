@@ -13,6 +13,7 @@
 
 // === LLVM Headers ===o
 #include <filesystem>
+#include <functional>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Value.h>
@@ -158,6 +159,8 @@ class Compiler {
     Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
 
     ~Compiler();
+
+    std::function<void(const std::filesystem::path&)> compile_dependency_cb = nullptr;
 
     // === Public Methods ===
 

@@ -1,0 +1,2 @@
+Circle approximate area: 75
+Center coordinates sum: 30

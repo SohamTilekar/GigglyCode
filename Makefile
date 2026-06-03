@@ -40,7 +40,7 @@ cppcheck:
 	cppcheck --enable=all --check-level=exhaustive --error-exitcode=1 src/ -i src/include/ -I src/ --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unmatchedSuppression --suppress=noExplicitConstructor --force
 
 format:
-	clang-format -i src/compiler/compiler.cpp src/compiler/compiler.hpp src/compiler/enviornment/enviornment.cpp src/compiler/enviornment/enviornment.hpp src/errors/errors.cpp src/errors/errors.hpp src/lexer/lexer.cpp src/lexer/lexer.hpp src/lexer/token.cpp src/lexer/token.hpp src/parser/AST/ast.cpp src/parser/AST/ast.hpp src/parser/parser.cpp src/parser/parser.hpp src/main.cpp
+	clang-format -i src/compiler/compiler.cpp src/compiler/compiler.hpp src/compiler/enviornment/enviornment.cpp src/compiler/enviornment/enviornment.hpp src/errors/errors.cpp src/errors/errors.hpp src/lexer/lexer.cpp src/lexer/lexer.hpp src/lexer/token.cpp src/lexer/token.hpp src/parser/AST/ast.cpp src/parser/AST/ast.hpp src/parser/parser.cpp src/parser/parser.hpp src/gigly.cpp src/gigc.cpp
 
 test: build-debug
 	python3 test/run_tests.py
