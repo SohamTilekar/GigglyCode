@@ -1,0 +1,38 @@
+struct Point {
+    x: int;
+    y: int;
+
+    def __init__(self: Point, x: int, y: int) {
+        self.x = x;
+        self.y = y;
+    };
+
+    def get_sum(self: Point) -> int {
+        return self.x + self.y;
+    };
+};
+
+struct Circle {
+    center: Point;
+    radius: int;
+
+    def __init__(self: Circle, cx: int, cy: int, r: int) {
+        self.center = Point(cx, cy);
+        self.radius = r;
+    };
+
+    def area_approx(self: Circle) -> int {
+        return 3 * self.radius * self.radius;
+    };
+
+    def sum_coordinates(self: Circle) -> int {
+        return self.center.get_sum();
+    };
+};
+
+def main() -> int {
+    c: Circle = Circle(10, 20, 5);
+    printf("Circle approximate area: %i\n", c.area_approx());
+    printf("Center coordinates sum: %i\n", c.sum_coordinates());
+    return 0;
+}
