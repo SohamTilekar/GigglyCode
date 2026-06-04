@@ -682,6 +682,8 @@ class Enviornment {
     StrRecordMap record_map; ///< Map of records within the environment.
 
     RecordFunction* current_function = nullptr; ///< Pointer to the current function record.
+    llvm::BasicBlock* current_landing_pad = nullptr; ///< Pointer to the current landing pad block.
+    int active_catch_count = 0; ///< Number of active catch blocks in this environment scope.
 
     /**
      * @brief Vectors managing loop-related basic blocks for control flow.
@@ -712,6 +714,8 @@ class Enviornment {
             this->loop_ifbreak_block = parent->loop_ifbreak_block;
             this->loop_notbreak_block = parent->loop_notbreak_block;
             this->current_function = parent->current_function;
+            this->current_landing_pad = parent->current_landing_pad;
+            this->active_catch_count = parent->active_catch_count;
         }
     }
 

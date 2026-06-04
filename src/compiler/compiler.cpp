@@ -271,6 +271,17 @@ void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
                                      "Ensure that the loop index is within the valid range. Remember: "
                                      "LoopIdx starts with `0`.");
     }
+    int target_catch_count = 0;
+    size_t target_size = this->env->loop_conti_block.size() - node->loopIdx - 1;
+    auto target_loop_env = this->env;
+    while (target_loop_env && target_loop_env->loop_conti_block.size() > target_size) {
+        target_loop_env = target_loop_env->parent;
+    }
+    if (target_loop_env) {
+        target_catch_count = target_loop_env->active_catch_count;
+    }
+    this->_cleanupCatchBlocks(target_catch_count);
+
     // break 0; == break; & .size() return 1 if it holds 1 iten not when it holds
     // 2 thats why - 1
     if (this->env->loop_ifbreak_block.at(this->env->loop_ifbreak_block.size() - node->loopIdx - 1))
@@ -299,6 +310,17 @@ void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
                                      "Loop Index is out of range",
                                      "Remember: LoopIdx start with `0`");
     }
+    int target_catch_count = 0;
+    size_t target_size = this->env->loop_conti_block.size() - node->loopIdx - 1;
+    auto target_loop_env = this->env;
+    while (target_loop_env && target_loop_env->loop_conti_block.size() > target_size) {
+        target_loop_env = target_loop_env->parent;
+    }
+    if (target_loop_env) {
+        target_catch_count = target_loop_env->active_catch_count;
+    }
+    this->_cleanupCatchBlocks(target_catch_count);
+
     // continue 0; == continue; & .size() return 1 if it holds 1 iten not when it
     // holds 2 thats why - 1
     this->llvm_ir_builder.CreateBr(this->env->loop_condition_block.at(this->env->loop_condition_block.size() - node->loopIdx - 1));
@@ -392,7 +414,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             this->_checkAndConvertCallType(func_record, func_call, args, params_types);
 
             // Create LLVM call instruction
-            auto returnValue = this->llvm_ir_builder.CreateCall(func_record->function, args, name + "_result");
+            auto returnValue = this->_emitCallOrInvoke(func_record->function, args, name + "_result");
 
             // Return the resolved value
             return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
@@ -548,7 +570,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         }
 
         // Create LLVM call instruction to the newly created function
-        auto returnValue = this->llvm_ir_builder.CreateCall(func, args, name + "_result");
+        auto returnValue = this->_emitCallOrInvoke(func, args, name + "_result");
 
         // Restore the previous environment
         this->env = prev_env;
@@ -1029,7 +1051,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             idx++;
         }
         this->_checkAndConvertCallType(func, call_expression, args, params_types);
-        auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args);
+        auto returnValue = this->_emitCallOrInvoke(func->function, args);
         return {returnValue, nullptr, func->return_type, func->is_const_return ? resolveType::ConstStructInst : resolveType::StructInst};
     } else if (this->env->isGenericFunc(name)) {
         auto gfuncs = this->env->getGenericFunc(name);
@@ -1082,7 +1104,7 @@ Compiler::ResolvedValue Compiler::_callStruct(RecordStructType* struct_record, A
         // Validate and convert argument types
         this->_checkAndConvertCallType(func, call_expression, args, params_types);
         // Call the __init__ method
-        this->llvm_ir_builder.CreateCall(func->function, args);
+        this->_emitCallOrInvoke(func->function, args);
     } else {
         // Raise an error if __init__ is not defined
         errors::raiseNoOverloadError(this->file_path,
@@ -1101,7 +1123,7 @@ Compiler::ResolvedValue
 Compiler::_handleStructIndexing(llvm::Value* left_alloca, llvm::Value* index, RecordStructType* index_generic, RecordStructType* left_generic, AST::IndexExpression* index_expression) {
     if (left_generic->is_method("__index__", {left_generic, index_generic})) {
         auto idx_method = left_generic->get_method("__index__", {left_generic, index_generic});
-        auto returnValue = this->llvm_ir_builder.CreateCall(idx_method->function, {left_alloca, index});
+        auto returnValue = this->_emitCallOrInvoke(idx_method->function, {left_alloca, index});
         if (idx_method->return_type->stand_alone_type) {
             return {returnValue, nullptr, idx_method->return_type, resolveType::StructInst};
         } else {
@@ -1476,7 +1498,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
                 }
-                auto returnValue = this->llvm_ir_builder.CreateCall(func->function, args, name + "_result");
+                auto returnValue = this->_emitCallOrInvoke(func->function, args, name + "_result");
                 return {returnValue, nullptr, func->return_type, resolveType::StructInst};
             } else if (left_type->isGenericFunc(name)) {
                 auto gfuncs = left_type->get_GenericFunc(name);
@@ -1504,7 +1526,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                     }
                     auto method = left_type->get_method("getName", {});
                     auto param = left_alloca ? llvm_ir_builder.CreateLoad(left_type->stand_alone_type, left_alloca) : left_value;
-                    return {llvm_ir_builder.CreateCall(method->function, {param}), nullptr, gc_str, resolveType::StructInst};
+                    return {this->_emitCallOrInvoke(method->function, {param}), nullptr, gc_str, resolveType::StructInst};
                 }
             }
             params_types.insert(params_types.begin(), left_type);
@@ -1520,7 +1542,7 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                     if (param_type->stand_alone_type && std::get<2>(argument)) { args[idx] = arg_alloca; }
                     idx++;
                 }
-                auto returnValue = this->llvm_ir_builder.CreateCall(method->function, args, method->return_type->stand_alone_type != this->ll_void ? name + "_reuturn_value" : "");
+                auto returnValue = this->_emitCallOrInvoke(method->function, args, method->return_type->stand_alone_type != this->ll_void ? name + "_reuturn_value" : "");
                 return {returnValue, nullptr, method->return_type, resolveType::StructInst};
             } else {
                 errors::raiseNoOverloadError(this->file_path,
@@ -1555,14 +1577,14 @@ Compiler::ResolvedValue Compiler::_StructInfixCall(const Str& op_method,
     vector<RecordStructType*> params_type2{right_type, left_type};
     if (left_type->is_method(op_method, params_type1)) {
         auto func_record = left_type->get_method(op_method, params_type1);
-        auto returnValue = this->llvm_ir_builder.CreateCall(
+        auto returnValue = this->_emitCallOrInvoke(
             func_record->function,
             {left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca),
              right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type || right_type->name == "raw_array" ? this->ll_pointer : right_type->stand_alone_type, right_alloca)});
         return {returnValue, nullptr, func_record->return_type, resolveType::StructInst};
     } else if (right_type->is_method(op_method, params_type2)) {
         auto func_record = right_type->get_method(op_method, params_type2);
-        auto returnValue = this->llvm_ir_builder.CreateCall(
+        auto returnValue = this->_emitCallOrInvoke(
             func_record->function,
             {right_value ? right_value : this->llvm_ir_builder.CreateLoad(right_type->struct_type || right_type->name == "raw_array" ? this->ll_pointer : right_type->stand_alone_type, right_alloca),
              left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca)});
@@ -2523,6 +2545,7 @@ Compiler::ResolvedValue Compiler::_resolveAndValidateReturnValue(AST::Expression
     auto resolved_value = this->_resolveValue(value);
     if (resolved_value.type != resolveType::StructInst && resolved_value.type != resolveType::ConstStructInst) {
         if (resolved_value.type == resolveType::StructType && std::get<RecordStructType*>(resolved_value.variant)->name == "void") {
+            this->_cleanupCatchBlocks(0);
             this->llvm_ir_builder.CreateRetVoid();
             throw DoneRet();
         } else {
@@ -2564,6 +2587,7 @@ void Compiler::_checkAndConvertReturnType(AST::Expression* value, llvm::Value*& 
 
 void Compiler::_createReturnInstruction(llvm::Value* return_value, llvm::Value* return_alloca, RecordStructType* return_type) {
     auto function_return_type = this->env->current_function->function->getReturnType();
+    this->_cleanupCatchBlocks(0);
     if (return_type->struct_type || return_type->name == "raw_array") {
         this->llvm_ir_builder.CreateRet(return_value ? return_value : this->llvm_ir_builder.CreateLoad(this->ll_pointer, return_alloca));
     } else {
@@ -2573,6 +2597,7 @@ void Compiler::_createReturnInstruction(llvm::Value* return_value, llvm::Value* 
 
 void Compiler::_visitReturnStatement(AST::ReturnStatement* return_statement) {
     if (!return_statement->value && this->env->current_function->return_type->name == "void") {
+        this->_cleanupCatchBlocks(0);
         this->llvm_ir_builder.CreateRetVoid();
         throw DoneRet(); // Indicates to stop parsing further statements in the
                          // current block
@@ -2991,11 +3016,11 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
         llvm::Value* iterator_alloca = this->llvm_ir_builder.CreateAlloca(iterator_type->stand_alone_type);
         if (iterator_type->stand_alone_type) {
             // Store the result of __iter__ call into the allocated space
-            llvm::Value* iter_result = this->llvm_ir_builder.CreateCall(iter_method->function, {iterable_alloca});
+            llvm::Value* iter_result = this->_emitCallOrInvoke(iter_method->function, {iterable_alloca});
             this->llvm_ir_builder.CreateStore(iter_result, iterator_alloca);
         } else {
             // Directly assign the result of __iter__ call
-            iterator_alloca = this->llvm_ir_builder.CreateCall(iter_method->function, {iterable_alloca});
+            iterator_alloca = this->_emitCallOrInvoke(iter_method->function, {iterable_alloca});
         }
 
         // Initialize break and continue blocks if provided
@@ -3012,11 +3037,11 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
         if (for_statement->notbreak) {
             not_break_block = llBB::Create(this->llvm_context, "notbreak", current_function);
             // Call __done__ to determine if the loop should continue
-            llvm::Value* done_call = this->llvm_ir_builder.CreateCall(done_method->function, {iterable_alloca, iterator_alloca});
+            llvm::Value* done_call = this->_emitCallOrInvoke(done_method->function, {iterable_alloca, iterator_alloca});
             this->llvm_ir_builder.CreateCondBr(done_call, not_break_block, body_block);
         } else {
             // Call __done__ to determine if the loop should continue
-            llvm::Value* done_call = this->llvm_ir_builder.CreateCall(done_method->function, {iterable_alloca, iterator_alloca});
+            llvm::Value* done_call = this->_emitCallOrInvoke(done_method->function, {iterable_alloca, iterator_alloca});
             this->llvm_ir_builder.CreateCondBr(done_call, continue_block, body_block);
         }
 
@@ -3038,11 +3063,11 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
 
         // Call __next__ and store the result
         if (next_method->return_type->struct_type) {
-            llvm::Value* next_call = this->llvm_ir_builder.CreateCall(next_method->function, {iterable_alloca, iterator_alloca});
+            llvm::Value* next_call = this->_emitCallOrInvoke(next_method->function, {iterable_alloca, iterator_alloca});
             llvm::Value* loaded_value = this->llvm_ir_builder.CreateLoad(next_method->return_type->struct_type, next_call);
             this->llvm_ir_builder.CreateStore(loaded_value, loop_var_alloca);
         } else {
-            llvm::Value* next_call = this->llvm_ir_builder.CreateCall(next_method->function, {iterable_alloca, iterator_alloca});
+            llvm::Value* next_call = this->_emitCallOrInvoke(next_method->function, {iterable_alloca, iterator_alloca});
             this->llvm_ir_builder.CreateStore(next_call, loop_var_alloca);
         }
 
@@ -3106,7 +3131,6 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
         // Restore the original environment and set the insertion point to the
         // continuation block
         this->env = prev_env;
-        prev_env->childes.push_back(this->env);
         this->llvm_ir_builder.SetInsertPoint(continue_block);
 
         // Exit the loop environment
@@ -3117,13 +3141,330 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
 }
 
 void Compiler::_visitTryCatchStatement(AST::TryCatchStatement* tc_statement) {
-    std::cerr << "TODO: Add Suport to Handel Exception" << std::endl;
-    exit(1);
+    auto current_fn = this->llvm_ir_builder.GetInsertBlock()->getParent();
+    if (!current_fn->hasPersonalityFn()) {
+        auto personality_fn = this->_getPersonalityFn();
+        current_fn->setPersonalityFn(llvm::cast<llvm::Constant>(personality_fn.getCallee()));
+    }
+    
+    llvm::BasicBlock* landing_pad_block = llvm::BasicBlock::Create(this->llvm_context, "landing_pad", current_fn);
+    llvm::BasicBlock* catch_dispatch_block = llvm::BasicBlock::Create(this->llvm_context, "catch_dispatch", current_fn);
+    llvm::BasicBlock* continuation_block = llvm::BasicBlock::Create(this->llvm_context, "try_cont", current_fn);
+    
+    llvm::BasicBlock* prev_landing_pad = this->env->current_landing_pad;
+    this->env->current_landing_pad = landing_pad_block;
+    
+    bool try_terminated = false;
+    try {
+        this->compile(tc_statement->try_block);
+        this->llvm_ir_builder.CreateBr(continuation_block);
+    } catch (DoneRet) {
+        try_terminated = true;
+    } catch (DoneBr) {
+        try_terminated = true;
+    }
+    
+    this->env->current_landing_pad = prev_landing_pad;
+    
+    // Generate landing_pad_block
+    this->llvm_ir_builder.SetInsertPoint(landing_pad_block);
+    
+    llvm::StructType* lp_struct_type = llvm::StructType::get(
+        this->llvm_context,
+        {this->ll_pointer, llvm::Type::getInt32Ty(this->llvm_context)}
+    );
+    
+    llvm::LandingPadInst* lp = this->llvm_ir_builder.CreateLandingPad(
+        lp_struct_type,
+        tc_statement->catch_blocks.size()
+    );
+    
+    for (const auto& catch_block : tc_statement->catch_blocks) {
+        auto type_ast = std::get<0>(catch_block);
+        auto struct_type_record = this->_parseType(type_ast);
+        if (!struct_type_record) {
+            errors::raiseCompilationError("Undefined exception type in catch clause");
+        }
+        llvm::Constant* tinfo = this->_getOrCreateTypeInfo(struct_type_record);
+        lp->addClause(tinfo);
+    }
+    
+    llvm::Value* exception_obj = this->llvm_ir_builder.CreateExtractValue(lp, 0, "ex_obj");
+    llvm::Value* selector_id = this->llvm_ir_builder.CreateExtractValue(lp, 1, "sel_id");
+    
+    this->llvm_ir_builder.CreateBr(catch_dispatch_block);
+    
+    // Generate catch_dispatch_block
+    this->llvm_ir_builder.SetInsertPoint(catch_dispatch_block);
+    
+    auto typeid_for_fn = llvm::Intrinsic::getDeclaration(
+        this->llvm_module.get(),
+        llvm::Intrinsic::eh_typeid_for
+    );
+    
+    llvm::BasicBlock* current_check_block = catch_dispatch_block;
+    
+    for (size_t i = 0; i < tc_statement->catch_blocks.size(); ++i) {
+        const auto& catch_block = tc_statement->catch_blocks[i];
+        auto type_ast = std::get<0>(catch_block);
+        auto var_id_ast = std::get<1>(catch_block);
+        auto body_ast = std::get<2>(catch_block);
+        
+        auto struct_type_record = this->_parseType(type_ast);
+        llvm::Constant* tinfo = this->_getOrCreateTypeInfo(struct_type_record);
+        
+        llvm::BasicBlock* next_check_block = nullptr;
+        if (i + 1 < tc_statement->catch_blocks.size()) {
+            next_check_block = llvm::BasicBlock::Create(this->llvm_context, "catch_check", current_fn);
+        } else {
+            next_check_block = llvm::BasicBlock::Create(this->llvm_context, "unwind_resume", current_fn);
+        }
+        
+        llvm::BasicBlock* catch_body_block = llvm::BasicBlock::Create(this->llvm_context, "catch_body", current_fn);
+        
+        this->llvm_ir_builder.SetInsertPoint(current_check_block);
+        
+        llvm::Value* target_type_id = this->llvm_ir_builder.CreateCall(typeid_for_fn, {tinfo});
+        llvm::Value* is_match = this->llvm_ir_builder.CreateICmpEQ(selector_id, target_type_id);
+        
+        this->llvm_ir_builder.CreateCondBr(is_match, catch_body_block, next_check_block);
+        
+        // Generate catch_body_block
+        this->llvm_ir_builder.SetInsertPoint(catch_body_block);
+        
+        auto begin_catch_fn = this->llvm_module->getOrInsertFunction(
+            "__cxa_begin_catch",
+            this->ll_pointer,
+            this->ll_pointer
+        );
+        llvm::Value* caught_ex_ptr = this->llvm_ir_builder.CreateCall(begin_catch_fn, {exception_obj});
+        
+        llvm::Value* casted_ex_ptr = this->llvm_ir_builder.CreateBitCast(
+            caught_ex_ptr,
+            struct_type_record->struct_type->getPointerTo()
+        );
+        
+        auto prev_env = this->env;
+        auto catch_env = Enviornment(prev_env);
+        catch_env.active_catch_count = prev_env->active_catch_count + 1;
+        this->env = &catch_env;
+        
+        llvm::Value* var_alloca = this->llvm_ir_builder.CreateAlloca(
+            struct_type_record->struct_type,
+            nullptr,
+            var_id_ast->value
+        );
+        
+        auto memcpy_fn = llvm::Intrinsic::getDeclaration(this->llvm_module.get(), llvm::Intrinsic::memcpy, {this->ll_pointer, this->ll_pointer, llvm::Type::getInt64Ty(this->llvm_context)});
+        
+        llvm::Value* gep = this->llvm_ir_builder.CreateGEP(
+            struct_type_record->struct_type,
+            llvm::ConstantPointerNull::get(struct_type_record->struct_type->getPointerTo()),
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 1)
+        );
+        llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(this->llvm_context));
+        
+        this->llvm_ir_builder.CreateCall(
+            memcpy_fn,
+            {
+                var_alloca,
+                casted_ex_ptr,
+                size,
+                this->llvm_ir_builder.getInt1(false)
+            }
+        );
+        
+        llvm::Value* var_ptr_alloca = this->llvm_ir_builder.CreateAlloca(
+            this->ll_pointer,
+            nullptr,
+            var_id_ast->value + "_ptr"
+        );
+        this->llvm_ir_builder.CreateStore(var_alloca, var_ptr_alloca);
+
+        auto caught_var = new RecordVariable(
+            var_id_ast->value,
+            var_alloca,
+            var_ptr_alloca,
+            struct_type_record
+        );
+        this->env->addRecord(caught_var);
+        
+        bool catch_terminated = false;
+        try {
+            this->compile(body_ast);
+        } catch (DoneRet) {
+            catch_terminated = true;
+        } catch (DoneBr) {
+            catch_terminated = true;
+        }
+        
+        this->env = prev_env;
+        
+        if (!catch_terminated) {
+            auto end_catch_fn = this->llvm_module->getOrInsertFunction(
+                "__cxa_end_catch",
+                llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false)
+            );
+            this->llvm_ir_builder.CreateCall(end_catch_fn, {});
+            this->llvm_ir_builder.CreateBr(continuation_block);
+        }
+        
+        current_check_block = next_check_block;
+    }
+    
+    this->llvm_ir_builder.SetInsertPoint(current_check_block);
+    this->llvm_ir_builder.CreateResume(lp);
+    
+    this->llvm_ir_builder.SetInsertPoint(continuation_block);
 }
 
 void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
-    std::cerr << "TODO: Add Suport to raise Exception" << std::endl;
-    exit(1);
+    if (!raise_statement->value) {
+        auto rethrow_fn = this->llvm_module->getOrInsertFunction(
+            "__cxa_rethrow",
+            llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false)
+        );
+        this->llvm_ir_builder.CreateCall(rethrow_fn, {});
+        this->llvm_ir_builder.CreateUnreachable();
+        throw DoneRet();
+    }
+    
+    auto resolved_val = this->_resolveValue(raise_statement->value);
+    
+    if (resolved_val.type != resolveType::StructInst && resolved_val.type != resolveType::ConstStructInst) {
+        errors::raiseWrongTypeError(this->file_path.string(), this->source, raise_statement->value, nullptr, {}, "Can only raise a struct instance");
+    }
+    
+    auto struct_record = std::get<RecordStructType*>(resolved_val.variant);
+    auto struct_type = struct_record->struct_type;
+    
+    llvm::Value* gep = this->llvm_ir_builder.CreateGEP(
+        struct_type,
+        llvm::ConstantPointerNull::get(struct_type->getPointerTo()),
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 1)
+    );
+    llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(this->llvm_context));
+    
+    auto allocate_exception_fn = this->llvm_module->getOrInsertFunction(
+        "__cxa_allocate_exception",
+        llvm::FunctionType::get(this->ll_pointer, {llvm::Type::getInt64Ty(this->llvm_context)}, false)
+    );
+    llvm::Value* exception_buffer = this->llvm_ir_builder.CreateCall(allocate_exception_fn, {size});
+    
+    auto memcpy_fn = llvm::Intrinsic::getDeclaration(this->llvm_module.get(), llvm::Intrinsic::memcpy, {this->ll_pointer, this->ll_pointer, llvm::Type::getInt64Ty(this->llvm_context)});
+    this->llvm_ir_builder.CreateCall(
+        memcpy_fn,
+        {
+            exception_buffer,
+            resolved_val.value,
+            size,
+            this->llvm_ir_builder.getInt1(false)
+        }
+    );
+    
+    llvm::Constant* tinfo = this->_getOrCreateTypeInfo(struct_record);
+    
+    auto throw_fn = this->llvm_module->getOrInsertFunction(
+        "__cxa_throw",
+        llvm::FunctionType::get(
+            llvm::Type::getVoidTy(this->llvm_context),
+            {this->ll_pointer, this->ll_pointer, this->ll_pointer},
+            false
+        )
+    );
+    
+    llvm::Value* null_dest = llvm::ConstantPointerNull::get(this->ll_pointer);
+    this->llvm_ir_builder.CreateCall(throw_fn, {exception_buffer, tinfo, null_dest});
+    this->llvm_ir_builder.CreateUnreachable();
+    
+    throw DoneRet();
+}
+
+llvm::Constant* Compiler::_getOrCreateTypeInfo(RecordStructType* struct_type) {
+    std::string name = struct_type->name;
+    std::string tinfo_name = "_ZTI" + std::to_string(name.length()) + name;
+    
+    if (auto gv = this->llvm_module->getGlobalVariable(tinfo_name)) {
+        return llvm::ConstantExpr::getBitCast(gv, this->ll_pointer);
+    }
+    
+    std::string ts_name = "_ZTS" + std::to_string(name.length()) + name;
+    llvm::Constant* name_const = this->llvm_ir_builder.CreateGlobalStringPtr(ts_name, ts_name, 0, this->llvm_module.get());
+    
+    auto vtable_gv = this->llvm_module->getGlobalVariable("_ZTVN10__cxxabiv117__class_type_infoE");
+    if (!vtable_gv) {
+        vtable_gv = new llvm::GlobalVariable(
+            *this->llvm_module,
+            this->ll_pointer,
+            true,
+            llvm::GlobalValue::ExternalLinkage,
+            nullptr,
+            "_ZTVN10__cxxabiv117__class_type_infoE"
+        );
+    }
+    
+    llvm::Constant* vtable_cast = llvm::ConstantExpr::getBitCast(vtable_gv, this->ll_pointer);
+    llvm::Constant* vtable_offset = llvm::ConstantExpr::getGetElementPtr(
+        llvm::Type::getInt8Ty(this->llvm_context),
+        vtable_cast,
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(this->llvm_context), 16)
+    );
+    
+    llvm::StructType* tinfo_struct_type = llvm::StructType::get(
+        this->llvm_context,
+        {this->ll_pointer, this->ll_pointer}
+    );
+    
+    llvm::Constant* init_val = llvm::ConstantStruct::get(
+        tinfo_struct_type,
+        {vtable_offset, name_const}
+    );
+    
+    auto tinfo_gv = new llvm::GlobalVariable(
+        *this->llvm_module,
+        tinfo_struct_type,
+        true,
+        llvm::GlobalValue::LinkOnceODRLinkage,
+        init_val,
+        tinfo_name
+    );
+    
+    tinfo_gv->setDSOLocal(true);
+    
+    return llvm::ConstantExpr::getBitCast(tinfo_gv, this->ll_pointer);
+}
+
+llvm::FunctionCallee Compiler::_getPersonalityFn() {
+    auto fn = this->llvm_module->getFunction("__gxx_personality_v0");
+    if (!fn) {
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt32Ty(this->llvm_context), true);
+        return this->llvm_module->getOrInsertFunction("__gxx_personality_v0", ft);
+    }
+    return fn;
+}
+
+llvm::Value* Compiler::_emitCallOrInvoke(llvm::FunctionCallee callee, const std::vector<llvm::Value*>& args, const std::string& name) {
+    if (this->env->current_landing_pad != nullptr) {
+        llvm::BasicBlock* normal_block = llvm::BasicBlock::Create(this->llvm_context, "invoke_cont", this->llvm_ir_builder.GetInsertBlock()->getParent());
+        auto invoke_val = this->llvm_ir_builder.CreateInvoke(callee, normal_block, this->env->current_landing_pad, args, name);
+        this->llvm_ir_builder.SetInsertPoint(normal_block);
+        return invoke_val;
+    } else {
+        return this->llvm_ir_builder.CreateCall(callee, args, name);
+    }
+}
+
+void Compiler::_cleanupCatchBlocks(int target_catch_count) {
+    int diff = this->env->active_catch_count - target_catch_count;
+    if (diff > 0) {
+        auto end_catch_fn = this->llvm_module->getOrInsertFunction(
+            "__cxa_end_catch",
+            llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false)
+        );
+        for (int i = 0; i < diff; ++i) {
+            this->llvm_ir_builder.CreateCall(end_catch_fn, {});
+        }
+    }
 }
 
 void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, RecordModule* module) {

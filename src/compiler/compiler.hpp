@@ -778,6 +778,12 @@ class Compiler {
      */
     void _handleFieldDeclaration(RecordGenericStructType* gstruct, AST::Node* field, RecordStructType* struct_record, vector<llvm::Type*>& field_types, const Str& struct_name);
     void addBuiltinType(const Str& name, llvm::Type* type);
+
+    // Exception Handling helper methods
+    llvm::Constant* _getOrCreateTypeInfo(RecordStructType* struct_type);
+    llvm::FunctionCallee _getPersonalityFn();
+    llvm::Value* _emitCallOrInvoke(llvm::FunctionCallee callee, const std::vector<llvm::Value*>& args, const std::string& name = "");
+    void _cleanupCatchBlocks(int target_catch_count);
 };
 
 } // namespace compiler

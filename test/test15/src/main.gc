@@ -1,0 +1,25 @@
+struct MyException {
+    code: int;
+    def __init__(self: MyException, code: int) {
+        self.code = code;
+    };
+};
+
+def throw_func(val: int) -> int {
+    if (val < 0) {
+        raise new MyException(val);
+    };
+    return val * 2;
+}
+
+def main() -> int {
+    try {
+        printf("Trying positive: %i\n", throw_func(5));
+        printf("Trying negative...\n");
+        throw_func(-100);
+        printf("This should not be printed!\n");
+    } catch (MyException e) {
+        printf("Caught exception with code: %i\n", e.code);
+    }
+    return 0;
+}

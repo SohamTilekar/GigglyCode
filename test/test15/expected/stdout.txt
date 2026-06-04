@@ -1,0 +1,3 @@
+Trying positive: 10
+Trying negative...
+Caught exception with code: -100
