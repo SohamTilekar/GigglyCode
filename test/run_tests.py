@@ -35,6 +35,10 @@ def sanitize_stderr(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     text = ansi_escape.sub('', text)
     
+    # Normalize absolute paths to relative paths starting with test/
+    # e.g., /mnt/soham/soham_code/GigglyCode/test/... -> test/...
+    text = re.sub(r'/[a-zA-Z0-9_\-\.\/]+/test/', 'test/', text)
+    
     lines = text.splitlines()
     sanitized = []
     for line in lines:
@@ -49,6 +53,9 @@ def sanitize_stderr(text):
             "Why is this line so long", "This line is longer", "novel in one line"
         ]):
             continue
+        # Clean up log file open warnings
+        if "Failed to open log file:" in line:
+            continue
             
         # Clean up funny message underlines (remove randomized trailing caret)
         # e.g. "     │              ^^                                 ^"
@@ -62,9 +69,17 @@ def get_normalized_triple(triple):
     if not triple:
         return "unknown"
     parts = triple.split('-')
-    if len(parts) >= 3:
-        # Ignore vendor part (parts[1])
-        return parts[0] + '-' + '-'.join(parts[2:])
+    if len(parts) == 4:
+        # arch-vendor-os-abi => remove vendor => arch-os-abi
+        return parts[0] + '-' + parts[2] + '-' + parts[3]
+    elif len(parts) == 3:
+        known_oses = {'linux', 'wasi', 'windows', 'darwin', 'macos', 'freebsd', 'openbsd', 'netbsd', 'solaris', 'haiku'}
+        if parts[1] not in known_oses:
+            # 2nd part is vendor (e.g. wasm32-unknown-wasi) => remove it
+            return parts[0] + '-' + parts[2]
+        else:
+            # 2nd part is OS (e.g. x86_64-linux-gnu), keep it
+            return triple
     return triple
 
 def get_normalized_file_content(path):
@@ -77,6 +92,15 @@ def get_normalized_file_content(path):
             # Strip target triple line to ignore vendor differences inside the file
             if line.strip().startswith("target triple ="):
                 continue
+            # Normalize source_filename path
+            if line.strip().startswith("source_filename ="):
+                match = re.search(r'source_filename\s*=\s*"(.*)"', line)
+                if match:
+                    filepath = match.group(1)
+                    idx = filepath.find("test/")
+                    if idx != -1:
+                        relpath = filepath[idx:]
+                        line = f'source_filename = "{relpath}"'
             lines.append(line)
         return "\n".join(lines)
     return content
@@ -178,13 +202,14 @@ def main():
                 else:
                     # Compare sanitized stderr
                     expected_err = get_file_content(expected_stderr_path)
-                    if expected_err.strip() == sanitized_err.strip():
+                    sanitized_expected_err = sanitize_stderr(expected_err)
+                    if sanitized_expected_err.strip() == sanitized_err.strip():
                         print_color(f"[{folder}] PASSED: Compilation failed as expected with matching stderr.", GREEN)
                         passed_tests.append(folder)
                     else:
                         print_color(f"[{folder}] FAILED: Compilation failed, but stderr did not match.", RED)
                         diff = "".join(difflib.unified_diff(
-                            expected_err.splitlines(keepends=True),
+                            sanitized_expected_err.splitlines(keepends=True),
                             sanitized_err.splitlines(keepends=True),
                             fromfile="expected_stderr",
                             tofile="actual_stderr"
