@@ -59,8 +59,8 @@ class EnvManager {
 
 class Compiler {
   public:
-    Compiler(const std::filesystem::path& srcDir, const std::filesystem::path& buildDir, const std::string& optimizationLevel, bool verbose)
-        : srcDir(srcDir), buildDir(buildDir), optimizationLevel(optimizationLevel), verbose(verbose), irDir(buildDir / "ir"), objDir(buildDir / "obj") {
+    Compiler(const std::filesystem::path& srcDir, const std::filesystem::path& buildDir, const std::string& optimizationLevel, bool verbose, const std::string& target_triple = "")
+        : srcDir(srcDir), buildDir(buildDir), optimizationLevel(optimizationLevel), verbose(verbose), target_triple(target_triple), irDir(buildDir / "ir"), objDir(buildDir / "obj") {
         Utils::createDirectories(irDir);
         Utils::createDirectories(objDir);
 
@@ -140,6 +140,7 @@ class Compiler {
     std::filesystem::path buildDir;
     std::string optimizationLevel;
     bool verbose;
+    std::string target_triple; // empty = native
 
     std::filesystem::path irDir;
     std::filesystem::path objDir;
@@ -222,7 +223,7 @@ class Compiler {
         parser::Parser parser(&lexer);
         auto program = parser.parseProgram();
 
-        compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string());
+        compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string(), target_triple);
         comp.compile(program);
         delete program;
 
@@ -362,11 +363,12 @@ class Compiler {
 // =======================================
 // CLI Setup Function
 // =======================================
-void setupCLI(CLI::App& app, std::filesystem::path& inputFolderPath, std::string& optimizationLevel, std::filesystem::path& executablePath, bool& verbose) {
+void setupCLI(CLI::App& app, std::filesystem::path& inputFolderPath, std::string& optimizationLevel, std::filesystem::path& executablePath, bool& verbose, std::string& target_triple) {
     app.add_option("input_folder", inputFolderPath, "Input folder path")->required()->check(CLI::ExistingDirectory);
     app.add_option("-O,--optimization", optimizationLevel, "Optimization level (O1, O2, O3, Os, Ofast)")->default_val("");
     app.add_option("-o,--output", executablePath, "Output executable path")->required();
     app.add_flag("-v,--verbose", verbose, "Enable verbose output");
+    app.add_option("--target", target_triple, "Override target triple for cross-compilation (e.g. aarch64-unknown-linux-gnu). Default: host native.")->default_val("");
 }
 
 // =======================================
@@ -379,10 +381,16 @@ int main(int argc, char* argv[]) {
     std::string optimizationLevel;
     std::filesystem::path executablePath;
     bool verbose = false;
-    setupCLI(app, inputFolderPath, optimizationLevel, executablePath, verbose);
+    std::string target_triple;
+    setupCLI(app, inputFolderPath, optimizationLevel, executablePath, verbose, target_triple);
     CLI11_PARSE(app, argc, argv);
 
-    if (verbose) { std::cout << "Verbose mode enabled." << std::endl; }
+    if (verbose) {
+        std::cout << "Verbose mode enabled." << std::endl;
+        if (!target_triple.empty()) {
+            std::cout << "Target triple override: " << target_triple << std::endl;
+        }
+    }
 
     // Environment Variable Management
     EnvManager envManager;
@@ -400,8 +408,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Initialize Compiler with verbose flag
-    Compiler compiler(srcDir, buildDir, optimizationLevel, verbose);
+    // Initialize Compiler with verbose flag and optional target triple
+    Compiler compiler(srcDir, buildDir, optimizationLevel, verbose, target_triple);
 
     // Initialize rootFolder directly
     compilationState::RecordFolder rootFolder;

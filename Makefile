@@ -1,4 +1,4 @@
-.PHONY: run runr orun lldb gdb cppcheck format test test-gen configure-debug configure-release build-debug build-release
+.PHONY: run runr orun lldb gdb cppcheck format test test-gen test-gen-cross configure-debug configure-release build-debug build-release
 
 configure-debug:
 	cmake -B build -DCMAKE_BUILD_TYPE=Debug
@@ -47,6 +47,13 @@ test: build-debug
 
 test-gen: build-debug
 	python3 test/run_tests.py -g
+
+# Generate expected IR for common cross-compilation targets.
+# Uses LLVM's cross-target support — no external toolchain needed.
+# Add/remove triples as required.
+CROSS_TARGETS ?= aarch64-unknown-linux-gnu wasm32-unknown-wasi x86_64-unknown-linux-gnu s390x-unknown-linux-gnu
+test-gen-cross: build-debug
+	python3 test/run_tests.py -g --cross-targets $(CROSS_TARGETS)
 
 setenv:
 	export GC_STD_OBJ="/mnt/soham/soham_code/GigglyCode/dump/std.o"

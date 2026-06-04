@@ -58,9 +58,32 @@ def sanitize_stderr(text):
         sanitized.append(line)
     return "\n".join(sanitized)
 
+def get_normalized_triple(triple):
+    if not triple:
+        return "unknown"
+    parts = triple.split('-')
+    if len(parts) >= 3:
+        # Ignore vendor part (parts[1])
+        return parts[0] + '-' + '-'.join(parts[2:])
+    return triple
+
+def get_normalized_file_content(path):
+    content = get_file_content(path)
+    if content is None:
+        return None
+    if path.endswith(".ll"):
+        lines = []
+        for line in content.splitlines():
+            # Strip target triple line to ignore vendor differences inside the file
+            if line.strip().startswith("target triple ="):
+                continue
+            lines.append(line)
+        return "\n".join(lines)
+    return content
+
 def diff_files(expected_path, actual_path):
-    expected = get_file_content(expected_path)
-    actual = get_file_content(actual_path)
+    expected = get_normalized_file_content(expected_path)
+    actual = get_normalized_file_content(actual_path)
     
     if expected is None:
         return f"Expected file {expected_path} does not exist."
@@ -82,6 +105,16 @@ def main():
     parser = argparse.ArgumentParser(description="GigglyCode Test Runner")
     parser.add_argument("-g", "--generate", action="store_true", help="Generate/Update ground truth (expected) files")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument(
+        "--cross-targets",
+        nargs="+",
+        default=["aarch64-unknown-linux-gnu", "wasm32-unknown-wasi", "x86_64-unknown-linux-gnu", "s390x-unknown-linux-gnu"],
+        metavar="TRIPLE",
+        help=(
+            "Additional target triples to generate expected IR for during --generate or verify during testing. "
+            "Example: --cross-targets aarch64-unknown-linux-gnu wasm32-unknown-wasi x86_64-unknown-linux-gnu s390x-unknown-linux-gnu"
+        ),
+    )
     args = parser.parse_args()
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -167,12 +200,13 @@ def main():
             continue
 
         # Paths of outputs
-        lexer_log = os.path.join(build_dir, "lexer_output.log")
+        lexer_log   = os.path.join(build_dir, "lexer_output.log")
         parser_yaml = os.path.join(build_dir, "parser_output.yaml")
-        ll_file = os.path.join(build_dir, "ir", "main.gc.ll")
-        
+        ir_dir      = os.path.join(build_dir, "ir")         # whole IR tree
+        main_ll     = os.path.join(ir_dir, "main.gc.ll")    # used only for triple extraction
+
         # Check that compiler outputs exist
-        if not os.path.exists(lexer_log) or not os.path.exists(parser_yaml) or not os.path.exists(ll_file):
+        if not os.path.exists(lexer_log) or not os.path.exists(parser_yaml) or not os.path.exists(main_ll):
             print_color(f"[{folder}] FAILED: Missing output files in build directory.", RED)
             failed_tests.append(folder)
             continue
@@ -182,35 +216,166 @@ def main():
         if args.verbose:
             print(f"Running executable: {run_cmd_str}")
         exec_ret, exec_stdout, exec_stderr = run_command(run_cmd_str)
-        
-        # 3. Generate or Verify
+
+        # 3. Extract target triple from main.gc.ll
+        target_triple = None
+        main_ll_content = get_file_content(main_ll)
+        if main_ll_content:
+            for line in main_ll_content.splitlines():
+                if line.startswith('target triple ='):
+                    parts = line.split('"')
+                    if len(parts) >= 2:
+                        target_triple = parts[1]
+                    break
+
+        if not target_triple:
+            print_color(
+                f"[{folder}] FAILED: Could not extract target triple from generated IR.\n"
+                f"  The compiler may not be setting the target triple correctly.",
+                RED,
+            )
+            failed_tests.append(folder)
+            continue
+
+        # Layout:
+        #   expected/                        ← target-independent
+        #     lexer_output.log
+        #     parser_output.yaml
+        #     stdout.txt
+        #     ir/<normalized_triple>/        ← target-specific, mirrors build/ir/
+        #       main.gc.ll
+        #       modules/math_utils.gc.ll
+        #       ...
+        target_norm          = get_normalized_triple(target_triple)
+        target_ir_dir        = os.path.join(expected_dir, "ir", target_norm)
+        stdout_expected      = os.path.join(expected_dir, "stdout.txt")
+
+        # ── Collect all actual .ll files (relative to ir_dir) ─────────────────
+        actual_ll_files = []
+        for root, _, files in os.walk(ir_dir):
+            for fname in files:
+                if fname.endswith(".ll"):
+                    full = os.path.join(root, fname)
+                    rel  = os.path.relpath(full, ir_dir)
+                    actual_ll_files.append(rel)
+        actual_ll_files.sort()
+
         if args.generate:
-            shutil.copy(lexer_log, os.path.join(expected_dir, "lexer_output.log"))
+            # ── 1. Native target: capture IR + stdout + shared files ──────────
+            # Wipe and rebuild the target IR tree so stale files are removed
+            if os.path.exists(target_ir_dir):
+                shutil.rmtree(target_ir_dir)
+            shutil.copytree(ir_dir, target_ir_dir)
+
+            # target-independent files at root expected/
+            shutil.copy(lexer_log,   os.path.join(expected_dir, "lexer_output.log"))
             shutil.copy(parser_yaml, os.path.join(expected_dir, "parser_output.yaml"))
-            shutil.copy(ll_file, os.path.join(expected_dir, "main.gc.ll"))
-            with open(os.path.join(expected_dir, "stdout.txt"), "w") as f:
+            with open(stdout_expected, "w") as f:
                 f.write(exec_stdout)
-            print_color(f"[{folder}] Ground truth files generated.", GREEN)
+
+            ll_list = "\n    ".join(actual_ll_files)
+            print_color(
+                f"[{folder}] Ground truth generated for target '{target_triple}' (normalized: '{target_norm}')."
+                f"\n  IR files -> expected/ir/{target_norm}/"
+                f"\n    {ll_list}"
+                f"\n  stdout   -> expected/stdout.txt (target-independent)",
+                GREEN,
+            )
+
+            # ── 2. Cross-targets: only IR (no execution possible) ─────────────
+            for cross_triple in args.cross_targets:
+                cross_build_ir = os.path.join(build_dir, f"ir_cross_{cross_triple.replace('-', '_')}")
+                cross_compile_cmd = (
+                    f"{compiler_bin} {folder_path} -o {exec_path}"
+                    f" --target {cross_triple}"
+                )
+                if args.verbose:
+                    print(f"  Cross-compiling for {cross_triple}: {cross_compile_cmd}")
+
+                # Recompile with overridden target (IR-only; we discard the linked exec)
+                c_ret, _, c_err = run_command(cross_compile_cmd)
+                if c_ret != 0:
+                    print_color(
+                        f"  [cross:{cross_triple}] FAILED to compile: {c_err.strip()}",
+                        RED,
+                    )
+                    continue
+
+                cross_ir_src = os.path.join(build_dir, "ir")
+                cross_norm = get_normalized_triple(cross_triple)
+                cross_expected_ir = os.path.join(expected_dir, "ir", cross_norm)
+                if os.path.exists(cross_expected_ir):
+                    shutil.rmtree(cross_expected_ir)
+                shutil.copytree(cross_ir_src, cross_expected_ir)
+
+                cross_ll_files = sorted(
+                    os.path.relpath(os.path.join(r, f), cross_ir_src)
+                    for r, _, fs in os.walk(cross_ir_src) for f in fs if f.endswith(".ll")
+                )
+                ll_list_cross = "\n    ".join(cross_ll_files)
+                print_color(
+                    f"  [cross:{cross_triple}] IR generated -> expected/ir/{cross_norm}/"
+                    f"\n    {ll_list_cross}"
+                    f"\n  IMPORTANT: Manually verify before committing.",
+                    YELLOW,
+                )
+
+            print_color(
+                "  IMPORTANT: Please manually verify the generated outputs before committing.",
+                GREEN,
+            )
             passed_tests.append(folder)
         else:
-            # Compare files
-            lexer_diff = diff_files(os.path.join(expected_dir, "lexer_output.log"), lexer_log)
+            # ── Hard-fail when no IR tree exists for this target ──────────────
+            if not os.path.exists(target_ir_dir):
+                print_color(
+                    f"[{folder}] SKIPPED / NO EXPECTED IR for target '{target_triple}' (normalized: '{target_norm}').\n"
+                    f"  Expected IR directory not found: expected/ir/{target_norm}/\n"
+                    f"  This target has not been verified yet on this machine.\n"
+                    f"  Run:  make test-gen\n"
+                    f"  Then manually verify 'test/{folder}/expected/ir/{target_norm}/'\n"
+                    f"  and commit it if the output looks correct.",
+                    YELLOW,
+                )
+                failed_tests.append(folder)
+                continue
+
+            # ── Compare all .ll files ─────────────────────────────────────────
+            lexer_diff  = diff_files(os.path.join(expected_dir, "lexer_output.log"), lexer_log)
             parser_diff = diff_files(os.path.join(expected_dir, "parser_output.yaml"), parser_yaml)
-            ll_diff = diff_files(os.path.join(expected_dir, "main.gc.ll"), ll_file)
-            
-            # Compare stdout
-            expected_stdout_path = os.path.join(expected_dir, "stdout.txt")
-            expected_stdout = get_file_content(expected_stdout_path)
+
+            ll_diffs = {}   # rel_path -> diff string
+            # Check every expected IR file still matches
+            for rel in sorted(os.listdir(target_ir_dir) and
+                              [os.path.relpath(os.path.join(r, f), target_ir_dir)
+                               for r, _, fs in os.walk(target_ir_dir) for f in fs
+                               if f.endswith(".ll")]):
+                expected_ll = os.path.join(target_ir_dir, rel)
+                actual_ll   = os.path.join(ir_dir, rel)
+                d = diff_files(expected_ll, actual_ll)
+                if d:
+                    ll_diffs[rel] = d
+            # Also flag any new .ll files not in expected
+            expected_rels = set(
+                os.path.relpath(os.path.join(r, f), target_ir_dir)
+                for r, _, fs in os.walk(target_ir_dir) for f in fs if f.endswith(".ll")
+            )
+            for rel in actual_ll_files:
+                if rel not in expected_rels and rel not in ll_diffs:
+                    ll_diffs[rel] = f"NEW FILE not in expected: {rel}"
+
+            # stdout is target-independent
+            expected_stdout_content = get_file_content(stdout_expected)
             stdout_diff = None
-            if expected_stdout is not None:
-                if expected_stdout != exec_stdout:
+            if expected_stdout_content is not None:
+                if expected_stdout_content != exec_stdout:
                     stdout_diff = "".join(difflib.unified_diff(
-                        expected_stdout.splitlines(keepends=True),
+                        expected_stdout_content.splitlines(keepends=True),
                         exec_stdout.splitlines(keepends=True),
                         fromfile="expected_stdout",
-                        tofile="actual_stdout"
+                        tofile="actual_stdout",
                     ))
-            
+
             failed_reasons = []
             if lexer_diff:
                 failed_reasons.append("lexer_output.log mismatch")
@@ -222,11 +387,15 @@ def main():
                 if args.verbose:
                     print_color("\n--- Parser YAML Diff ---", YELLOW)
                     print(parser_diff)
-            if ll_diff:
-                failed_reasons.append("LLVM IR main.gc.ll mismatch")
+            if ll_diffs:
+                failed_reasons.append(
+                    f"{len(ll_diffs)} LLVM IR file(s) mismatched for target '{target_triple}': "
+                    + ", ".join(ll_diffs.keys())
+                )
                 if args.verbose:
-                    print_color("\n--- LLVM IR Diff ---", YELLOW)
-                    print(ll_diff)
+                    for rel, d in ll_diffs.items():
+                        print_color(f"\n--- LLVM IR Diff: {rel} ({target_triple}) ---", YELLOW)
+                        print(d)
             if stdout_diff:
                 failed_reasons.append("execution stdout mismatch")
                 if args.verbose:
@@ -234,10 +403,75 @@ def main():
                     print(stdout_diff)
             if exec_ret != 0:
                 failed_reasons.append(f"execution failed with exit code {exec_ret}")
-                
+
+            # ── Cross-targets validation ──────────────────────────────────────
+            cross_ll_diffs_all = {}
+            for cross_triple in args.cross_targets:
+                cross_norm = get_normalized_triple(cross_triple)
+                cross_expected_ir = os.path.join(expected_dir, "ir", cross_norm)
+                if not os.path.exists(cross_expected_ir):
+                    failed_reasons.append(f"missing expected IR for cross-target '{cross_triple}' (normalized: '{cross_norm}')")
+                    continue
+
+                # Run the compiler for the cross-target
+                cross_compile_cmd = (
+                    f"{compiler_bin} {folder_path} -o {exec_path}"
+                    f" --target {cross_triple}"
+                )
+                if args.verbose:
+                    print(f"  Testing cross-target {cross_triple}: {cross_compile_cmd}")
+
+                c_ret, _, c_err = run_command(cross_compile_cmd)
+                if c_ret != 0:
+                    failed_reasons.append(f"cross-compilation for target '{cross_triple}' failed with: {c_err.strip()}")
+                    continue
+
+                # Check generated IR files against expected IR files for this cross-target
+                cross_ir_src = os.path.join(build_dir, "ir")
+
+                # Collect all actual cross .ll files
+                cross_actual_ll_files = []
+                for root, _, files in os.walk(cross_ir_src):
+                    for fname in files:
+                        if fname.endswith(".ll"):
+                            full = os.path.join(root, fname)
+                            rel  = os.path.relpath(full, cross_ir_src)
+                            cross_actual_ll_files.append(rel)
+                cross_actual_ll_files.sort()
+
+                # Diff them
+                cross_ll_diffs = {}
+                for rel in sorted(os.listdir(cross_expected_ir) and
+                                  [os.path.relpath(os.path.join(r, f), cross_expected_ir)
+                                   for r, _, fs in os.walk(cross_expected_ir) for f in fs
+                                   if f.endswith(".ll")]):
+                    expected_ll = os.path.join(cross_expected_ir, rel)
+                    actual_ll   = os.path.join(cross_ir_src, rel)
+                    d = diff_files(expected_ll, actual_ll)
+                    if d:
+                        cross_ll_diffs[rel] = d
+
+                expected_rels_cross = set(
+                    os.path.relpath(os.path.join(r, f), cross_expected_ir)
+                    for r, _, fs in os.walk(cross_expected_ir) for f in fs if f.endswith(".ll")
+                )
+                for rel in cross_actual_ll_files:
+                    if rel not in expected_rels_cross and rel not in cross_ll_diffs:
+                        cross_ll_diffs[rel] = f"NEW FILE not in expected: {rel}"
+
+                if cross_ll_diffs:
+                    cross_ll_diffs_all[cross_triple] = cross_ll_diffs
+                    failed_reasons.append(
+                        f"{len(cross_ll_diffs)} LLVM IR file(s) mismatched for cross-target '{cross_triple}': "
+                        + ", ".join(cross_ll_diffs.keys())
+                    )
+                    if args.verbose:
+                        for rel, d in cross_ll_diffs.items():
+                            print_color(f"\n--- LLVM IR Diff: {rel} ({cross_triple}) ---", YELLOW)
+                            print(d)
+
             if failed_reasons:
                 print_color(f"[{folder}] FAILED: {', '.join(failed_reasons)}", RED)
-                # If not verbose, print diffs anyway
                 if not args.verbose:
                     if lexer_diff:
                         print_color("\n--- Lexer Log Diff ---", YELLOW)
@@ -245,15 +479,26 @@ def main():
                     if parser_diff:
                         print_color("\n--- Parser YAML Diff ---", YELLOW)
                         print(parser_diff)
-                    if ll_diff:
-                        print_color("\n--- LLVM IR Diff ---", YELLOW)
-                        print(ll_diff)
+                    if ll_diffs:
+                        for rel, d in ll_diffs.items():
+                            print_color(f"\n--- LLVM IR Diff: {rel} ({target_triple}) ---", YELLOW)
+                            print(d)
                     if stdout_diff:
                         print_color("\n--- Stdout Diff ---", YELLOW)
                         print(stdout_diff)
+                    for cross_triple, diffs in cross_ll_diffs_all.items():
+                        for rel, d in diffs.items():
+                            print_color(f"\n--- LLVM IR Diff: {rel} ({cross_triple}) ---", YELLOW)
+                            print(d)
                 failed_tests.append(folder)
             else:
-                print_color(f"[{folder}] PASSED: All outputs match.", GREEN)
+                ir_count = len(actual_ll_files)
+                cross_msg = f", {len(args.cross_targets)} cross-target(s)" if args.cross_targets else ""
+                print_color(
+                    f"[{folder}] PASSED: All outputs match "
+                    f"(target: {target_triple}{cross_msg}, {ir_count} IR file(s)).",
+                    GREEN,
+                )
                 passed_tests.append(folder)
 
     print("\n================ TEST SUMMARY ================")

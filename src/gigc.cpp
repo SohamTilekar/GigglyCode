@@ -67,7 +67,8 @@ void compileSingleFile(const std::filesystem::path& filePath,
                        bool verbose,
                        compilationState::RecordFolder* rootFolder,
                        const std::filesystem::path& customOutput = "",
-                       bool emitLLVMOnly = false) {
+                       bool emitLLVMOnly = false,
+                       const std::string& target_triple = "") {
     auto relative = std::filesystem::relative(filePath, srcDir);
     std::filesystem::path outputIRPath = buildDir / "ir" / (relative.string() + ".ll");
     std::filesystem::path objFilePath = buildDir / "obj" / (relative.string() + ".o");
@@ -116,11 +117,11 @@ void compileSingleFile(const std::filesystem::path& filePath,
     parser::Parser parser(&lexer);
     auto program = parser.parseProgram();
 
-    compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, relative.string());
-    
+    compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, relative.string(), target_triple);
+
     // Set up the synchronous dependency compiler callback
     comp.compile_dependency_cb = [&](const std::filesystem::path& depPath) {
-        compileSingleFile(depPath, srcDir, buildDir, optimizationLevel, verbose, rootFolder, "", emitLLVMOnly);
+        compileSingleFile(depPath, srcDir, buildDir, optimizationLevel, verbose, rootFolder, "", emitLLVMOnly, target_triple);
     };
 
     comp.compile(program);
@@ -157,6 +158,7 @@ int main(int argc, char* argv[]) {
     std::filesystem::path inputFile;
     std::filesystem::path outputFile;
     std::string optimizationLevel = "";
+    std::string target_triple = "";
     bool emitLLVM = false;
     bool verbose = false;
 
@@ -165,6 +167,7 @@ int main(int argc, char* argv[]) {
     app.add_option("-O,--optimization", optimizationLevel, "Optimization level (O1, O2, O3, Os, Ofast)")->default_val("");
     app.add_flag("-S,--emit-llvm", emitLLVM, "Emit LLVM IR instead of object file");
     app.add_flag("-v,--verbose", verbose, "Enable verbose output");
+    app.add_option("--target", target_triple, "Override target triple for cross-compilation (e.g. aarch64-unknown-linux-gnu). Default: host native.")->default_val("");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -186,7 +189,7 @@ int main(int argc, char* argv[]) {
     compilationState::RecordFolder rootFolder;
 
     try {
-        compileSingleFile(inputFile, srcDir, buildDir, optimizationLevel, verbose, &rootFolder, outputFile, emitLLVM);
+        compileSingleFile(inputFile, srcDir, buildDir, optimizationLevel, verbose, &rootFolder, outputFile, emitLLVM, target_triple);
     } catch (const std::exception& e) {
         std::cerr << "Compilation failed: " << e.what() << std::endl;
         return 1;

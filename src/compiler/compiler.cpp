@@ -9,6 +9,11 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Value.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/TargetParser/Host.h>
+#include <optional>
 #include <thread>
 #include <unordered_map>
 
@@ -21,7 +26,7 @@ using namespace compiler;
 using llConstInt = llvm::ConstantInt;
 
 Compiler::Compiler(
-    const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath)
+    const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath, const Str& target_triple)
     : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)), relativePath(std::move(relativePath)) {
 
     // Convert file path to Str
@@ -34,7 +39,7 @@ Compiler::Compiler(
     replaceDelimiters(this->fc_st_name_prefix);
 
     // Initialize LLVM module with the modified prefix
-    _initializeLLVMModule(path_str);
+    _initializeLLVMModule(path_str, target_triple);
 
     // Initialize the compilation environment with built-ins
     _initializeEnvironment();
@@ -66,9 +71,38 @@ void Compiler::replaceDelimiters(Str& prefix) {
     prefix += ".."; // Append additional delimiter if needed
 }
 
-void Compiler::_initializeLLVMModule(const Str& path_str) {
+void Compiler::_initializeLLVMModule(const Str& path_str, const Str& target_triple_override) {
     this->llvm_module = std::make_unique<llvm::Module>(this->fc_st_name_prefix, this->llvm_context);
     this->llvm_module->setSourceFileName(path_str);
+
+    // Initialize ALL targets so cross-compilation triples can be looked up,
+    // then also initialize the native target for host builds.
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmPrinters();
+
+    // Resolve the triple: use the override if provided, otherwise fall back to native.
+    std::string triple = target_triple_override.empty()
+                             ? llvm::sys::getDefaultTargetTriple()
+                             : target_triple_override;
+    this->llvm_module->setTargetTriple(triple);
+
+    std::string error;
+    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);
+    if (target) {
+        llvm::TargetOptions opt;
+        std::optional<llvm::Reloc::Model> reloc_model = llvm::Reloc::PIC_;
+        std::unique_ptr<llvm::TargetMachine> target_machine(
+            target->createTargetMachine(triple, "generic", "", opt, reloc_model)
+        );
+        if (target_machine) {
+            this->llvm_module->setDataLayout(target_machine->createDataLayout());
+        }
+    } else {
+        llvm::errs() << "Warning: could not find target for triple '" << triple
+                     << "': " << error << "\n";
+    }
 }
 
 void Compiler::_initializeEnvironment() {

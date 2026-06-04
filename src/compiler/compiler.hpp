@@ -152,11 +152,13 @@ class Compiler {
      * @brief Constructs a Compiler instance.
      * @param source The source code to compile.
      * @param file_path The file path of the source code.
-     * @param ir_gc_map The path to the IR-GC map file.
+     * @param file_record The compilation state record for this file.
      * @param buildDir The build directory path.
      * @param relativePath The relative path of the source file.
+     * @param target_triple Optional target triple override (e.g. "aarch64-unknown-linux-gnu").
+     *                      Empty string means use the host native target.
      */
-    Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath);
+    Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath, const Str& target_triple = "");
 
     ~Compiler();
 
@@ -260,10 +262,11 @@ class Compiler {
     void _initializeBuiltins();
 
     /**
-     * @brief Initializes the LLVM module with the given path.
+     * @brief Initializes the LLVM module with the given path and target.
      * @param path_str The path string for the LLVM module.
+     * @param target_triple Target triple to use. Empty means host native.
      */
-    void _initializeLLVMModule(const Str& path_str);
+    void _initializeLLVMModule(const Str& path_str, const Str& target_triple);
 
     /**
      * @brief Initializes the compiler environment.

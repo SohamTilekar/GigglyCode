@@ -12,16 +12,18 @@ llvm_map_components_to_libnames(llvm_libs
     RuntimeDyld
     ScalarOpts
     Support
-    native
+    MC
+    Target
+    AsmPrinter
+    # Link every target backend so --target <triple> works for cross-compilation.
+    # LLVM_TARGETS_TO_BUILD is set by find_package(LLVM) to the list of backends
+    # compiled into this LLVM installation (X86, AArch64, ARM, WebAssembly, ...).
+    ${LLVM_TARGETS_TO_BUILD}
 )
 
 # === target: gigly (Build System/Driver) ===
 add_executable(gigly gigly.cpp compilation_state.cpp)
-target_link_libraries(gigly ${llvm_libs})
-target_link_libraries(gigly ${CLANG_LIBRARIES})
-target_link_libraries(gigly lexer)
-target_link_libraries(gigly parser)
-target_link_libraries(gigly compiler)
+target_link_libraries(gigly compiler parser lexer ${llvm_libs} ${CLANG_LIBRARIES})
 target_include_directories(gigly PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/lexer"
     "${CMAKE_CURRENT_SOURCE_DIR}/parser"
@@ -32,11 +34,7 @@ target_include_directories(gigly PUBLIC
 
 # === target: gigc (Single-File Compiler Frontend) ===
 add_executable(gigc gigc.cpp compilation_state.cpp)
-target_link_libraries(gigc ${llvm_libs})
-target_link_libraries(gigc ${CLANG_LIBRARIES})
-target_link_libraries(gigc lexer)
-target_link_libraries(gigc parser)
-target_link_libraries(gigc compiler)
+target_link_libraries(gigc compiler parser lexer ${llvm_libs} ${CLANG_LIBRARIES})
 target_include_directories(gigc PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/lexer"
     "${CMAKE_CURRENT_SOURCE_DIR}/parser"
