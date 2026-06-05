@@ -48,11 +48,11 @@ using llBB = llvm::BasicBlock;                                ///< Alias for LLV
  * @brief Enumeration of different types used during type resolution.
  */
 enum class resolveType : char {
-    Module,      ///< Represents a module
-    StructInst,  ///< Represents a struct instance
-    ConstStructInst,  ///< Represents a const struct instance
-    StructType,  ///< Represents a struct type
-    GStructType, ///< Represents a generic struct type
+    Module,          ///< Represents a module
+    StructInst,      ///< Represents a struct instance
+    ConstStructInst, ///< Represents a const struct instance
+    StructType,      ///< Represents a struct type
+    GStructType,     ///< Represents a generic struct type
 };
 
 /**
@@ -158,7 +158,12 @@ class Compiler {
      * @param target_triple Optional target triple override (e.g. "aarch64-unknown-linux-gnu").
      *                      Empty string means use the host native target.
      */
-    Compiler(const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath, const Str& target_triple = "");
+    Compiler(const Str& source,
+             const std::filesystem::path& file_path,
+             compilationState::RecordFile* file_record,
+             const std::filesystem::path& buildDir,
+             const std::filesystem::path& relativePath,
+             const Str& target_triple = "");
 
     ~Compiler();
 

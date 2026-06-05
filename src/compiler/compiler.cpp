@@ -25,8 +25,12 @@
 using namespace compiler;
 using llConstInt = llvm::ConstantInt;
 
-Compiler::Compiler(
-    const Str& source, const std::filesystem::path& file_path, compilationState::RecordFile* file_record, const std::filesystem::path& buildDir, const std::filesystem::path& relativePath, const Str& target_triple)
+Compiler::Compiler(const Str& source,
+                   const std::filesystem::path& file_path,
+                   compilationState::RecordFile* file_record,
+                   const std::filesystem::path& buildDir,
+                   const std::filesystem::path& relativePath,
+                   const Str& target_triple)
     : llvm_context(), llvm_ir_builder(llvm_context), source(source), file_path(std::move(file_path)), file_record(file_record), buildDir(std::move(buildDir)), relativePath(std::move(relativePath)) {
 
     // Convert file path to Str
@@ -83,9 +87,7 @@ void Compiler::_initializeLLVMModule(const Str& path_str, const Str& target_trip
     llvm::InitializeAllAsmPrinters();
 
     // Resolve the triple: use the override if provided, otherwise fall back to native.
-    std::string triple = target_triple_override.empty()
-                             ? llvm::sys::getDefaultTargetTriple()
-                             : target_triple_override;
+    std::string triple = target_triple_override.empty() ? llvm::sys::getDefaultTargetTriple() : target_triple_override;
     this->llvm_module->setTargetTriple(triple);
 
     std::string error;
@@ -93,15 +95,10 @@ void Compiler::_initializeLLVMModule(const Str& path_str, const Str& target_trip
     if (target) {
         llvm::TargetOptions opt;
         std::optional<llvm::Reloc::Model> reloc_model = llvm::Reloc::PIC_;
-        std::unique_ptr<llvm::TargetMachine> target_machine(
-            target->createTargetMachine(triple, "generic", "", opt, reloc_model)
-        );
-        if (target_machine) {
-            this->llvm_module->setDataLayout(target_machine->createDataLayout());
-        }
+        std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(triple, "generic", "", opt, reloc_model));
+        if (target_machine) { this->llvm_module->setDataLayout(target_machine->createDataLayout()); }
     } else {
-        llvm::errs() << "Warning: could not find target for triple '" << triple
-                     << "': " << error << "\n";
+        llvm::errs() << "Warning: could not find target for triple '" << triple << "': " << error << "\n";
     }
 }
 
@@ -274,12 +271,8 @@ void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
     int target_catch_count = 0;
     size_t target_size = this->env->loop_conti_block.size() - node->loopIdx - 1;
     auto target_loop_env = this->env;
-    while (target_loop_env && target_loop_env->loop_conti_block.size() > target_size) {
-        target_loop_env = target_loop_env->parent;
-    }
-    if (target_loop_env) {
-        target_catch_count = target_loop_env->active_catch_count;
-    }
+    while (target_loop_env && target_loop_env->loop_conti_block.size() > target_size) { target_loop_env = target_loop_env->parent; }
+    if (target_loop_env) { target_catch_count = target_loop_env->active_catch_count; }
     this->_cleanupCatchBlocks(target_catch_count);
 
     // break 0; == break; & .size() return 1 if it holds 1 iten not when it holds
@@ -313,12 +306,8 @@ void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
     int target_catch_count = 0;
     size_t target_size = this->env->loop_conti_block.size() - node->loopIdx - 1;
     auto target_loop_env = this->env;
-    while (target_loop_env && target_loop_env->loop_conti_block.size() > target_size) {
-        target_loop_env = target_loop_env->parent;
-    }
-    if (target_loop_env) {
-        target_catch_count = target_loop_env->active_catch_count;
-    }
+    while (target_loop_env && target_loop_env->loop_conti_block.size() > target_size) { target_loop_env = target_loop_env->parent; }
+    if (target_loop_env) { target_catch_count = target_loop_env->active_catch_count; }
     this->_cleanupCatchBlocks(target_catch_count);
 
     // continue 0; == continue; & .size() return 1 if it holds 1 iten not when it
@@ -378,15 +367,13 @@ void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallEx
             // Type Is Same So No need to do any thing
         } else if (this->canConvertType(pst, expected_type)) {
             if (std::get<2>(pt)) {
-                errors::raiseCompletionError(
-                    file_path,
-                    source,
-                    func_call->arguments[idx]->meta_data.st_line_no,
-                    func_call->arguments[idx]->meta_data.st_col_no,
-                    func_call->arguments[idx]->meta_data.end_line_no,
-                    func_call->arguments[idx]->meta_data.end_col_no,
-                    "Cant pass by refrence the non same type"
-                );
+                errors::raiseCompletionError(file_path,
+                                             source,
+                                             func_call->arguments[idx]->meta_data.st_line_no,
+                                             func_call->arguments[idx]->meta_data.st_col_no,
+                                             func_call->arguments[idx]->meta_data.end_line_no,
+                                             func_call->arguments[idx]->meta_data.end_col_no,
+                                             "Cant pass by refrence the non same type");
             }
             args[idx] = this->convertType({args[idx], nullptr, pst}, expected_type).value;
         } else {
@@ -397,8 +384,7 @@ void Compiler::_checkAndConvertCallType(RecordFunction* func_record, AST::CallEx
         size_t max_size = std::max(func_record->arguments.size(), params_types.size());
         for (size_t idx = limit; idx < max_size; ++idx) { mismatch_indices.push_back(idx); }
     }
-    if (mismatch_indices.empty())
-        return;
+    if (mismatch_indices.empty()) return;
     errors::raiseNoOverloadError(this->file_path, this->source, {mismatch_indices}, func_call, "Cannot call the function with wrong type");
 }
 
@@ -1373,6 +1359,9 @@ void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
     auto int_type = llvm_ir_builder.getIntNTy(int_bits);
     auto func_type = llvm::FunctionType::get(ll_str, {int_type}, false);
     auto func = llvm::Function::Create(func_type, llvm::GlobalValue::LinkageTypes::ExternalLinkage, name + "..getName", llvm_module.get());
+
+    auto* saved_block = llvm_ir_builder.GetInsertBlock();
+
     auto entry_block = llvm::BasicBlock::Create(this->llvm_context, "entry", func);
     llvm_ir_builder.SetInsertPoint(entry_block);
     auto dump_block = llvm::BasicBlock::Create(this->llvm_context, "dump", func);
@@ -1389,6 +1378,8 @@ void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
     auto enum_struct = new RecordStructType(name, int_type, fields);
     llvm_ir_builder.SetInsertPoint(dump_block);
     llvm_ir_builder.CreateUnreachable();
+
+    if (saved_block) { llvm_ir_builder.SetInsertPoint(saved_block); }
 
     enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true, true));
     this->env->addRecord(enum_struct);
@@ -1485,7 +1476,11 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
             if (!value && !val_alloca) {
                 args.push_back(nullptr);
             } else {
-                args.push_back(value ? value : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array" ? ll_pointer : std::get<RecordStructType*>(param_type)->stand_alone_type, val_alloca));
+                args.push_back(value ? value
+                                     : llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(param_type)->struct_type || std::get<RecordStructType*>(param_type)->name == "raw_array"
+                                                                      ? ll_pointer
+                                                                      : std::get<RecordStructType*>(param_type)->stand_alone_type,
+                                                                  val_alloca));
             }
         }
         if (ltt == resolveType::Module) {
@@ -1530,7 +1525,8 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
                 }
             }
             params_types.insert(params_types.begin(), left_type);
-            llvm::Value* self_val = left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca);
+            llvm::Value* self_val =
+                left_value ? left_value : this->llvm_ir_builder.CreateLoad(left_type->struct_type || left_type->name == "raw_array" ? this->ll_pointer : left_type->stand_alone_type, left_alloca);
             args.insert(args.begin(), self_val);
             arg_allocas.insert(arg_allocas.begin(), left_value ? left_value : left_alloca);
             auto name = right->castToCallExpression()->name->castToIdentifierLiteral()->value;
@@ -2117,7 +2113,10 @@ Compiler::ResolvedValue Compiler::_visitIndexExpression(AST::IndexExpression* in
         auto element_ptr_type = element_type->stand_alone_type;
 
         // Calculate the element pointer
-        auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type, left_alloca ? this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca) : left, index_alloca ? this->llvm_ir_builder.CreateLoad(index_generic->stand_alone_type, index_alloca) : index, "element");
+        auto element = this->llvm_ir_builder.CreateGEP(element_ptr_type,
+                                                       left_alloca ? this->llvm_ir_builder.CreateLoad(this->ll_pointer, left_alloca) : left,
+                                                       index_alloca ? this->llvm_ir_builder.CreateLoad(index_generic->stand_alone_type, index_alloca) : index,
+                                                       "element");
         // Load the element value
         llvm::Value* load = this->llvm_ir_builder.CreateLoad(element_type->stand_alone_type, element);
 
@@ -2142,16 +2141,14 @@ void Compiler::_visitVariableDeclarationStatement(AST::VariableDeclarationStatem
     RecordStructType* var_type = variable_declaration_statement->value_type ? this->_parseType(variable_declaration_statement->value_type) : nullptr;
 
     if (!var_value && variable_declaration_statement->is_const) {
-        errors::raiseCompletionError(
-            file_path,
-            source,
-            variable_declaration_statement->meta_data.st_line_no,
-            variable_declaration_statement->meta_data.st_col_no,
-            variable_declaration_statement->meta_data.end_line_no,
-            variable_declaration_statement->meta_data.end_col_no,
-            "Cant Decelare constant Variable with undefine value",
-            "remove the const kw"
-        );
+        errors::raiseCompletionError(file_path,
+                                     source,
+                                     variable_declaration_statement->meta_data.st_line_no,
+                                     variable_declaration_statement->meta_data.st_col_no,
+                                     variable_declaration_statement->meta_data.end_line_no,
+                                     variable_declaration_statement->meta_data.end_col_no,
+                                     "Cant Decelare constant Variable with undefine value",
+                                     "remove the const kw");
     }
 
     if (!var_value) {
@@ -2233,21 +2230,19 @@ void Compiler::_visitVariableAssignmentStatement(AST::VariableAssignmentStatemen
     auto var_type = std::get<RecordStructType*>(_var_type);
 
     if (att == resolveType::ConstStructInst) {
-        errors::raiseCompletionError(file_path, source,
-            variable_assignment_statement->name->meta_data.st_line_no,
-            variable_assignment_statement->name->meta_data.st_col_no,
-            variable_assignment_statement->name->meta_data.end_line_no,
-            variable_assignment_statement->name->meta_data.end_col_no,
-            "Cant assign to the constant variable"
-        );
+        errors::raiseCompletionError(file_path,
+                                     source,
+                                     variable_assignment_statement->name->meta_data.st_line_no,
+                                     variable_assignment_statement->name->meta_data.st_col_no,
+                                     variable_assignment_statement->name->meta_data.end_line_no,
+                                     variable_assignment_statement->name->meta_data.end_col_no,
+                                     "Cant assign to the constant variable");
     }
     if ((vtt != resolveType::StructInst && vtt != resolveType::ConstStructInst) && !(vtt == resolveType::StructType && assignmentType->name == "nullptr")) {
         errors::raiseWrongTypeError(this->file_path, this->source, var_value, nullptr, {assignmentType}, "Cannot assign module or type to variable");
     }
 
-    if (!alloca) {
-        errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true);
-    }
+    if (!alloca) { errors::raiseWrongTypeError(file_path, source, variable_assignment_statement->name, var_type, {var_type}, "Canot Assign to a Constant", "", true); }
 
     if (!_checkType(var_type, assignmentType)) {
         if (this->canConvertType(assignmentType, var_type)) {
@@ -2365,15 +2360,11 @@ Compiler::ResolvedValue Compiler::_resolveIdentifierLiteral(AST::IdentifierLiter
         auto currentStructType = variable->variable_type;
         currentStructType->meta_data = identifier_literal->meta_data;
         if (variable->is_const) {
-            if (currentStructType->struct_type || currentStructType->name == "raw_array")
-                return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
-            else
-                return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
+            if (currentStructType->struct_type || currentStructType->name == "raw_array") return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
+            else return {nullptr, variable->allocainst, currentStructType, resolveType::ConstStructInst};
         }
-        if (currentStructType->struct_type || currentStructType->name == "raw_array")
-            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
-        else
-            return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
+        if (currentStructType->struct_type || currentStructType->name == "raw_array") return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
+        else return {nullptr, variable->allocainst, currentStructType, resolveType::StructInst};
     } else if (this->env->isModule(identifier_literal->value)) {
         return {nullptr, nullptr, this->env->getModule(identifier_literal->value), resolveType::Module};
     } else if (this->env->isStruct(identifier_literal->value)) {
@@ -2526,7 +2517,9 @@ void Compiler::_handleValueReturnStatement(AST::ReturnStatement* return_statemen
                                     value,
                                     this->env->current_function->return_type,
                                     {this->env->current_function->return_type},
-                                    "Cant return const value from non const function", "", true);
+                                    "Cant return const value from non const function",
+                                    "",
+                                    true);
     }
     auto return_type = std::get<RecordStructType*>(_return_type);
     if (this->env->current_function == nullptr) {
@@ -3146,291 +3139,192 @@ void Compiler::_visitTryCatchStatement(AST::TryCatchStatement* tc_statement) {
         auto personality_fn = this->_getPersonalityFn();
         current_fn->setPersonalityFn(llvm::cast<llvm::Constant>(personality_fn.getCallee()));
     }
-    
+
     llvm::BasicBlock* landing_pad_block = llvm::BasicBlock::Create(this->llvm_context, "landing_pad", current_fn);
     llvm::BasicBlock* catch_dispatch_block = llvm::BasicBlock::Create(this->llvm_context, "catch_dispatch", current_fn);
     llvm::BasicBlock* continuation_block = llvm::BasicBlock::Create(this->llvm_context, "try_cont", current_fn);
-    
+
     llvm::BasicBlock* prev_landing_pad = this->env->current_landing_pad;
     this->env->current_landing_pad = landing_pad_block;
-    
+
     bool try_terminated = false;
     try {
         this->compile(tc_statement->try_block);
         this->llvm_ir_builder.CreateBr(continuation_block);
-    } catch (DoneRet) {
-        try_terminated = true;
-    } catch (DoneBr) {
+    } catch (DoneRet) { try_terminated = true; } catch (DoneBr) {
         try_terminated = true;
     }
-    
+
     this->env->current_landing_pad = prev_landing_pad;
-    
+
     // Generate landing_pad_block
     this->llvm_ir_builder.SetInsertPoint(landing_pad_block);
-    
-    llvm::StructType* lp_struct_type = llvm::StructType::get(
-        this->llvm_context,
-        {this->ll_pointer, llvm::Type::getInt32Ty(this->llvm_context)}
-    );
-    
-    llvm::LandingPadInst* lp = this->llvm_ir_builder.CreateLandingPad(
-        lp_struct_type,
-        tc_statement->catch_blocks.size()
-    );
-    
+
+    llvm::StructType* lp_struct_type = llvm::StructType::get(this->llvm_context, {this->ll_pointer, llvm::Type::getInt32Ty(this->llvm_context)});
+
+    llvm::LandingPadInst* lp = this->llvm_ir_builder.CreateLandingPad(lp_struct_type, tc_statement->catch_blocks.size());
+
     for (const auto& catch_block : tc_statement->catch_blocks) {
         auto type_ast = std::get<0>(catch_block);
         auto struct_type_record = this->_parseType(type_ast);
-        if (!struct_type_record) {
-            errors::raiseCompilationError("Undefined exception type in catch clause");
-        }
+        if (!struct_type_record) { errors::raiseCompilationError("Undefined exception type in catch clause"); }
         llvm::Constant* tinfo = this->_getOrCreateTypeInfo(struct_type_record);
         lp->addClause(tinfo);
     }
-    
+
     llvm::Value* exception_obj = this->llvm_ir_builder.CreateExtractValue(lp, 0, "ex_obj");
     llvm::Value* selector_id = this->llvm_ir_builder.CreateExtractValue(lp, 1, "sel_id");
-    
+
     this->llvm_ir_builder.CreateBr(catch_dispatch_block);
-    
+
     // Generate catch_dispatch_block
     this->llvm_ir_builder.SetInsertPoint(catch_dispatch_block);
-    
-    auto typeid_for_fn = llvm::Intrinsic::getDeclaration(
-        this->llvm_module.get(),
-        llvm::Intrinsic::eh_typeid_for
-    );
-    
+
+    auto typeid_for_fn = llvm::Intrinsic::getDeclaration(this->llvm_module.get(), llvm::Intrinsic::eh_typeid_for);
+
     llvm::BasicBlock* current_check_block = catch_dispatch_block;
-    
+
     for (size_t i = 0; i < tc_statement->catch_blocks.size(); ++i) {
         const auto& catch_block = tc_statement->catch_blocks[i];
         auto type_ast = std::get<0>(catch_block);
         auto var_id_ast = std::get<1>(catch_block);
         auto body_ast = std::get<2>(catch_block);
-        
+
         auto struct_type_record = this->_parseType(type_ast);
         llvm::Constant* tinfo = this->_getOrCreateTypeInfo(struct_type_record);
-        
+
         llvm::BasicBlock* next_check_block = nullptr;
         if (i + 1 < tc_statement->catch_blocks.size()) {
             next_check_block = llvm::BasicBlock::Create(this->llvm_context, "catch_check", current_fn);
         } else {
             next_check_block = llvm::BasicBlock::Create(this->llvm_context, "unwind_resume", current_fn);
         }
-        
+
         llvm::BasicBlock* catch_body_block = llvm::BasicBlock::Create(this->llvm_context, "catch_body", current_fn);
-        
+
         this->llvm_ir_builder.SetInsertPoint(current_check_block);
-        
+
         llvm::Value* target_type_id = this->llvm_ir_builder.CreateCall(typeid_for_fn, {tinfo});
         llvm::Value* is_match = this->llvm_ir_builder.CreateICmpEQ(selector_id, target_type_id);
-        
+
         this->llvm_ir_builder.CreateCondBr(is_match, catch_body_block, next_check_block);
-        
+
         // Generate catch_body_block
         this->llvm_ir_builder.SetInsertPoint(catch_body_block);
-        
-        auto begin_catch_fn = this->llvm_module->getOrInsertFunction(
-            "__cxa_begin_catch",
-            this->ll_pointer,
-            this->ll_pointer
-        );
+
+        auto begin_catch_fn = this->llvm_module->getOrInsertFunction("__cxa_begin_catch", this->ll_pointer, this->ll_pointer);
         llvm::Value* caught_ex_ptr = this->llvm_ir_builder.CreateCall(begin_catch_fn, {exception_obj});
-        
-        llvm::Value* casted_ex_ptr = this->llvm_ir_builder.CreateBitCast(
-            caught_ex_ptr,
-            struct_type_record->struct_type->getPointerTo()
-        );
-        
+
+        llvm::Value* casted_ex_ptr = this->llvm_ir_builder.CreateBitCast(caught_ex_ptr, struct_type_record->struct_type->getPointerTo());
+
         auto prev_env = this->env;
         auto catch_env = Enviornment(prev_env);
         catch_env.active_catch_count = prev_env->active_catch_count + 1;
         this->env = &catch_env;
-        
-        llvm::Value* var_alloca = this->llvm_ir_builder.CreateAlloca(
-            struct_type_record->struct_type,
-            nullptr,
-            var_id_ast->value
-        );
-        
+
+        llvm::Value* var_alloca = this->llvm_ir_builder.CreateAlloca(struct_type_record->struct_type, nullptr, var_id_ast->value);
+
         auto memcpy_fn = llvm::Intrinsic::getDeclaration(this->llvm_module.get(), llvm::Intrinsic::memcpy, {this->ll_pointer, this->ll_pointer, llvm::Type::getInt64Ty(this->llvm_context)});
-        
-        llvm::Value* gep = this->llvm_ir_builder.CreateGEP(
-            struct_type_record->struct_type,
-            llvm::ConstantPointerNull::get(struct_type_record->struct_type->getPointerTo()),
-            llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 1)
-        );
+
+        llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type_record->struct_type,
+                                                           llvm::ConstantPointerNull::get(struct_type_record->struct_type->getPointerTo()),
+                                                           llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 1));
         llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(this->llvm_context));
-        
-        this->llvm_ir_builder.CreateCall(
-            memcpy_fn,
-            {
-                var_alloca,
-                casted_ex_ptr,
-                size,
-                this->llvm_ir_builder.getInt1(false)
-            }
-        );
-        
-        llvm::Value* var_ptr_alloca = this->llvm_ir_builder.CreateAlloca(
-            this->ll_pointer,
-            nullptr,
-            var_id_ast->value + "_ptr"
-        );
+
+        this->llvm_ir_builder.CreateCall(memcpy_fn, {var_alloca, casted_ex_ptr, size, this->llvm_ir_builder.getInt1(false)});
+
+        llvm::Value* var_ptr_alloca = this->llvm_ir_builder.CreateAlloca(this->ll_pointer, nullptr, var_id_ast->value + "_ptr");
         this->llvm_ir_builder.CreateStore(var_alloca, var_ptr_alloca);
 
-        auto caught_var = new RecordVariable(
-            var_id_ast->value,
-            var_alloca,
-            var_ptr_alloca,
-            struct_type_record
-        );
+        auto caught_var = new RecordVariable(var_id_ast->value, var_alloca, var_ptr_alloca, struct_type_record);
         this->env->addRecord(caught_var);
-        
+
         bool catch_terminated = false;
         try {
             this->compile(body_ast);
-        } catch (DoneRet) {
-            catch_terminated = true;
-        } catch (DoneBr) {
+        } catch (DoneRet) { catch_terminated = true; } catch (DoneBr) {
             catch_terminated = true;
         }
-        
+
         this->env = prev_env;
-        
+
         if (!catch_terminated) {
-            auto end_catch_fn = this->llvm_module->getOrInsertFunction(
-                "__cxa_end_catch",
-                llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false)
-            );
+            auto end_catch_fn = this->llvm_module->getOrInsertFunction("__cxa_end_catch", llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false));
             this->llvm_ir_builder.CreateCall(end_catch_fn, {});
             this->llvm_ir_builder.CreateBr(continuation_block);
         }
-        
+
         current_check_block = next_check_block;
     }
-    
+
     this->llvm_ir_builder.SetInsertPoint(current_check_block);
     this->llvm_ir_builder.CreateResume(lp);
-    
+
     this->llvm_ir_builder.SetInsertPoint(continuation_block);
 }
 
 void Compiler::_visitRaiseStatement(AST::RaiseStatement* raise_statement) {
     if (!raise_statement->value) {
-        auto rethrow_fn = this->llvm_module->getOrInsertFunction(
-            "__cxa_rethrow",
-            llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false)
-        );
+        auto rethrow_fn = this->llvm_module->getOrInsertFunction("__cxa_rethrow", llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false));
         this->llvm_ir_builder.CreateCall(rethrow_fn, {});
         this->llvm_ir_builder.CreateUnreachable();
         throw DoneRet();
     }
-    
+
     auto resolved_val = this->_resolveValue(raise_statement->value);
-    
+
     if (resolved_val.type != resolveType::StructInst && resolved_val.type != resolveType::ConstStructInst) {
         errors::raiseWrongTypeError(this->file_path.string(), this->source, raise_statement->value, nullptr, {}, "Can only raise a struct instance");
     }
-    
+
     auto struct_record = std::get<RecordStructType*>(resolved_val.variant);
     auto struct_type = struct_record->struct_type;
-    
-    llvm::Value* gep = this->llvm_ir_builder.CreateGEP(
-        struct_type,
-        llvm::ConstantPointerNull::get(struct_type->getPointerTo()),
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 1)
-    );
+
+    llvm::Value* gep = this->llvm_ir_builder.CreateGEP(struct_type, llvm::ConstantPointerNull::get(struct_type->getPointerTo()), llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 1));
     llvm::Value* size = this->llvm_ir_builder.CreatePtrToInt(gep, llvm::Type::getInt64Ty(this->llvm_context));
-    
-    auto allocate_exception_fn = this->llvm_module->getOrInsertFunction(
-        "__cxa_allocate_exception",
-        llvm::FunctionType::get(this->ll_pointer, {llvm::Type::getInt64Ty(this->llvm_context)}, false)
-    );
+
+    auto allocate_exception_fn = this->llvm_module->getOrInsertFunction("__cxa_allocate_exception", llvm::FunctionType::get(this->ll_pointer, {llvm::Type::getInt64Ty(this->llvm_context)}, false));
     llvm::Value* exception_buffer = this->llvm_ir_builder.CreateCall(allocate_exception_fn, {size});
-    
+
     auto memcpy_fn = llvm::Intrinsic::getDeclaration(this->llvm_module.get(), llvm::Intrinsic::memcpy, {this->ll_pointer, this->ll_pointer, llvm::Type::getInt64Ty(this->llvm_context)});
-    this->llvm_ir_builder.CreateCall(
-        memcpy_fn,
-        {
-            exception_buffer,
-            resolved_val.value,
-            size,
-            this->llvm_ir_builder.getInt1(false)
-        }
-    );
-    
+    this->llvm_ir_builder.CreateCall(memcpy_fn, {exception_buffer, resolved_val.value, size, this->llvm_ir_builder.getInt1(false)});
+
     llvm::Constant* tinfo = this->_getOrCreateTypeInfo(struct_record);
-    
-    auto throw_fn = this->llvm_module->getOrInsertFunction(
-        "__cxa_throw",
-        llvm::FunctionType::get(
-            llvm::Type::getVoidTy(this->llvm_context),
-            {this->ll_pointer, this->ll_pointer, this->ll_pointer},
-            false
-        )
-    );
-    
+
+    auto throw_fn =
+        this->llvm_module->getOrInsertFunction("__cxa_throw", llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {this->ll_pointer, this->ll_pointer, this->ll_pointer}, false));
+
     llvm::Value* null_dest = llvm::ConstantPointerNull::get(this->ll_pointer);
     this->llvm_ir_builder.CreateCall(throw_fn, {exception_buffer, tinfo, null_dest});
     this->llvm_ir_builder.CreateUnreachable();
-    
+
     throw DoneRet();
 }
 
 llvm::Constant* Compiler::_getOrCreateTypeInfo(RecordStructType* struct_type) {
     std::string name = struct_type->name;
     std::string tinfo_name = "_ZTI" + std::to_string(name.length()) + name;
-    
-    if (auto gv = this->llvm_module->getGlobalVariable(tinfo_name)) {
-        return llvm::ConstantExpr::getBitCast(gv, this->ll_pointer);
-    }
-    
+
+    if (auto gv = this->llvm_module->getGlobalVariable(tinfo_name)) { return llvm::ConstantExpr::getBitCast(gv, this->ll_pointer); }
+
     std::string ts_name = "_ZTS" + std::to_string(name.length()) + name;
     llvm::Constant* name_const = this->llvm_ir_builder.CreateGlobalStringPtr(ts_name, ts_name, 0, this->llvm_module.get());
-    
+
     auto vtable_gv = this->llvm_module->getGlobalVariable("_ZTVN10__cxxabiv117__class_type_infoE");
-    if (!vtable_gv) {
-        vtable_gv = new llvm::GlobalVariable(
-            *this->llvm_module,
-            this->ll_pointer,
-            true,
-            llvm::GlobalValue::ExternalLinkage,
-            nullptr,
-            "_ZTVN10__cxxabiv117__class_type_infoE"
-        );
-    }
-    
+    if (!vtable_gv) { vtable_gv = new llvm::GlobalVariable(*this->llvm_module, this->ll_pointer, true, llvm::GlobalValue::ExternalLinkage, nullptr, "_ZTVN10__cxxabiv117__class_type_infoE"); }
+
     llvm::Constant* vtable_cast = llvm::ConstantExpr::getBitCast(vtable_gv, this->ll_pointer);
-    llvm::Constant* vtable_offset = llvm::ConstantExpr::getGetElementPtr(
-        llvm::Type::getInt8Ty(this->llvm_context),
-        vtable_cast,
-        llvm::ConstantInt::get(llvm::Type::getInt64Ty(this->llvm_context), 16)
-    );
-    
-    llvm::StructType* tinfo_struct_type = llvm::StructType::get(
-        this->llvm_context,
-        {this->ll_pointer, this->ll_pointer}
-    );
-    
-    llvm::Constant* init_val = llvm::ConstantStruct::get(
-        tinfo_struct_type,
-        {vtable_offset, name_const}
-    );
-    
-    auto tinfo_gv = new llvm::GlobalVariable(
-        *this->llvm_module,
-        tinfo_struct_type,
-        true,
-        llvm::GlobalValue::LinkOnceODRLinkage,
-        init_val,
-        tinfo_name
-    );
-    
+    llvm::Constant* vtable_offset =
+        llvm::ConstantExpr::getGetElementPtr(llvm::Type::getInt8Ty(this->llvm_context), vtable_cast, llvm::ConstantInt::get(llvm::Type::getInt64Ty(this->llvm_context), 16));
+
+    llvm::StructType* tinfo_struct_type = llvm::StructType::get(this->llvm_context, {this->ll_pointer, this->ll_pointer});
+
+    llvm::Constant* init_val = llvm::ConstantStruct::get(tinfo_struct_type, {vtable_offset, name_const});
+
+    auto tinfo_gv = new llvm::GlobalVariable(*this->llvm_module, tinfo_struct_type, true, llvm::GlobalValue::LinkOnceODRLinkage, init_val, tinfo_name);
+
     tinfo_gv->setDSOLocal(true);
-    
+
     return llvm::ConstantExpr::getBitCast(tinfo_gv, this->ll_pointer);
 }
 
@@ -3457,13 +3351,8 @@ llvm::Value* Compiler::_emitCallOrInvoke(llvm::FunctionCallee callee, const std:
 void Compiler::_cleanupCatchBlocks(int target_catch_count) {
     int diff = this->env->active_catch_count - target_catch_count;
     if (diff > 0) {
-        auto end_catch_fn = this->llvm_module->getOrInsertFunction(
-            "__cxa_end_catch",
-            llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false)
-        );
-        for (int i = 0; i < diff; ++i) {
-            this->llvm_ir_builder.CreateCall(end_catch_fn, {});
-        }
+        auto end_catch_fn = this->llvm_module->getOrInsertFunction("__cxa_end_catch", llvm::FunctionType::get(llvm::Type::getVoidTy(this->llvm_context), {}, false));
+        for (int i = 0; i < diff; ++i) { this->llvm_ir_builder.CreateCall(end_catch_fn, {}); }
     }
 }
 

@@ -121,7 +121,7 @@ class RecordFunction : public Record {
     std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments = {};
     RecordStructType* return_type; ///< Pointer to the struct type of the return value.
     bool is_var_arg = false;       ///< Indicates if the function accepts a variable
-    bool is_const_return = false;       ///< Indicates if the function accepts a variable
+    bool is_const_return = false;  ///< Indicates if the function accepts a variable
 
     /**
      * @brief Constructs a RecordFunction with the given name.
@@ -156,8 +156,13 @@ class RecordFunction : public Record {
      * @param returnInst Pointer to the struct type of the return value.
      * @param isVarArg Indicates if the function accepts variable arguments.
      */
-    RecordFunction(
-        const Str& name, llvm::Function* function, llvm::FunctionType* functionType, std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments, RecordStructType* returnInst, bool isVarArg, bool is_const_return = false)
+    RecordFunction(const Str& name,
+                   llvm::Function* function,
+                   llvm::FunctionType* functionType,
+                   std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
+                   RecordStructType* returnInst,
+                   bool isVarArg,
+                   bool is_const_return = false)
         : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg), is_const_return(is_const_return) {}
 
     /**
@@ -295,7 +300,7 @@ class RecordGenericStructType : public Record {
      * @param structAST Pointer to the AST StructStatement.
      * @param env Pointer to the environment.
      */
-    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, Enviornment* env) : Record(RecordType::GStructType, name), structAST(structAST), env(env) {};
+    RecordGenericStructType(const Str& name, AST::StructStatement* structAST, Enviornment* env) : Record(RecordType::GStructType, name), structAST(structAST), env(env){};
 
     /**
      * @brief Copy constructor for RecordGenericStructType.
@@ -371,7 +376,7 @@ class RecordStructType : public Record {
     }
 
     RecordStructType(std::string& name, llvm::IntegerType* ll_enum_underthe_hood_type, std::unordered_map<std::string, uint32_t> KW_int_map)
-        : Record(RecordType::StructInst, name), stand_alone_type(ll_enum_underthe_hood_type), KW_int_map(KW_int_map), is_enum_kind(true) {};
+        : Record(RecordType::StructInst, name), stand_alone_type(ll_enum_underthe_hood_type), KW_int_map(KW_int_map), is_enum_kind(true){};
 
     /**
      * @brief Destructor for RecordStructType.
@@ -681,9 +686,9 @@ class Enviornment {
     Str name;                ///< Name of the current environment.
     StrRecordMap record_map; ///< Map of records within the environment.
 
-    RecordFunction* current_function = nullptr; ///< Pointer to the current function record.
+    RecordFunction* current_function = nullptr;      ///< Pointer to the current function record.
     llvm::BasicBlock* current_landing_pad = nullptr; ///< Pointer to the current landing pad block.
-    int active_catch_count = 0; ///< Number of active catch blocks in this environment scope.
+    int active_catch_count = 0;                      ///< Number of active catch blocks in this environment scope.
 
     /**
      * @brief Vectors managing loop-related basic blocks for control flow.

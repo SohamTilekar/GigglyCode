@@ -91,9 +91,7 @@ class Compiler {
 
         std::vector<std::thread> workers;
         for (const auto& file : files) {
-            workers.emplace_back([this, file, rootFolder]() {
-                compileFile(file, rootFolder);
-            });
+            workers.emplace_back([this, file, rootFolder]() { compileFile(file, rootFolder); });
         }
 
         for (auto& worker : workers) {
@@ -207,16 +205,12 @@ class Compiler {
         std::string fileContent, const std::filesystem::path& filePath, const std::filesystem::path& outputIRPath, const std::filesystem::path& objFilePath, compilationState::RecordFile* fileRecord) {
 // Debugging Lexer
 #ifdef DEBUG_LEXER
-        if (filePath.filename() == "main.gc") {
-            debugLexer(Utils::readFileToString(filePath), filePath);
-        }
+        if (filePath.filename() == "main.gc") { debugLexer(Utils::readFileToString(filePath), filePath); }
 #endif
 
 // Debugging Parser
 #ifdef DEBUG_PARSER
-        if (filePath.filename() == "main.gc") {
-            debugParser(Utils::readFileToString(filePath), filePath);
-        }
+        if (filePath.filename() == "main.gc") { debugParser(Utils::readFileToString(filePath), filePath); }
 #endif
 
         Lexer lexer(fileContent, filePath);
@@ -387,9 +381,7 @@ int main(int argc, char* argv[]) {
 
     if (verbose) {
         std::cout << "Verbose mode enabled." << std::endl;
-        if (!target_triple.empty()) {
-            std::cout << "Target triple override: " << target_triple << std::endl;
-        }
+        if (!target_triple.empty()) { std::cout << "Target triple override: " << target_triple << std::endl; }
     }
 
     // Environment Variable Management

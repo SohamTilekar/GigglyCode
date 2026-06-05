@@ -88,12 +88,8 @@ void compileSingleFile(const std::filesystem::path& filePath,
     }
 
     // Ensure output directories exist
-    if (!outputIRPath.parent_path().empty()) {
-        Utils::createDirectories(outputIRPath.parent_path());
-    }
-    if (!objFilePath.parent_path().empty()) {
-        Utils::createDirectories(objFilePath.parent_path());
-    }
+    if (!outputIRPath.parent_path().empty()) { Utils::createDirectories(outputIRPath.parent_path()); }
+    if (!objFilePath.parent_path().empty()) { Utils::createDirectories(objFilePath.parent_path()); }
 
     // Fetch compilation record
     compilationState::RecordFile* fileRecord = findOrCreateFileRecord(rootFolder, relative);
@@ -102,14 +98,10 @@ void compileSingleFile(const std::filesystem::path& filePath,
 
     // Debugging hooks
 #ifdef DEBUG_LEXER
-    if (filePath.filename() == "main.gc") {
-        debugLexer(fileContent, filePath, buildDir);
-    }
+    if (filePath.filename() == "main.gc") { debugLexer(fileContent, filePath, buildDir); }
 #endif
 #ifdef DEBUG_PARSER
-    if (filePath.filename() == "main.gc") {
-        debugParser(fileContent, filePath, buildDir);
-    }
+    if (filePath.filename() == "main.gc") { debugParser(fileContent, filePath, buildDir); }
 #endif
 
     // Parse and compile to LLVM IR
@@ -120,9 +112,7 @@ void compileSingleFile(const std::filesystem::path& filePath,
     compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, relative.string(), target_triple);
 
     // Set up the synchronous dependency compiler callback
-    comp.compile_dependency_cb = [&](const std::filesystem::path& depPath) {
-        compileSingleFile(depPath, srcDir, buildDir, optimizationLevel, verbose, rootFolder, "", emitLLVMOnly, target_triple);
-    };
+    comp.compile_dependency_cb = [&](const std::filesystem::path& depPath) { compileSingleFile(depPath, srcDir, buildDir, optimizationLevel, verbose, rootFolder, "", emitLLVMOnly, target_triple); };
 
     comp.compile(program);
     delete program;

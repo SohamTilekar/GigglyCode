@@ -105,7 +105,7 @@ enum class TokenType {
     Struct,   // Struct keyword 'struct'
     Enum,     // Enum keyword 'enum'
     Volatile, // Volatile keyword 'volatile'
-    Const, // Constant keyword 'const'
+    Const,    // Constant keyword 'const'
     Use,      // Use keyword 'use'
     Import,   // Import keyword 'import'
     As,       // As keyword 'as'
@@ -146,7 +146,7 @@ class Token {
     /**
      * @brief Default constructor for Token.
      */
-    inline Token() {};
+    inline Token(){};
 
     /**
      * @brief Constructor for Token with type, line number, and column number.
@@ -155,7 +155,7 @@ class Token {
      * @param lineNo The line number where the token is located.
      * @param colNo The column number where the token starts.
      */
-    inline Token(TokenType type, int lineNo, int colNo, int endColNo) : type(type), st_line_no(lineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
+    inline Token(TokenType type, int lineNo, int colNo, int endColNo) : type(type), st_line_no(lineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo){};
 
     /**
      * @brief Constructor for Token with type, literal, line number, and column
@@ -167,7 +167,7 @@ class Token {
      * @param colNo The column number where the token starts.
      */
     inline Token(TokenType type, std::string literal, int stLineNo, int lineNo, int colNo, int endColNo)
-        : type(type), literal(literal), st_line_no(stLineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo) {};
+        : type(type), literal(literal), st_line_no(stLineNo), end_line_no(lineNo), end_col_no(endColNo), col_no(colNo){};
 
     /**
      * @brief Convert the current token to a string.

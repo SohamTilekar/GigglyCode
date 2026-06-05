@@ -320,7 +320,7 @@ std::vector<AST::FunctionParameter*> Parser::_parseFunctionParameters() {
             } else if (this->_currentTokenIs(TokenType::RightParen)) {
                 break;
             }
-        }else {
+        } else {
             _currentTokenError(current_token.type, {TokenType::Identifier});
             break;
         }
