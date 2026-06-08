@@ -143,8 +143,6 @@ class Compiler {
     std::filesystem::path irDir;
     std::filesystem::path objDir;
 
-    std::mutex recordMutex; // Mutex to protect compiledFilesRecord
-
     /**
      * @brief Checks if a file has a supported extension.
      *
