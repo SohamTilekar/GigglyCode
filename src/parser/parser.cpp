@@ -813,8 +813,7 @@ AST::SwitchCaseStatement* Parser::_parseSwitchCaseStatement() {
 
 AST::Expression* Parser::_parseInfixIdenifier() {
     if (this->current_token.type != TokenType::Identifier) {
-        std::cerr << "Cannot parse infixIdentifier Expression. Token: " << token::tokenTypeString(this->current_token.type) << std::endl;
-        exit(1);
+        errors::raiseSyntaxError(this->lexer->file_path, this->current_token, this->lexer->source, "Cannot parse infixIdentifier Expression. Expected Identifier but got " + token::tokenTypeString(this->current_token.type), "Ensure the infix expression is formatted correctly.");
     }
     if (!this->_peekTokenIs(TokenType::Dot)) { return new AST::IdentifierLiteral(this->current_token); }
     auto li = new AST::IdentifierLiteral(this->current_token);

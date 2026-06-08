@@ -3128,9 +3128,9 @@ void Compiler::_visitForEachStatement(AST::ForEachStatement* for_statement) {
 
         // Exit the loop environment
         this->env->exitLoop();
+        return;
     }
-    std::cerr << "TODO: Raise Error" << std::endl;
-    exit(1);
+    errors::raiseNotDefinedError(this->file_path, this->source, for_statement->from, "__iter__ method not defined in struct `" + iterable_type->name + "`", "Implement __iter__ method for struct `" + iterable_type->name + "`");
 }
 
 void Compiler::_visitTryCatchStatement(AST::TryCatchStatement* tc_statement) {
