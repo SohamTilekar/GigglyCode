@@ -54,8 +54,3 @@ test-gen: build-debug
 CROSS_TARGETS ?= aarch64-unknown-linux-gnu wasm32-unknown-wasi x86_64-unknown-linux-gnu s390x-unknown-linux-gnu
 test-gen-cross: build-debug
 	python3 test/run_tests.py -g --cross-targets $(CROSS_TARGETS)
-
-setenv:
-	export GC_STD_OBJ="/mnt/soham/soham_code/GigglyCode/dump/std.o"
-	export GC_STD_DIR="/mnt/soham/soham_code/GigglyCode/std/src/"
-	export GC_STD_IRGCMAP="/mnt/soham/soham_code/GigglyCode/std/build/ir_gc_map/"

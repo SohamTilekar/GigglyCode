@@ -27,36 +27,6 @@
 #define DEBUG_LEXER
 #define DEBUG_PARSER
 
-
-// =======================================
-// Environment Setup Class
-// =======================================
-class EnvManager {
-  public:
-    EnvManager() { loadEnvVars(); }
-
-    bool isValid() const { return valid; }
-
-    const std::filesystem::path& getStdDir() const { return GC_STD_DIR; }
-
-  private:
-    std::filesystem::path GC_STD_DIR;
-    bool valid = true;
-
-    /**
-     * @brief Loads and validates required environment variables.
-     */
-    void loadEnvVars() {
-        const char* gcStdDir = std::getenv("GC_STD_DIR");
-        if (!gcStdDir) {
-            std::cerr << "Warning: GC_STD_DIR environment variable is not set." << std::endl;
-            // valid = false;
-        } else {
-            GC_STD_DIR = std::filesystem::path(gcStdDir);
-        }
-    }
-};
-
 class Compiler {
   public:
     Compiler(const std::filesystem::path& srcDir, const std::filesystem::path& buildDir, const std::string& optimizationLevel, bool verbose, const std::string& target_triple = "")
@@ -380,13 +350,6 @@ int main(int argc, char* argv[]) {
     if (verbose) {
         std::cout << "Verbose mode enabled." << std::endl;
         if (!target_triple.empty()) { std::cout << "Target triple override: " << target_triple << std::endl; }
-    }
-
-    // Environment Variable Management
-    EnvManager envManager;
-    if (!envManager.isValid()) {
-        std::cerr << "Environment variables are missing. Exiting." << std::endl;
-        return 1;
     }
 
     // Define Source and Build Directories
