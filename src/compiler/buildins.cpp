@@ -24,5 +24,5 @@ this->file_path);
     auto ast_instance = parser_instance.parseProgram();
     this->compile(ast_instance->statements[0]);
     this->ll_array = llvm::StructType::create(this->llvm_context, {this->ll_pointer, this->ll_int}, "array");
-    this->auto_free_programs.push_back(ast_instance);
+    this->auto_free_programs.push_back(std::move(ast_instance));
 };

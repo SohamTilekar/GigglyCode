@@ -51,8 +51,8 @@ Parser::~Parser() {
     for (auto pair : macros) { delete pair.second; }
 }
 
-AST::Program* Parser::parseProgram() {
-    auto program = new AST::Program;
+std::unique_ptr<AST::Program> Parser::parseProgram() {
+    auto program = std::make_unique<AST::Program>();
     int startLineNo = current_token.end_line_no;
     int startColNo = current_token.col_no;
 

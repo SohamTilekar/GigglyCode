@@ -254,7 +254,7 @@ class Compiler {
     RecordStructType* gc_bool = nullptr;      ///< GC wrapper for boolean
     RecordStructType* gc_raw_array = nullptr; ///< GC wrapper for raw_array
 
-    std::vector<AST::Program*> auto_free_programs;
+    std::vector<std::unique_ptr<AST::Program>> auto_free_programs;
     std::vector<RecordStructType*> auto_free_recordStructType;
 
     // === Private Methods ===

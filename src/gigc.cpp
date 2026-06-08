@@ -55,7 +55,6 @@ void debugParser(const std::string& fileContent, const std::filesystem::path& fi
     } else {
         errors::raiseCompilationError("Unable to open parser debug output file: " + outputPath.string());
     }
-    delete program;
 #endif
 }
 
@@ -114,8 +113,7 @@ void compileSingleFile(const std::filesystem::path& filePath,
     // Set up the synchronous dependency compiler callback
     comp.compile_dependency_cb = [&](const std::filesystem::path& depPath) { compileSingleFile(depPath, srcDir, buildDir, optimizationLevel, verbose, rootFolder, "", emitLLVMOnly, target_triple); };
 
-    comp.compile(program);
-    delete program;
+    comp.compile(program.get());
 
     // Write LLVM IR to file
     std::error_code EC;

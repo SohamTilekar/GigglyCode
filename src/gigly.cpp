@@ -186,8 +186,7 @@ class Compiler {
         auto program = parser.parseProgram();
 
         compiler::Compiler comp(fileContent, std::filesystem::absolute(filePath), fileRecord, buildDir, std::filesystem::relative(filePath, srcDir).string(), target_triple);
-        comp.compile(program);
-        delete program;
+        comp.compile(program.get());
 
         // Write LLVM IR to file
         std::error_code EC;
@@ -317,7 +316,6 @@ class Compiler {
         } else {
             errors::raiseCompilationError("Unable to open parser debug output file: " + outputPath.string());
         }
-        delete program;
 #endif
     }
 };

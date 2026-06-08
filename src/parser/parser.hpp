@@ -9,6 +9,7 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <memory>
 
 #include "../lexer/lexer.hpp"
 #include "../lexer/token.hpp"
@@ -231,9 +232,9 @@ class Parser {
      * Iteratively parses statements until the EndOfFile token is encountered,
      * constructing the AST.
      *
-     * @return AST::Program* The parsed program
+     * @return std::unique_ptr<AST::Program> The parsed program
      */
-    AST::Program* parseProgram();
+    std::unique_ptr<AST::Program> parseProgram();
 
     /**
      * @brief Struct to hold loop modifier statements.

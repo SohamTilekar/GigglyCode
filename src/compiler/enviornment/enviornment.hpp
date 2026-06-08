@@ -17,6 +17,7 @@
 #include <set>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 
 #include "../../parser/AST/ast.hpp"
 
@@ -39,7 +40,7 @@ class RecordGenericStructType;
 class RecordModule;
 
 using Str = std::string;                                    ///< Alias for std::string.
-using StrRecordMap = std::vector<std::tuple<Str, Record*>>; ///< Vector of tuples mapping
+using StrRecordMap = std::vector<std::tuple<Str, std::unique_ptr<Record>>>; ///< Vector of tuples mapping
                                                             ///< strings to records.
 
 /**
@@ -97,6 +98,8 @@ class Record {
      * @param other The Record object to copy from.
      */
     Record(const Record& other) : type(other.type), name(other.name), meta_data(other.meta_data), extra_info(other.extra_info) {}
+
+    virtual ~Record() = default;
 }; // class Record
 
 /**
@@ -534,51 +537,18 @@ class RecordModule : public Record {
      * @param name The name of the module.
      * @param record_map The map of records within the module.
      */
-    RecordModule(const Str& name, const StrRecordMap& record_map) : Record(RecordType::Module, name), record_map(record_map) {}
+    RecordModule(const Str& name, StrRecordMap record_map) : Record(RecordType::Module, name), record_map(std::move(record_map)) {}
 
     /**
      * @brief Copy constructor for RecordModule.
      * @param other The RecordModule object to copy from.
      */
-    RecordModule(const RecordModule& other) : Record(other), record_map(other.record_map) {}
+    RecordModule(const RecordModule& other) = delete;
 
     /**
      * @brief Destructor for RecordModule.
      */
-    ~RecordModule() {
-        for (auto& [_, record] : record_map) {
-            switch (record->type) {
-                case RecordType::Variable: {
-                    delete (RecordVariable*)(record);
-                    break;
-                }
-                case RecordType::Function: {
-                    delete (RecordFunction*)(record);
-                    break;
-                }
-                case RecordType::StructInst: {
-                    delete (RecordStructType*)(record);
-                    break;
-                }
-                case RecordType::Module: {
-                    delete (RecordModule*)(record);
-                    break;
-                }
-                case RecordType::GenericFunction: {
-                    delete (RecordGenericFunction*)(record);
-                    break;
-                }
-                case RecordType::GStructType: {
-                    delete (RecordGenericStructType*)(record);
-                    break;
-                }
-                default: {
-                    delete record;
-                    break;
-                }
-            }
-        }
-    }
+    ~RecordModule() = default;
 
     /**
      * @brief Constructs a RecordModule with the specified name.
@@ -590,7 +560,7 @@ class RecordModule : public Record {
      * @brief Adds a record to the module.
      * @param record Pointer to the record to be added.
      */
-    void addRecord(Record* record) { record_map.push_back({record->name, record}); }
+    void addRecord(Record* record) { record_map.push_back({record->name, std::unique_ptr<Record>(record)}); }
 
     /**
      * @brief Checks if a function with the given name and parameters exists in
@@ -699,7 +669,7 @@ class Enviornment {
     std::vector<llvm::BasicBlock*> loop_ifbreak_block = {};   ///< Stack of loop if-break blocks.
     std::vector<llvm::BasicBlock*> loop_notbreak_block = {};  ///< Stack of loop not-break blocks.
 
-    std::vector<Enviornment*> childes = {}; ///< Vector of child environments.
+    std::vector<std::unique_ptr<Enviornment>> childes = {}; ///< Vector of child environments.
 
     /**
      * @brief Constructs an Enviornment with an optional parent, records, and
@@ -711,7 +681,7 @@ class Enviornment {
      * If a parent environment is provided, the loop-related basic blocks
      * and the current function pointer are inherited from the parent.
      */
-    Enviornment(Enviornment* parent = nullptr, const StrRecordMap& records = {}, Str name = "unnamed") : parent(parent), name(name), record_map(records) {
+    Enviornment(Enviornment* parent = nullptr, StrRecordMap records = {}, Str name = "unnamed") : parent(parent), name(name), record_map(std::move(records)) {
         if (parent) {
             this->loop_conti_block = parent->loop_conti_block;
             this->loop_body_block = parent->loop_body_block;
@@ -727,41 +697,7 @@ class Enviornment {
     /**
      * @brief Destructor for Enviornment.
      */
-    ~Enviornment() {
-        for (auto _record : record_map) {
-            switch (std::get<1>(_record)->type) {
-                case RecordType::Variable: {
-                    delete (RecordVariable*)(std::get<1>(_record));
-                    break;
-                }
-                case RecordType::Function: {
-                    delete (RecordFunction*)(std::get<1>(_record));
-                    break;
-                }
-                case RecordType::StructInst: {
-                    delete (RecordStructType*)(std::get<1>(_record));
-                    break;
-                }
-                case RecordType::Module: {
-                    delete (RecordModule*)(std::get<1>(_record));
-                    break;
-                }
-                case RecordType::GenericFunction: {
-                    delete (RecordGenericFunction*)(std::get<1>(_record));
-                    break;
-                }
-                case RecordType::GStructType: {
-                    delete (RecordGenericStructType*)(std::get<1>(_record));
-                    break;
-                }
-                default: {
-                    delete std::get<1>(_record);
-                    break;
-                }
-            }
-        }
-        for (auto child : childes) { delete child; }
-    }
+    ~Enviornment() = default;
 
     /**
      * @brief Adds a record to the environment.

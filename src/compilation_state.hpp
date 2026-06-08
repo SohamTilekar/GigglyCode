@@ -6,6 +6,8 @@
 #include <vector>
 #include <filesystem>
 
+#include <memory>
+
 // =======================================
 // Helper Function to Run External Commands
 // =======================================
@@ -26,13 +28,11 @@ class RecordFolder;
 class RecordFile {
   public:
     std::string name;
-    enviornment::Enviornment* env = nullptr;
+    std::unique_ptr<enviornment::Enviornment> env = nullptr;
     bool compiled = false;
     RecordFolder* parent = nullptr;
 
-    ~RecordFile() {
-        delete env;
-    }
+    ~RecordFile() = default;
 };
 
 class RecordFolder {

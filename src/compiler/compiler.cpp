@@ -53,7 +53,6 @@ Compiler::Compiler(const Str& source,
 }
 
 Compiler::~Compiler() {
-    for (auto ptr : this->auto_free_programs) { delete ptr; }
     for (auto ptr : this->auto_free_recordStructType) { delete ptr; }
 }
 
@@ -105,8 +104,8 @@ void Compiler::_initializeLLVMModule(const Str& path_str, const Str& target_trip
 void Compiler::_initializeEnvironment() {
     auto builtins = new Enviornment(nullptr, StrRecordMap(), "builtins");
     env = new Enviornment(builtins, StrRecordMap());
-    this->env->childes.push_back(builtins);
-    this->file_record->env = this->env;
+    this->env->childes.push_back(std::unique_ptr<Enviornment>(builtins));
+    this->file_record->env = std::unique_ptr<enviornment::Enviornment>(this->env);
 }
 
 void Compiler::addBuiltinType(const Str& name, llvm::Type* type) {
@@ -414,7 +413,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
     for (const auto& gfunc : gfuncs) {
         // Create a new environment for each generic function
         this->env = new Enviornment(prev_env, {}, name);
-        prev_env->childes.push_back(this->env);
+        prev_env->childes.push_back(std::unique_ptr<Enviornment>(this->env));
         vector<unsigned short> mismatch_indices;
 
         // Iterate over parameters to check type compatibility
@@ -583,7 +582,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
         if (module) {
             // If within a module, add to the module's record map
-            module->record_map.push_back({name, gsr});
+            module->record_map.push_back({name, std::unique_ptr<Record>(gsr)});
         } else if (struct_) {
             // Generics are not supported for struct members; raise an error
             errors::raiseCompletionError("GenericInMethod",
@@ -1130,7 +1129,7 @@ Compiler::_CallGstruct(const vector<RecordGenericStructType*>& gstructs, AST::Ca
 
         // Set up a new environment based on the generic struct's environment
         this->env = new Enviornment(gstruct->env);
-        prev_env->childes.push_back(this->env);
+        prev_env->childes.push_back(std::unique_ptr<Enviornment>(this->env));
         vector<RecordStructType*> generics;
         vector<Str> generic_names;
         vector<llvm::Value*> remaining_args(args);
@@ -1270,7 +1269,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
     // Save and update the environment for struct scope
     auto prev_env = this->env;
     this->env = new Enviornment(prev_env);
-    prev_env->childes.push_back(this->env);
+    prev_env->childes.push_back(std::unique_ptr<Enviornment>(this->env));
     this->env->addRecord(struct_record); // Dont Copy struct type here because
                                          // it's get modify down the road
 
@@ -2699,7 +2698,7 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                 if (generics.size() != gstruct->structAST->generics.size()) { continue; }
 
                 this->env = new Enviornment(gstruct->env);
-                gstruct->env->childes.push_back(this->env);
+                gstruct->env->childes.push_back(std::unique_ptr<Enviornment>(this->env));
                 Str struct_name = gstruct->structAST->name->castToIdentifierLiteral()->value;
                 auto struct_record = new RecordStructType(struct_name);
 
@@ -3487,7 +3486,8 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     auto lexer = new Lexer(gc_source, gc_source_path);
     auto parser = new parser::Parser(lexer);
     auto program = parser->parseProgram();
-    this->auto_free_programs.push_back(program);
+    auto program_ptr = program.get();
+    this->auto_free_programs.push_back(std::move(program));
     delete lexer;
     delete parser;
 
@@ -3501,10 +3501,10 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     // Save the current environment and create a new one for the imported module
     auto prev_env = this->env;
     this->env = new Enviornment(prev_env, StrRecordMap{}, module_name);
-    prev_env->childes.push_back(this->env);
+    prev_env->childes.push_back(std::unique_ptr<Enviornment>(this->env));
 
     // Iterate over each statement in the imported program
-    for (auto& stmt : program->statements) {
+    for (auto& stmt : program_ptr->statements) {
         switch (stmt->type()) {
             case AST::NodeType::FunctionStatement:
                 this->_importFunctionDeclarationStatement(stmt->castToFunctionStatement(), import_module, local_file_record);
