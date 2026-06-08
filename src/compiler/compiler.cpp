@@ -2280,14 +2280,83 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
         errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, nullptr, {}, "Switch condition cannot be a module or type");
     }
 
-    if (std::get<RecordStructType*>(condition_value.variant)->struct_type) {
-        errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, std::get<RecordStructType*>(condition_value.variant), {}, "Switch condition cannot be a struct type");
+    auto cond_struct_type = std::get<RecordStructType*>(condition_value.variant);
+    if (cond_struct_type->struct_type) {
+        errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, cond_struct_type, {}, "Switch condition cannot be a struct type");
     }
 
     // Load from alloca if available, otherwise use the value directly
     llvm::Value* condition_val =
-        condition_value.alloca ? this->llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(condition_value.variant)->stand_alone_type, condition_value.alloca) : condition_value.value;
-    auto condition_type = std::get<RecordStructType*>(condition_value.variant)->stand_alone_type;
+        condition_value.alloca ? this->llvm_ir_builder.CreateLoad(cond_struct_type->stand_alone_type, condition_value.alloca) : condition_value.value;
+    auto condition_type = cond_struct_type->stand_alone_type;
+
+    bool is_string_switch = enviornment::_checkType(cond_struct_type, this->gc_str);
+
+    if (is_string_switch) {
+        // Create basic blocks for each case
+        std::vector<llvm::BasicBlock*> case_blocks;
+        for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
+            llvm::BasicBlock* case_block = llvm::BasicBlock::Create(llvm_context, "case", function);
+            case_blocks.push_back(case_block);
+        }
+
+        llvm::BasicBlock* current_check_block = llvm_ir_builder.GetInsertBlock();
+
+        if (switch_statement->cases.empty()) {
+            this->llvm_ir_builder.CreateBr(default_block);
+        } else {
+            // Populate the checks
+            for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
+                this->llvm_ir_builder.SetInsertPoint(current_check_block);
+                auto [case_expr, case_stmt] = switch_statement->cases[i];
+                ResolvedValue case_value = _resolveValue(case_expr);
+                if (!case_value.value && !case_value.alloca) {
+                    errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case cannot be a module or type");
+                }
+                auto case_type = std::get<RecordStructType*>(case_value.variant);
+                if (case_type->struct_type) {
+                    errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, case_type, {}, "Switch case cannot be a struct type");
+                }
+                if (!enviornment::_checkType(case_type, cond_struct_type)) {
+                    errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case type mismatch");
+                }
+                llvm::Value* case_val = case_value.value
+                    ? case_value.value
+                    : (case_value.alloca ? this->llvm_ir_builder.CreateLoad(case_type->stand_alone_type, case_value.alloca) : nullptr);
+
+                llvm::BasicBlock* next_check_block = nullptr;
+                if (i + 1 < switch_statement->cases.size()) {
+                    next_check_block = llvm::BasicBlock::Create(llvm_context, "switch_strcmp_check", function);
+                } else {
+                    next_check_block = default_block;
+                }
+
+                auto strcmp_fn = this->llvm_module->getOrInsertFunction("strcmp", llvm::Type::getInt32Ty(this->llvm_context), this->ll_pointer, this->ll_pointer);
+                llvm::Value* cmp_res = this->llvm_ir_builder.CreateCall(strcmp_fn, {condition_val, case_val});
+                llvm::Value* eq_zero = this->llvm_ir_builder.CreateICmpEQ(cmp_res, llvm::ConstantInt::get(llvm::Type::getInt32Ty(this->llvm_context), 0));
+
+                this->llvm_ir_builder.CreateCondBr(eq_zero, case_blocks[i], next_check_block);
+                current_check_block = next_check_block;
+            }
+        }
+
+        // Visit each case block
+        for (size_t i = 0; i < switch_statement->cases.size(); ++i) {
+            llvm_ir_builder.SetInsertPoint(case_blocks[i]);
+            auto [case_expr, case_stmt] = switch_statement->cases[i];
+            _visitBlockStatement(case_stmt->castToBlockStatement());
+            if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) { llvm_ir_builder.CreateBr(end_block); }
+        }
+
+        // Visit the default block
+        llvm_ir_builder.SetInsertPoint(default_block);
+        if (switch_statement->other) { _visitBlockStatement(switch_statement->other->castToBlockStatement()); }
+        if (!llvm_ir_builder.GetInsertBlock()->getTerminator()) { llvm_ir_builder.CreateBr(end_block); }
+
+        // Set the insert point to the end block
+        llvm_ir_builder.SetInsertPoint(end_block);
+        return;
+    }
 
     // Create the switch instruction
     llvm::SwitchInst* switch_inst = llvm_ir_builder.CreateSwitch(condition_val, default_block, switch_statement->cases.size());
@@ -2303,13 +2372,30 @@ void Compiler::_visitSwitchCaseStatement(AST::SwitchCaseStatement* switch_statem
         auto [case_expr, case_stmt] = switch_statement->cases[i];
         ResolvedValue case_value = _resolveValue(case_expr);
         if (!case_value.value && !case_value.alloca) { errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case cannot be a module or type"); }
-        if (std::get<RecordStructType*>(case_value.variant)->struct_type) {
-            errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, std::get<RecordStructType*>(case_value.variant), {}, "Switch case cannot be a struct type");
+        auto case_type = std::get<RecordStructType*>(case_value.variant);
+        if (case_type->struct_type) {
+            errors::raiseWrongTypeError(this->file_path, this->source, switch_statement->condition, case_type, {}, "Switch case cannot be a struct type");
         }
         llvm::Value* case_val = case_value.value
             ? case_value.value
-            : (case_value.alloca ? this->llvm_ir_builder.CreateLoad(std::get<RecordStructType*>(case_value.variant)->stand_alone_type, case_value.alloca) : nullptr);
-        if (!enviornment::_checkType(std::get<RecordStructType*>(case_value.variant), std::get<RecordStructType*>(condition_value.variant))) {
+            : (case_value.alloca ? this->llvm_ir_builder.CreateLoad(case_type->stand_alone_type, case_value.alloca) : nullptr);
+        
+        if (case_type->is_enum_kind) {
+            std::string member_name = "";
+            if (case_expr->type() == AST::NodeType::InfixedExpression) {
+                auto infix = case_expr->castToInfixExpression();
+                if (infix->op == token::TokenType::Dot && infix->right->type() == AST::NodeType::IdentifierLiteral) {
+                    member_name = infix->right->castToIdentifierLiteral()->value;
+                }
+            } else if (case_expr->type() == AST::NodeType::IdentifierLiteral) {
+                member_name = case_expr->castToIdentifierLiteral()->value;
+            }
+            if (!member_name.empty() && case_type->KW_int_map.contains(member_name)) {
+                case_val = llvm::ConstantInt::get(this->llvm_context, llvm::APInt(case_type->stand_alone_type->getIntegerBitWidth(), case_type->KW_int_map[member_name]));
+            }
+        }
+
+        if (!enviornment::_checkType(case_type, cond_struct_type)) {
             errors::raiseWrongTypeError(this->file_path, this->source, case_expr, nullptr, {}, "Switch case type mismatch");
         }
         if (llvm::isa<llvm::ConstantInt>(case_val)) {

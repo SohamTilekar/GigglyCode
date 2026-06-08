@@ -1,0 +1,225 @@
+type: Program
+statements:
+  - type: UNKNOWN
+    name: "type: IdentifierLiteral\nvalue: State"
+    fields:
+      - INIT
+      - RUNNING
+      - STOPPED
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: test_enum"
+    parameters:
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: s"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: State"
+          generics: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: UNKNOWN
+          condition:
+            type: IdentifierLiteral
+            value: s
+          case:
+            - case:
+                type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: State
+                right_node:
+                  type: IdentifierLiteral
+                  value: INIT
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "INIT\n"
+            - case:
+                type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: State
+                right_node:
+                  type: IdentifierLiteral
+                  value: RUNNING
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "RUNNING\n"
+            - case:
+                type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: State
+                right_node:
+                  type: IdentifierLiteral
+                  value: STOPPED
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "STOPPED\n"
+          other:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "UNKNOWN STATE\n"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: test_string"
+    parameters:
+      - type: FunctionParameter
+        param_name: "type: IdentifierLiteral\nvalue: s"
+        param_type:
+          type: Type
+          name: "type: IdentifierLiteral\nvalue: str"
+          generics: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: UNKNOWN
+          condition:
+            type: IdentifierLiteral
+            value: s
+          case:
+            - case:
+                type: StringLiteral
+                value: hello
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "World\n"
+            - case:
+                type: StringLiteral
+                value: giggly
+              block:
+                type: BlockStatement
+                statements:
+                  - type: ExpressionStatement
+                    Expression:
+                      type: CallExpression
+                      name: "type: IdentifierLiteral\nvalue: printf"
+                      arguments:
+                        - type: StringLiteral
+                          value: "Code\n"
+          other:
+            type: BlockStatement
+            statements:
+              - type: ExpressionStatement
+                Expression:
+                  type: CallExpression
+                  name: "type: IdentifierLiteral\nvalue: printf"
+                  arguments:
+                    - type: StringLiteral
+                      value: "default string\n"
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []
+  - type: FunctionStatement
+    name: "type: IdentifierLiteral\nvalue: main"
+    parameters: []
+    return_type:
+      type: Type
+      name: "type: IdentifierLiteral\nvalue: int"
+      generics: []
+    body:
+      type: BlockStatement
+      statements:
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: test_enum"
+            arguments:
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: State
+                right_node:
+                  type: IdentifierLiteral
+                  value: RUNNING
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: test_enum"
+            arguments:
+              - type: InfixedExpression
+                operator: Dot(`.`)
+                left_node:
+                  type: IdentifierLiteral
+                  value: State
+                right_node:
+                  type: IdentifierLiteral
+                  value: STOPPED
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: test_string"
+            arguments:
+              - type: StringLiteral
+                value: hello
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: test_string"
+            arguments:
+              - type: StringLiteral
+                value: giggly
+        - type: ExpressionStatement
+          Expression:
+            type: CallExpression
+            name: "type: IdentifierLiteral\nvalue: test_string"
+            arguments:
+              - type: StringLiteral
+                value: other
+        - type: ReturnStatement
+          value:
+            type: IntegerLiteral
+            value: 0
+    generic: []

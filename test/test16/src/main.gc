@@ -1,0 +1,43 @@
+enum State {
+    INIT;
+    RUNNING;
+    STOPPED;
+};
+
+def test_enum(s: State) -> int {
+    switch (s) {
+        case (State.INIT) {
+            printf("INIT\n");
+        } case (State.RUNNING) {
+            printf("RUNNING\n");
+        } case (State.STOPPED) {
+            printf("STOPPED\n");
+        } other {
+            printf("UNKNOWN STATE\n");
+        }
+    }
+    return 0;
+}
+
+def test_string(s: str) -> int {
+    switch (s) {
+        case ("hello") {
+            printf("World\n");
+        } case ("giggly") {
+            printf("Code\n");
+        } other {
+            printf("default string\n");
+        }
+    }
+    return 0;
+}
+
+def main() -> int {
+    test_enum(State.RUNNING);
+    test_enum(State.STOPPED);
+    
+    test_string("hello");
+    test_string("giggly");
+    test_string("other");
+    return 0;
+}
