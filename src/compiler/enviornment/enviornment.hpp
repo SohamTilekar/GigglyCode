@@ -349,7 +349,7 @@ class RecordStructType : public Record {
     std::unordered_map<Str, RecordStructType*> sub_types = {}; ///< Map of subtypes by field name.
     std::vector<RecordStructType*> generic_sub_types = {};     ///< Vector of generic subtypes.
     std::unordered_map<std::string, uint32_t> KW_int_map;
-    std::vector<std::tuple<Str, RecordFunction*>> methods = {};
+    std::vector<std::tuple<Str, std::unique_ptr<RecordFunction>>> methods = {};
     bool is_enum_kind = false;
 
     /**
@@ -374,20 +374,14 @@ class RecordStructType : public Record {
     RecordStructType(const RecordStructType& other, bool is_on_stack = false)
         : Record(other), fields(other.fields), stand_alone_type(other.stand_alone_type), struct_type(other.struct_type), sub_types(other.sub_types), generic_sub_types(other.generic_sub_types) {
         if (!is_on_stack) {
-            for (const auto& method : other.methods) { methods.push_back({std::get<0>(method), new RecordFunction(*std::get<1>(method))}); }
+            for (const auto& method : other.methods) { methods.push_back({std::get<0>(method), std::make_unique<RecordFunction>(*std::get<1>(method))}); }
         }
     }
 
     RecordStructType(std::string& name, llvm::IntegerType* ll_enum_underthe_hood_type, std::unordered_map<std::string, uint32_t> KW_int_map)
         : Record(RecordType::StructInst, name), stand_alone_type(ll_enum_underthe_hood_type), KW_int_map(KW_int_map), is_enum_kind(true){};
 
-    /**
-     * @brief Destructor for RecordStructType.
-     */
-    ~RecordStructType() {
-        for (auto& [_, method] : methods) { delete method; }
-        // for (auto& [_, field] : KW_int_map) { delete field; }
-    }
+    ~RecordStructType() = default;
 
     /**
      * @brief Checks if a method with the given name and parameters exists in the
@@ -449,7 +443,8 @@ class RecordStructType : public Record {
      * @param name The name of the method.
      * @param type Pointer to the function record of the method.
      */
-    void addMethod(Str name, RecordFunction* type) { this->methods.push_back({name, type}); }
+    void addMethod(Str name, std::unique_ptr<RecordFunction> type) { this->methods.push_back({name, std::move(type)}); }
+    void addMethod(Str name, RecordFunction* type) { addMethod(name, std::unique_ptr<RecordFunction>(type)); }
 
     /**
      * @brief Retrieves the list of field names in the struct.
@@ -556,11 +551,8 @@ class RecordModule : public Record {
      */
     RecordModule(const Str& name) : Record(RecordType::Module, name) {}
 
-    /**
-     * @brief Adds a record to the module.
-     * @param record Pointer to the record to be added.
-     */
-    void addRecord(Record* record) { record_map.push_back({record->name, std::unique_ptr<Record>(record)}); }
+    void addRecord(std::unique_ptr<Record> record) { record_map.push_back({record->name, std::move(record)}); }
+    void addRecord(Record* record) { addRecord(std::unique_ptr<Record>(record)); }
 
     /**
      * @brief Checks if a function with the given name and parameters exists in
@@ -699,10 +691,7 @@ class Enviornment {
      */
     ~Enviornment() = default;
 
-    /**
-     * @brief Adds a record to the environment.
-     * @param record Pointer to the record to be added.
-     */
+    void addRecord(std::unique_ptr<Record> record);
     void addRecord(Record* record);
 
     /**

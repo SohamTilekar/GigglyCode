@@ -513,7 +513,7 @@ void raiseNoOverloadError(const std::string& file_path,
         for (int idx : mismatch) {
             auto callExpr = func_call->castToCallExpression();
             if (!callExpr || idx >= static_cast<int>(callExpr->arguments.size())) continue;
-            auto arg = callExpr->arguments[idx];
+            AST::Expression* arg = callExpr->arguments[idx];
             auto arg_underlines = underline_node(arg, source, RED);
             underlines.insert(underlines.end(), arg_underlines.begin(), arg_underlines.end());
         }

@@ -212,7 +212,7 @@ class Parser {
         {TokenType::LeftBracket, std::bind(&Parser::_parseIndexExpression, this, std::placeholders::_1)},
     };
 
-    std::unordered_map<std::string, AST::MacroStatement*> macros;
+    std::unordered_map<std::string, AST::ASTUniquePtr<AST::MacroStatement>> macros;
 
     /**
      * @brief Construct a new Parser object

@@ -38,18 +38,11 @@ class RecordFile {
 class RecordFolder {
   public:
     std::string name;
-    std::vector<std::variant<RecordFile*, RecordFolder*>> files_or_folder = {};
+    std::vector<std::unique_ptr<RecordFile>> files = {};
+    std::vector<std::unique_ptr<RecordFolder>> subfolders = {};
     RecordFolder* parent = nullptr;
 
-        ~RecordFolder() {
-            for (auto& item : files_or_folder) {
-                if (std::holds_alternative<RecordFile*>(item)) {
-                    delete std::get<RecordFile*>(item);
-                } else if (std::holds_alternative<RecordFolder*>(item)) {
-                    delete std::get<RecordFolder*>(item);
-                }
-            }
-        }
+    ~RecordFolder();
 };
 }
 

@@ -59,6 +59,10 @@ void createDirectories(const std::filesystem::path& path) {
 
 } // namespace Utils
 
+namespace compilationState {
+RecordFolder::~RecordFolder() = default;
+}
+
 // =======================================
 // Global File Record Helper
 // =======================================
@@ -69,33 +73,31 @@ compilationState::RecordFile* findOrCreateFileRecord(compilationState::RecordFol
     compilationState::RecordFolder* currentFolder = rootFolder;
     for (const auto& part : relativePath.parent_path()) {
         bool found = false;
-        for (auto& item : currentFolder->files_or_folder) {
-            if (auto folder = std::get_if<compilationState::RecordFolder*>(&item)) {
-                if ((*folder)->name == part.string()) {
-                    currentFolder = *folder;
-                    found = true;
-                    break;
-                }
+        for (auto& folder : currentFolder->subfolders) {
+            if (folder->name == part.string()) {
+                currentFolder = folder.get();
+                found = true;
+                break;
             }
         }
         if (!found) {
-            auto newFolder = new compilationState::RecordFolder();
+            auto newFolder = std::make_unique<compilationState::RecordFolder>();
             newFolder->name = part.string();
             newFolder->parent = currentFolder;
-            currentFolder->files_or_folder.push_back(newFolder);
-            currentFolder = newFolder;
+            compilationState::RecordFolder* nextFolder = newFolder.get();
+            currentFolder->subfolders.push_back(std::move(newFolder));
+            currentFolder = nextFolder;
         }
     }
 
-    for (auto& item : currentFolder->files_or_folder) {
-        if (auto file = std::get_if<compilationState::RecordFile*>(&item)) {
-            if ((*file)->name == relativePath.filename().string()) { return *file; }
-        }
+    for (auto& file : currentFolder->files) {
+        if (file->name == relativePath.filename().string()) { return file.get(); }
     }
 
-    auto newFile = new compilationState::RecordFile();
+    auto newFile = std::make_unique<compilationState::RecordFile>();
     newFile->name = relativePath.filename().string();
     newFile->parent = currentFolder;
-    currentFolder->files_or_folder.push_back(newFile);
-    return newFile;
+    compilationState::RecordFile* filePtr = newFile.get();
+    currentFolder->files.push_back(std::move(newFile));
+    return filePtr;
 }

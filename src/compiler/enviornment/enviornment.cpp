@@ -108,7 +108,7 @@ bool RecordStructType::is_method(const std::string& name, const std::vector<Reco
         // Check if method name matches (if specified)
         bool name_matches = name.empty() || method->name == name;
         // Ensure function parameters match
-        bool params_match = _checkFunctionParameterType(method, params_types, exact);
+        bool params_match = _checkFunctionParameterType(method.get(), params_types, exact);
 
         // If all conditions are met, the method exists
         if (return_correct && match && name_matches && params_match) { return true; }
@@ -145,10 +145,10 @@ RecordFunction* RecordStructType::get_method(const std::string& name, const std:
         // Check if method name matches (if specified)
         bool name_matches = name.empty() || method->name == name;
         // Ensure function parameters match
-        bool params_match = _checkFunctionParameterType(method, params_types, exact);
+        bool params_match = _checkFunctionParameterType(method.get(), params_types, exact);
 
         // If all conditions are met, return the matching method
-        if (return_correct && match && name_matches && params_match) { return method; }
+        if (return_correct && match && name_matches && params_match) { return method.get(); }
     }
     // Return nullptr if no matching method is found
     return nullptr;
@@ -304,8 +304,12 @@ std::vector<RecordGenericStructType*> RecordModule::getGenericStruct(const std::
 }
 
 // Adds a new record to the environment
+void Enviornment::addRecord(std::unique_ptr<Record> record) {
+    record_map.push_back({record->name, std::move(record)});
+}
+
 void Enviornment::addRecord(Record* record) {
-    record_map.push_back({record->name, std::unique_ptr<Record>(record)});
+    addRecord(std::unique_ptr<Record>(record));
 }
 
 // Checks if a variable exists in the environment

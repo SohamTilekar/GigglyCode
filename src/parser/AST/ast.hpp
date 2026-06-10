@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 
 #include "../../lexer/token.hpp"
 
@@ -87,6 +88,40 @@ enum class NodeType {
 
 std::string nodeTypeToString(NodeType type);
 
+template <typename T>
+class ASTUniquePtr {
+  private:
+    std::shared_ptr<T> ptr;
+
+  public:
+    inline ASTUniquePtr() = default;
+    inline ASTUniquePtr(T* p) : ptr(p) {}
+    inline ASTUniquePtr(std::shared_ptr<T>&& p) : ptr(std::move(p)) {}
+    inline ASTUniquePtr(const ASTUniquePtr& other) = default;
+    inline ASTUniquePtr& operator=(const ASTUniquePtr& other) = default;
+    inline ASTUniquePtr(ASTUniquePtr&& other) noexcept = default;
+    inline ASTUniquePtr& operator=(ASTUniquePtr&& other) noexcept = default;
+    inline ASTUniquePtr& operator=(T* p) {
+        ptr.reset(p);
+        return *this;
+    }
+    inline ASTUniquePtr& operator=(std::nullptr_t) {
+        ptr.reset();
+        return *this;
+    }
+
+    // Implicit conversion to raw pointer
+    inline operator T*() const { return ptr.get(); }
+    inline T* operator->() const { return ptr.get(); }
+    inline T& operator*() const { return *ptr; }
+    inline T* get() const { return ptr.get(); }
+    inline void reset(T* p = nullptr) { ptr.reset(p); }
+    inline explicit operator bool() const { return static_cast<bool>(ptr); }
+
+    inline bool operator==(std::nullptr_t) const { return ptr == nullptr; }
+    inline bool operator!=(std::nullptr_t) const { return ptr != nullptr; }
+};
+
 struct MoreData {
     std::unordered_map<std::string, int> int_map = {};
     std::unordered_map<std::string, std::string> str_map = {};
@@ -146,41 +181,41 @@ class Node {
         return yaml;
     }
 
-    Expression* castToExpression() { return (Expression*)(this); }
-    Statement* castToStatement() { return (Statement*)(this); }
-    Type* castToType() { return (Type*)(this); }
-    Program* castToProgram() { return (Program*)(this); }
-    FunctionParameter* castToFunctionParameter() { return (FunctionParameter*)(this); }
+    Expression* castToExpression();
+    Statement* castToStatement();
+    Type* castToType();
+    Program* castToProgram();
+    FunctionParameter* castToFunctionParameter();
     // Statement Casts
-    ExpressionStatement* castToExpressionStatement() { return (ExpressionStatement*)(this); }
-    BlockStatement* castToBlockStatement() { return (BlockStatement*)(this); }
-    ReturnStatement* castToReturnStatement() { return (ReturnStatement*)(this); }
-    RaiseStatement* castToRaiseStatement() { return (RaiseStatement*)(this); }
-    FunctionStatement* castToFunctionStatement() { return (FunctionStatement*)(this); }
-    IfElseStatement* castToIfElseStatement() { return (IfElseStatement*)(this); }
-    WhileStatement* castToWhileStatement() { return (WhileStatement*)(this); }
-    ForStatement* castToForStatement() { return (ForStatement*)(this); }
-    ForEachStatement* castToForEachStatement() { return (ForEachStatement*)(this); }
-    BreakStatement* castToBreakStatement() { return (BreakStatement*)(this); }
-    ContinueStatement* castToContinueStatement() { return (ContinueStatement*)(this); }
-    ImportStatement* castToImportStatement() { return (ImportStatement*)(this); }
-    VariableDeclarationStatement* castToVariableDeclarationStatement() { return (VariableDeclarationStatement*)(this); }
-    VariableAssignmentStatement* castToVariableAssignmentStatement() { return (VariableAssignmentStatement*)(this); }
-    TryCatchStatement* castToTryCatchStatement() { return (TryCatchStatement*)(this); }
-    StructStatement* castToStructStatement() { return (StructStatement*)(this); }
-    EnumStatement* castToEnumStatement() { return (EnumStatement*)(this); }
-    SwitchCaseStatement* castToSwitchCaseStatement() { return (SwitchCaseStatement*)(this); }
-    MacroStatement* castToMacroStatement() { return (MacroStatement*)(this); }
+    ExpressionStatement* castToExpressionStatement();
+    BlockStatement* castToBlockStatement();
+    ReturnStatement* castToReturnStatement();
+    RaiseStatement* castToRaiseStatement();
+    FunctionStatement* castToFunctionStatement();
+    IfElseStatement* castToIfElseStatement();
+    WhileStatement* castToWhileStatement();
+    ForStatement* castToForStatement();
+    ForEachStatement* castToForEachStatement();
+    BreakStatement* castToBreakStatement();
+    ContinueStatement* castToContinueStatement();
+    ImportStatement* castToImportStatement();
+    VariableDeclarationStatement* castToVariableDeclarationStatement();
+    VariableAssignmentStatement* castToVariableAssignmentStatement();
+    TryCatchStatement* castToTryCatchStatement();
+    StructStatement* castToStructStatement();
+    EnumStatement* castToEnumStatement();
+    SwitchCaseStatement* castToSwitchCaseStatement();
+    MacroStatement* castToMacroStatement();
     // Expression Casts
-    IdentifierLiteral* castToIdentifierLiteral() { return (IdentifierLiteral*)(this); }
-    IntegerLiteral* castToIntegerLiteral() { return (IntegerLiteral*)(this); }
-    FloatLiteral* castToFloatLiteral() { return (FloatLiteral*)(this); }
-    StringLiteral* castToStringLiteral() { return (StringLiteral*)(this); }
-    BooleanLiteral* castToBooleanLiteral() { return (BooleanLiteral*)(this); }
-    ArrayLiteral* castToArrayLiteral() { return (ArrayLiteral*)(this); }
-    InfixExpression* castToInfixExpression() { return (InfixExpression*)(this); }
-    IndexExpression* castToIndexExpression() { return (IndexExpression*)(this); }
-    CallExpression* castToCallExpression() { return (CallExpression*)(this); }
+    IdentifierLiteral* castToIdentifierLiteral();
+    IntegerLiteral* castToIntegerLiteral();
+    FloatLiteral* castToFloatLiteral();
+    StringLiteral* castToStringLiteral();
+    BooleanLiteral* castToBooleanLiteral();
+    ArrayLiteral* castToArrayLiteral();
+    InfixExpression* castToInfixExpression();
+    IndexExpression* castToIndexExpression();
+    CallExpression* castToCallExpression();
 
     // Destructor Declaration
     virtual ~Node() = default;
@@ -200,10 +235,12 @@ class Expression : public Node {
 
 class Type : public Node {
   public:
-    Expression* name;
-    std::vector<Type*> generics;
+    ASTUniquePtr<Expression> name;
+    std::vector<ASTUniquePtr<Type>> generics;
     bool refrence;
-    inline Type(Expression* name, const std::vector<Type*>& generics, bool refrence) : name(name), generics(generics), refrence(refrence) {}
+    inline Type(Expression* name, const std::vector<Type*>& generics, bool refrence) : name(name), refrence(refrence) {
+        for (auto gen : generics) { this->generics.push_back(gen); }
+    }
     NodeType type() override { return NodeType::Type; };
     std::string toStr() override;
 
@@ -213,7 +250,7 @@ class Type : public Node {
 
 class Program : public Node {
   public:
-    std::vector<Statement*> statements;
+    std::vector<ASTUniquePtr<Statement>> statements;
     inline NodeType type() override { return NodeType::Program; };
     std::string toStr() override;
 
@@ -223,7 +260,7 @@ class Program : public Node {
 
 class ExpressionStatement : public Statement {
   public:
-    Expression* expr;
+    ASTUniquePtr<Expression> expr;
     inline ExpressionStatement(Expression* expr = nullptr) : expr(expr) {}
     inline NodeType type() override { return NodeType::ExpressionStatement; };
     std::string toStr() override;
@@ -234,9 +271,11 @@ class ExpressionStatement : public Statement {
 
 class BlockStatement : public Statement {
   public:
-    std::vector<Statement*> statements;
+    std::vector<ASTUniquePtr<Statement>> statements;
     inline NodeType type() override { return NodeType::BlockStatement; };
-    inline BlockStatement(const std::vector<Statement*>& statements = {}) : statements(statements) {}
+    inline BlockStatement(const std::vector<Statement*>& statements = {}) {
+        for (auto stmt : statements) { this->statements.push_back(stmt); }
+    }
     std::string toStr() override;
 
     // Destructor Declaration
@@ -245,7 +284,7 @@ class BlockStatement : public Statement {
 
 class ReturnStatement : public Statement {
   public:
-    Expression* value;
+    ASTUniquePtr<Expression> value;
     inline ReturnStatement(Expression* exp = nullptr) : value(exp) {}
     inline NodeType type() override { return NodeType::ReturnStatement; };
     std::string toStr() override;
@@ -256,7 +295,7 @@ class ReturnStatement : public Statement {
 
 class RaiseStatement : public Statement {
   public:
-    Expression* value;
+    ASTUniquePtr<Expression> value;
     inline RaiseStatement(Expression* exp = nullptr) : value(exp) {}
     inline NodeType type() override { return NodeType::RaiseStatement; };
     std::string toStr() override;
@@ -267,8 +306,8 @@ class RaiseStatement : public Statement {
 
 class FunctionParameter : public Node {
   public:
-    Expression* name;
-    Type* value_type;
+    ASTUniquePtr<Expression> name;
+    ASTUniquePtr<Type> value_type;
     bool constant;
     inline FunctionParameter(Expression* name, Type* type, bool constant) : name(name), value_type(type), constant(constant) {}
     inline NodeType type() override { return NodeType::FunctionParameter; };
@@ -280,13 +319,13 @@ class FunctionParameter : public Node {
 
 class FunctionStatement : public Statement {
   public:
-    Expression* name;
-    std::vector<FunctionParameter*> parameters;
-    std::vector<FunctionParameter*> closure_parameters;
-    Type* return_type;
+    ASTUniquePtr<Expression> name;
+    std::vector<ASTUniquePtr<FunctionParameter>> parameters;
+    std::vector<ASTUniquePtr<FunctionParameter>> closure_parameters;
+    ASTUniquePtr<Type> return_type;
     bool return_const;
-    BlockStatement* body;
-    std::vector<Type*> generic;
+    ASTUniquePtr<BlockStatement> body;
+    std::vector<ASTUniquePtr<Type>> generic;
     inline FunctionStatement(Expression* name,
                              std::vector<FunctionParameter*> parameters,
                              std::vector<FunctionParameter*> closure_parameters,
@@ -294,7 +333,10 @@ class FunctionStatement : public Statement {
                              bool return_const,
                              BlockStatement* body,
                              const std::vector<Type*>& generic)
-        : name(name), parameters(parameters), closure_parameters(closure_parameters), return_type(return_type), return_const(return_const), body(body), generic(generic) {
+        : name(name), return_type(return_type), return_const(return_const), body(body) {
+        for (auto param : parameters) { this->parameters.push_back(param); }
+        for (auto param : closure_parameters) { this->closure_parameters.push_back(param); }
+        for (auto gen : generic) { this->generic.push_back(gen); }
         this->extra_info.insert("autocast", false);
     }
     inline NodeType type() override { return NodeType::FunctionStatement; };
@@ -306,11 +348,13 @@ class FunctionStatement : public Statement {
 
 class CallExpression : public Expression {
   public:
-    Expression* name;
-    std::vector<Expression*> arguments;
-    std::vector<Expression*> generics;
+    ASTUniquePtr<Expression> name;
+    std::vector<ASTUniquePtr<Expression>> arguments;
+    std::vector<ASTUniquePtr<Expression>> generics;
     bool _new;
-    inline CallExpression(Expression* name, const std::vector<Expression*>& arguments = {}) : name(name), arguments(arguments), _new(false) {}
+    inline CallExpression(Expression* name, const std::vector<Expression*>& arguments = {}) : name(name), _new(false) {
+        for (auto arg : arguments) { this->arguments.push_back(arg); }
+    }
     inline NodeType type() override { return NodeType::CallExpression; };
     std::string toStr() override;
 
@@ -320,9 +364,9 @@ class CallExpression : public Expression {
 
 class IfElseStatement : public Statement {
   public:
-    Expression* condition;
-    Statement* consequence;
-    Statement* alternative;
+    ASTUniquePtr<Expression> condition;
+    ASTUniquePtr<Statement> consequence;
+    ASTUniquePtr<Statement> alternative;
     inline IfElseStatement(Expression* condition, Statement* consequence, Statement* alternative = nullptr) : condition(condition), consequence(consequence), alternative(alternative) {}
     inline NodeType type() override { return NodeType::IfElseStatement; };
     std::string toStr() override;
@@ -333,10 +377,10 @@ class IfElseStatement : public Statement {
 
 class WhileStatement : public Statement {
   public:
-    Expression* condition;
-    Statement* body;
-    Statement* ifbreak;
-    Statement* notbreak;
+    ASTUniquePtr<Expression> condition;
+    ASTUniquePtr<Statement> body;
+    ASTUniquePtr<Statement> ifbreak;
+    ASTUniquePtr<Statement> notbreak;
     inline WhileStatement(Expression* condition, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
         : condition(condition), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::WhileStatement; };
@@ -348,12 +392,12 @@ class WhileStatement : public Statement {
 
 class ForStatement : public Statement {
   public:
-    Statement* init;
-    Expression* condition;
-    Statement* update;
-    Statement* body;
-    Statement* ifbreak;
-    Statement* notbreak;
+    ASTUniquePtr<Statement> init;
+    ASTUniquePtr<Expression> condition;
+    ASTUniquePtr<Statement> update;
+    ASTUniquePtr<Statement> body;
+    ASTUniquePtr<Statement> ifbreak;
+    ASTUniquePtr<Statement> notbreak;
     inline ForStatement(Statement* init, Expression* condition, Statement* update, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
         : init(init), condition(condition), update(update), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::ForStatement; };
@@ -365,11 +409,11 @@ class ForStatement : public Statement {
 
 class ForEachStatement : public Statement {
   public:
-    Expression* from;
-    IdentifierLiteral* get;
-    Statement* body;
-    Statement* ifbreak;
-    Statement* notbreak;
+    ASTUniquePtr<Expression> from;
+    ASTUniquePtr<IdentifierLiteral> get;
+    ASTUniquePtr<Statement> body;
+    ASTUniquePtr<Statement> ifbreak;
+    ASTUniquePtr<Statement> notbreak;
     inline ForEachStatement(IdentifierLiteral* get, Expression* from, Statement* body, Statement* ifbreak = nullptr, Statement* notbreak = nullptr)
         : get(get), from(from), body(body), ifbreak(ifbreak), notbreak(notbreak) {}
     inline NodeType type() override { return NodeType::ForEachStatement; };
@@ -406,9 +450,9 @@ class ImportStatement : public Statement {
 
 class VariableDeclarationStatement : public Statement {
   public:
-    Expression* name;
-    Type* value_type;
-    Expression* value;
+    ASTUniquePtr<Expression> name;
+    ASTUniquePtr<Type> value_type;
+    ASTUniquePtr<Expression> value;
     bool is_volatile = false;
     bool is_const = false;
     inline VariableDeclarationStatement(Expression* name, Type* type, Expression* value = nullptr, bool is_volatile = false, bool is_const = false)
@@ -422,8 +466,8 @@ class VariableDeclarationStatement : public Statement {
 
 class VariableAssignmentStatement : public Statement {
   public:
-    Expression* name;
-    Expression* value;
+    ASTUniquePtr<Expression> name;
+    ASTUniquePtr<Expression> value;
     inline VariableAssignmentStatement(Expression* name, Expression* value) : name(name), value(value) {}
     inline NodeType type() override { return NodeType::VariableAssignmentStatement; };
     std::string toStr() override;
@@ -434,9 +478,13 @@ class VariableAssignmentStatement : public Statement {
 
 class TryCatchStatement : public Statement {
   public:
-    Statement* try_block;
-    std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks;
-    inline TryCatchStatement(Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks) : try_block(try_block), catch_blocks(catch_blocks) {}
+    ASTUniquePtr<Statement> try_block;
+    std::vector<std::tuple<ASTUniquePtr<Type>, ASTUniquePtr<IdentifierLiteral>, ASTUniquePtr<Statement>>> catch_blocks;
+    inline TryCatchStatement(Statement* try_block, std::vector<std::tuple<Type*, IdentifierLiteral*, Statement*>> catch_blocks) : try_block(try_block) {
+        for (auto& [t, id, s] : catch_blocks) {
+            this->catch_blocks.push_back({t, id, s});
+        }
+    }
     inline NodeType type() override { return NodeType::TryCatchStatement; };
     std::string toStr() override;
 
@@ -446,10 +494,14 @@ class TryCatchStatement : public Statement {
 
 class SwitchCaseStatement : public Statement {
   public:
-    Expression* condition;
-    std::vector<std::tuple<Expression*, Statement*>> cases;
-    Statement* other;
-    inline SwitchCaseStatement(Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr) : condition(condition), cases(cases), other(other){};
+    ASTUniquePtr<Expression> condition;
+    std::vector<std::tuple<ASTUniquePtr<Expression>, ASTUniquePtr<Statement>>> cases;
+    ASTUniquePtr<Statement> other;
+    inline SwitchCaseStatement(Expression* condition, std::vector<std::tuple<Expression*, Statement*>> cases, Statement* other = nullptr) : condition(condition), other(other) {
+        for (auto& [expr, stmt] : cases) {
+            this->cases.push_back({expr, stmt});
+        }
+    }
     inline NodeType type() override { return NodeType::SwitchCaseStatement; };
     std::string toStr() override;
 
@@ -459,8 +511,8 @@ class SwitchCaseStatement : public Statement {
 
 class InfixExpression : public Expression {
   public:
-    Expression* left;
-    Expression* right;
+    ASTUniquePtr<Expression> left;
+    ASTUniquePtr<Expression> right;
     token::TokenType op;
     inline InfixExpression(Expression* left, token::TokenType op, const std::string& literal, Expression* right = nullptr) : left(left), right(right), op(op) {
         this->meta_data.more_data.insert("operator_literal", literal);
@@ -474,8 +526,8 @@ class InfixExpression : public Expression {
 
 class IndexExpression : public Expression {
   public:
-    Expression* left;
-    Expression* index;
+    ASTUniquePtr<Expression> left;
+    ASTUniquePtr<Expression> index;
     inline IndexExpression(Expression* left, Expression* index) : left(left), index(index) {}
     inline IndexExpression(Expression* left) : left(left), index(nullptr) {}
     inline NodeType type() override { return NodeType::IndexExpression; };
@@ -548,10 +600,12 @@ class BooleanLiteral : public Expression {
 
 class StructStatement : public Statement {
   public:
-    Expression* name = nullptr;
-    std::vector<Statement*> fields = {};
-    std::vector<Type*> generics = {};
-    inline StructStatement(Expression* name, const std::vector<Statement*>& fields) : name(name), fields(fields) {}
+    ASTUniquePtr<Expression> name = nullptr;
+    std::vector<ASTUniquePtr<Statement>> fields = {};
+    std::vector<ASTUniquePtr<Type>> generics = {};
+    inline StructStatement(Expression* name, const std::vector<Statement*>& fields) : name(name) {
+        for (auto f : fields) { this->fields.push_back(f); }
+    }
     inline NodeType type() override { return NodeType::StructStatement; };
     std::string toStr() override;
 
@@ -561,7 +615,7 @@ class StructStatement : public Statement {
 
 class EnumStatement : public Statement {
   public:
-    Expression* name = nullptr;
+    ASTUniquePtr<Expression> name = nullptr;
     std::vector<std::string> fields = {};
     inline EnumStatement(Expression* name, const std::vector<std::string>& fields) : name(name), fields(fields) {}
     ~EnumStatement() override;
@@ -572,7 +626,7 @@ class EnumStatement : public Statement {
 class MacroStatement : public Statement {
   public:
     std::string name;
-    BlockStatement* body;
+    ASTUniquePtr<BlockStatement> body;
     inline MacroStatement(std::string name, BlockStatement* body) : name(name), body(body) {}
     inline NodeType type() override { return NodeType::MacroStatement; };
     std::string toStr() override;
@@ -583,9 +637,11 @@ class MacroStatement : public Statement {
 
 class ArrayLiteral : public Expression {
   public:
-    std::vector<Expression*> elements;
+    std::vector<ASTUniquePtr<Expression>> elements;
     bool _new;
-    inline ArrayLiteral(const std::vector<Expression*>& elements, bool _new = false) : elements(elements), _new(_new) {}
+    inline ArrayLiteral(const std::vector<Expression*>& elements, bool _new = false) : _new(_new) {
+        for (auto el : elements) { this->elements.push_back(el); }
+    }
     inline NodeType type() override { return NodeType::ArrayLiteral; };
     std::string toStr() override;
 
@@ -594,5 +650,39 @@ class ArrayLiteral : public Expression {
 };
 
 } // namespace AST
+
+inline AST::Expression* AST::Node::castToExpression() { return static_cast<Expression*>(this); }
+inline AST::Statement* AST::Node::castToStatement() { return static_cast<Statement*>(this); }
+inline AST::Type* AST::Node::castToType() { return static_cast<Type*>(this); }
+inline AST::Program* AST::Node::castToProgram() { return static_cast<Program*>(this); }
+inline AST::FunctionParameter* AST::Node::castToFunctionParameter() { return static_cast<FunctionParameter*>(this); }
+inline AST::ExpressionStatement* AST::Node::castToExpressionStatement() { return static_cast<ExpressionStatement*>(this); }
+inline AST::BlockStatement* AST::Node::castToBlockStatement() { return static_cast<BlockStatement*>(this); }
+inline AST::ReturnStatement* AST::Node::castToReturnStatement() { return static_cast<ReturnStatement*>(this); }
+inline AST::RaiseStatement* AST::Node::castToRaiseStatement() { return static_cast<RaiseStatement*>(this); }
+inline AST::FunctionStatement* AST::Node::castToFunctionStatement() { return static_cast<FunctionStatement*>(this); }
+inline AST::IfElseStatement* AST::Node::castToIfElseStatement() { return static_cast<IfElseStatement*>(this); }
+inline AST::WhileStatement* AST::Node::castToWhileStatement() { return static_cast<WhileStatement*>(this); }
+inline AST::ForStatement* AST::Node::castToForStatement() { return static_cast<ForStatement*>(this); }
+inline AST::ForEachStatement* AST::Node::castToForEachStatement() { return static_cast<ForEachStatement*>(this); }
+inline AST::BreakStatement* AST::Node::castToBreakStatement() { return static_cast<BreakStatement*>(this); }
+inline AST::ContinueStatement* AST::Node::castToContinueStatement() { return static_cast<ContinueStatement*>(this); }
+inline AST::ImportStatement* AST::Node::castToImportStatement() { return static_cast<ImportStatement*>(this); }
+inline AST::VariableDeclarationStatement* AST::Node::castToVariableDeclarationStatement() { return static_cast<VariableDeclarationStatement*>(this); }
+inline AST::VariableAssignmentStatement* AST::Node::castToVariableAssignmentStatement() { return static_cast<VariableAssignmentStatement*>(this); }
+inline AST::TryCatchStatement* AST::Node::castToTryCatchStatement() { return static_cast<TryCatchStatement*>(this); }
+inline AST::StructStatement* AST::Node::castToStructStatement() { return static_cast<StructStatement*>(this); }
+inline AST::EnumStatement* AST::Node::castToEnumStatement() { return static_cast<EnumStatement*>(this); }
+inline AST::SwitchCaseStatement* AST::Node::castToSwitchCaseStatement() { return static_cast<SwitchCaseStatement*>(this); }
+inline AST::MacroStatement* AST::Node::castToMacroStatement() { return static_cast<MacroStatement*>(this); }
+inline AST::IdentifierLiteral* AST::Node::castToIdentifierLiteral() { return static_cast<IdentifierLiteral*>(this); }
+inline AST::IntegerLiteral* AST::Node::castToIntegerLiteral() { return static_cast<IntegerLiteral*>(this); }
+inline AST::FloatLiteral* AST::Node::castToFloatLiteral() { return static_cast<FloatLiteral*>(this); }
+inline AST::StringLiteral* AST::Node::castToStringLiteral() { return static_cast<StringLiteral*>(this); }
+inline AST::BooleanLiteral* AST::Node::castToBooleanLiteral() { return static_cast<BooleanLiteral*>(this); }
+inline AST::ArrayLiteral* AST::Node::castToArrayLiteral() { return static_cast<ArrayLiteral*>(this); }
+inline AST::InfixExpression* AST::Node::castToInfixExpression() { return static_cast<InfixExpression*>(this); }
+inline AST::IndexExpression* AST::Node::castToIndexExpression() { return static_cast<IndexExpression*>(this); }
+inline AST::CallExpression* AST::Node::castToCallExpression() { return static_cast<CallExpression*>(this); }
 
 #endif // AST_HPP

@@ -52,9 +52,7 @@ Compiler::Compiler(const Str& source,
     _initializeBuiltins();
 }
 
-Compiler::~Compiler() {
-    for (auto ptr : this->auto_free_recordStructType) { delete ptr; }
-}
+Compiler::~Compiler() {}
 
 Str Compiler::extractPrefix(const Str& path_str) {
     size_t pos = path_str.rfind("src");
@@ -483,7 +481,8 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         for (const auto& [idx, arg] : llvm::enumerate(func->args())) { arg.setName(param_names[idx]); }
 
         // Create a record for the new function
-        auto func_record = new RecordFunction(name, func, func_type, {}, return_type, gfunc->func->extra_info, gfunc->func->return_const);
+        auto func_record_owner = std::make_unique<RecordFunction>(name, func, func_type, std::vector<std::tuple<Str, RecordStructType*, bool, bool>>{}, return_type, gfunc->func->extra_info, gfunc->func->return_const);
+        auto func_record = func_record_owner.get();
 
         if (body) {
             // Create entry basic block for the function
@@ -506,16 +505,15 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
                 // Load argument value if it's a reference
                 llvm::Value* arg_value = param_references[idx] ? this->llvm_ir_builder.CreateLoad(param_type->stand_alone_type, &arg, "loaded_" + arg.getName()) : alloca;
                 // Create and add a record for the argument variable
-                auto record = new RecordVariable(Str(arg.getName()), arg_value, alloca, param_type);
                 func_record->arguments.emplace_back(arg.getName().str(), param_type, param_references[idx], param_const[idx]);
-                this->env->addRecord(record);
+                this->env->addRecord(std::make_unique<RecordVariable>(Str(arg.getName()), arg_value, alloca, param_type));
             }
 
             // Set metadata for the function record
             func_record->set_meta_data(gfunc->func->meta_data.st_line_no, gfunc->func->meta_data.st_col_no, gfunc->func->meta_data.end_line_no, gfunc->func->meta_data.end_col_no);
 
             // Add the function record to the environment
-            this->env->addRecord(new RecordFunction(*func_record));
+            this->env->addRecord(std::make_unique<RecordFunction>(*func_record));
 
             try {
                 // Compile the function body
@@ -527,7 +525,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             }
 
             // Add the function record to the generic function's environment
-            gfunc->env->addRecord(func_record);
+            gfunc->env->addRecord(std::move(func_record_owner));
             this->function_entry_block.pop_back();
 
             // Restore insert point if there are outer blocks
@@ -537,7 +535,7 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
             for (const auto& [idx, arg] : llvm::enumerate(func->args())) { func_record->arguments.emplace_back(arg.getName().str(), param_struct_types[idx], param_references[idx], param_const[idx]); }
 
             // Add the function record to the generic function's environment
-            gfunc->env->addRecord(func_record);
+            gfunc->env->addRecord(std::move(func_record_owner));
         }
 
         // Handle identifier literals by updating struct names
@@ -642,23 +640,22 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     size_t idx = 0;
     for (auto& arg : func->args()) { arg.setName(param_names[idx++]); }
 
-    // Create a RecordFunction to keep track of the function's metadata and
-    // environment
-    auto func_record = new RecordFunction(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info, function_declaration_statement->return_const);
-    func_record->ll_name = func->getName().str();
+    auto func_record_owner = std::make_unique<RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info, function_declaration_statement->return_const);
+    func_record_owner->ll_name = func->getName().str();
+    auto func_record = func_record_owner.get();
 
     // Add the function record to the appropriate scope (struct, module, or global
     // environment)
     if (struct_ && local_file_record) {
-        struct_->addMethod(name, func_record);
+        struct_->addMethod(name, std::move(func_record_owner));
         return;
     } else if (struct_) {
-        struct_->methods.emplace_back(name, func_record);
+        struct_->methods.emplace_back(name, std::move(func_record_owner));
     } else if (module) {
-        module->record_map.emplace_back(name, func_record);
+        module->record_map.emplace_back(name, std::move(func_record_owner));
         return;
     } else {
-        this->env->addRecord(func_record);
+        this->env->addRecord(std::move(func_record_owner));
     }
 
     // If the function has a body, proceed to compile it
@@ -693,8 +690,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
             }
 
             // Create a variable record for the argument and add it to the environment
-            auto record = new RecordVariable(Str(arg.getName()), nullptr, alloca, param_type_record);
-            this->env->addRecord(record);
+            this->env->addRecord(std::make_unique<RecordVariable>(Str(arg.getName()), nullptr, alloca, param_type_record));
         }
 
         // Set metadata for the function (e.g., source code location)
@@ -705,7 +701,7 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
 
         // Compile the function body within a try-catch to handle early returns or
         // branches
-        this->env->addRecord(new RecordFunction(*func_record));
+        this->env->addRecord(std::make_unique<RecordFunction>(*func_record));
         try {
             this->compile(body);
             // Ensure the function ends properly based on its return type
@@ -735,7 +731,7 @@ void Compiler::_visitFunctionDeclarationStatement(AST::FunctionStatement* functi
 
 Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call_expression) {
     auto name = call_expression->name->castToIdentifierLiteral()->value;
-    auto param = call_expression->arguments;
+    const auto& param = call_expression->arguments;
     if (name == "raw_array") {
         if (param.size() != 2) {
             errors::raiseCompletionError(this->file_path,
@@ -780,7 +776,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
         // Create array struct type
         auto array_struct = new RecordStructType(*this->env->getStruct("raw_array"));
         array_struct->generic_sub_types.push_back(raw_array_type);
-        this->auto_free_recordStructType.push_back(array_struct);
+        this->auto_free_recordStructType.push_back(std::unique_ptr<RecordStructType>(array_struct));
 
         return {raw_array, raw_array, array_struct, resolveType::StructInst};
     } else if (name == "array") {
@@ -806,14 +802,15 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
             X->name = "T";
             this->env->addRecord(X);
             Str struct_name = gstruct->structAST->name->castToIdentifierLiteral()->value;
-            auto struct_record = new RecordStructType(struct_name);
+            std::unique_ptr<RecordStructType> struct_record_owner = std::make_unique<RecordStructType>(struct_name);
+            auto struct_record = struct_record_owner.get();
 
             // Check if the struct with the given generics already exists
             if (!gstruct->env->isStruct(struct_name, false, {element_type})) {
                 // Initialize struct fields
                 vector<llvm::Type*> field_types;
-                auto fields = gstruct->structAST->fields;
-                this->env->addRecord(struct_record);
+                const auto& fields = gstruct->structAST->fields;
+                this->env->addRecord(std::move(struct_record_owner));
 
                 for (const auto& field : fields) {
                     if (field->type() == AST::NodeType::VariableDeclarationStatement) {
@@ -857,7 +854,6 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
                 gstruct->env->addRecord(new RecordStructType(*struct_record));
             } else {
                 // Retrieve the existing struct record with the specified generics
-                delete struct_record;
                 struct_record = gstruct->env->getStruct(struct_name, false, {element_type});
             }
 
@@ -1010,7 +1006,7 @@ Compiler::ResolvedValue Compiler::_visitCallExpression(AST::CallExpression* call
     vector<llvm::Value*> arg_allocas;
     vector<RecordStructType*> params_types;
 
-    for (auto arg : param) {
+    for (const auto& arg : param) {
         auto [value, alloca, _param_type, ptt] = this->_resolveValue(arg);
         auto param_type = std::get<RecordStructType*>(_param_type);
         if (ptt == resolveType::Module) {
@@ -1148,14 +1144,15 @@ Compiler::_CallGstruct(const vector<RecordGenericStructType*>& gstructs, AST::Ca
         }
 
         Str struct_name = gstruct->structAST->name->castToIdentifierLiteral()->value;
-        auto struct_record = new RecordStructType(struct_name);
+        std::unique_ptr<RecordStructType> struct_record_owner = std::make_unique<RecordStructType>(struct_name);
+        auto struct_record = struct_record_owner.get();
 
         // Check if the struct with the given generics already exists
         if (!gstruct->env->isStruct(struct_name, false, generics)) {
             // Initialize struct fields
             vector<llvm::Type*> field_types;
-            auto fields = gstruct->structAST->fields;
-            this->env->addRecord(struct_record);
+            const auto& fields = gstruct->structAST->fields;
+            this->env->addRecord(std::move(struct_record_owner));
 
             for (const auto& field : fields) {
                 if (field->type() == AST::NodeType::VariableDeclarationStatement) {
@@ -1200,7 +1197,6 @@ Compiler::_CallGstruct(const vector<RecordGenericStructType*>& gstructs, AST::Ca
             gstruct->env->addRecord(new RecordStructType(*struct_record));
         } else {
             // Retrieve the existing struct record with the specified generics
-            delete struct_record;
             struct_record = gstruct->env->getStruct(struct_name, false, generics);
         }
 
@@ -1264,7 +1260,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
 
     // Prepare to parse struct fields
     vector<llvm::Type*> field_types;
-    auto fields = struct_statement->fields;
+    const auto& fields = struct_statement->fields;
 
     // Save and update the environment for struct scope
     auto prev_env = this->env;
@@ -1274,7 +1270,7 @@ void Compiler::_createStructRecord(AST::StructStatement* struct_statement, Recor
                                          // it's get modify down the road
 
     // Iterate over each field in the struct
-    for (auto field : fields) {
+    for (const auto& field : fields) {
         if (field->type() == AST::NodeType::VariableDeclarationStatement) {
             // Handle variable declarations within the struct
             auto field_decl = field->castToVariableDeclarationStatement();
@@ -1374,14 +1370,14 @@ void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
         llvm_ir_builder.CreateRet(llvm_ir_builder.CreateGlobalStringPtr(field_name, "", 0, llvm_module.get()));
         value++;
     }
-    auto enum_struct = new RecordStructType(name, int_type, fields);
+    auto enum_struct = std::make_unique<RecordStructType>(name, int_type, fields);
     llvm_ir_builder.SetInsertPoint(dump_block);
     llvm_ir_builder.CreateUnreachable();
 
     if (saved_block) { llvm_ir_builder.SetInsertPoint(saved_block); }
 
-    enum_struct->addMethod("getName", new RecordFunction("getName", func, func_type, {}, gc_str, true, true));
-    this->env->addRecord(enum_struct);
+    enum_struct->addMethod("getName", std::make_unique<RecordFunction>("getName", func, func_type, std::vector<std::tuple<Str, RecordStructType*, bool, bool>>{}, gc_str, true, true));
+    this->env->addRecord(std::move(enum_struct));
 }
 
 Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_expression) {
@@ -1452,11 +1448,11 @@ Compiler::ResolvedValue Compiler::_memberAccess(AST::InfixExpression* infixed_ex
     } else if (right->type() == AST::NodeType::CallExpression) {
         auto call_expression = right->castToCallExpression();
         auto name = call_expression->name->castToIdentifierLiteral()->value;
-        auto params = call_expression->arguments;
+        const auto& params = call_expression->arguments;
         vector<llvm::Value*> args;
         vector<llvm::Value*> arg_allocas;
         vector<RecordStructType*> params_types;
-        for (auto arg : params) {
+        for (const auto& arg : params) {
             auto [value, val_alloca, param_type, ptt] = this->_resolveValue(arg);
             // Cannot pass modules as function arguments
             if (ptt == resolveType::Module) { errors::raiseWrongTypeError(this->file_path, this->source, arg, nullptr, {}, "Cant pass Module to the Function"); }
@@ -2565,7 +2561,7 @@ Compiler::ResolvedValue Compiler::_visitArrayLiteral(AST::ArrayLiteral* raw_arra
 
     // Create the raw_array struct and manage reference counting
     auto raw_array_struct = new RecordStructType(*this->env->getStruct("raw_array"));
-    this->auto_free_recordStructType.push_back(raw_array_struct);
+    this->auto_free_recordStructType.push_back(std::unique_ptr<RecordStructType>(raw_array_struct));
     raw_array_struct->generic_sub_types.push_back(first_generic);
 
     return {raw_array, raw_array, raw_array_struct, resolveType::StructInst};
@@ -2686,7 +2682,7 @@ void Compiler::_visitReturnStatement(AST::ReturnStatement* return_statement) {
 
 RecordStructType* Compiler::_parseType(AST::Type* type) {
     vector<RecordStructType*> generics;
-    for (auto gen : type->generics) { generics.push_back(this->_parseType(gen)); }
+    for (const auto& gen : type->generics) { generics.push_back(this->_parseType(gen)); }
 
     auto [_, __, _struct, stt] = this->_resolveValue(type->name);
     if (stt != resolveType::StructType) {
@@ -2700,7 +2696,8 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                 this->env = new Enviornment(gstruct->env);
                 gstruct->env->childes.push_back(std::unique_ptr<Enviornment>(this->env));
                 Str struct_name = gstruct->structAST->name->castToIdentifierLiteral()->value;
-                auto struct_record = new RecordStructType(struct_name);
+                std::unique_ptr<RecordStructType> struct_record_owner = std::make_unique<RecordStructType>(struct_name);
+                auto struct_record = struct_record_owner.get();
 
                 if (!gstruct->env->isStruct(struct_name, false, generics)) {
                     for (auto [generic, rg] : llvm::zip(generics, gstruct->structAST->generics)) {
@@ -2710,11 +2707,11 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                     }
 
                     vector<llvm::Type*> field_types;
-                    auto fields = gstruct->structAST->fields;
-                    this->env->addRecord(struct_record); // Dont Copy struct type here because it's get
-                                                         // modify down the road
+                    const auto& fields = gstruct->structAST->fields;
+                    this->env->addRecord(std::move(struct_record_owner)); // Dont Copy struct type here because it's get
+                                                                         // modify down the road
 
-                    for (auto field : fields) {
+                    for (const auto& field : fields) {
                         if (field->type() == AST::NodeType::VariableDeclarationStatement) {
                             _handleFieldDeclaration(gstruct, field, struct_record, field_types, struct_name);
                         } else if (field->type() == AST::NodeType::FunctionStatement) {
@@ -2725,7 +2722,6 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
                     }
                     gstruct->env->addRecord(new RecordStructType(*struct_record));
                 } else {
-                    delete struct_record;
                     struct_record = gstruct->env->getStruct(struct_name, false, generics);
                 }
 
@@ -2743,7 +2739,7 @@ RecordStructType* Compiler::_parseType(AST::Type* type) {
     if (struct_->name == "raw_array") {
         struct_ = new RecordStructType(*struct_);
         struct_->generic_sub_types.push_back(generics[0]);
-        this->auto_free_recordStructType.push_back(struct_);
+        this->auto_free_recordStructType.push_back(std::unique_ptr<RecordStructType>(struct_));
     }
     return struct_;
 }
@@ -3483,13 +3479,11 @@ void Compiler::_visitImportStatement(AST::ImportStatement* import_statement, Rec
     this->source = gc_source;
 
     // Parse the source code into an AST
-    auto lexer = new Lexer(gc_source, gc_source_path);
-    auto parser = new parser::Parser(lexer);
+    auto lexer = std::make_unique<Lexer>(gc_source, gc_source_path);
+    auto parser = std::make_unique<parser::Parser>(lexer.get());
     auto program = parser->parseProgram();
     auto program_ptr = program.get();
     this->auto_free_programs.push_back(std::move(program));
-    delete lexer;
-    delete parser;
 
     // Create a new module record if not importing into an existing module
     RecordModule* import_module = module;

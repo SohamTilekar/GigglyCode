@@ -47,9 +47,7 @@ Parser::Parser(Lexer* lexer) : lexer(lexer) {
     LOG_MSG("Peek token read.");
 }
 
-Parser::~Parser() {
-    for (auto pair : macros) { delete pair.second; }
-}
+Parser::~Parser() {}
 
 std::unique_ptr<AST::Program> Parser::parseProgram() {
     auto program = std::make_unique<AST::Program>();
@@ -244,21 +242,21 @@ AST::Statement* Parser::_parseGenericDeco() {
 
     if (this->_currentTokenIs(TokenType::Def)) {
         auto func = this->_parseFunctionStatement(); // [Def] -> [Function Statement]
-        func->generic = generics;
+        for (auto g : generics) func->generic.push_back(g);
         return func;
     } else if (this->_currentTokenIs(TokenType::Struct)) {
         auto _struct = this->_parseStructStatement(); // [Struct] -> [Struct Statement]
-        _struct->generics = generics;
+        for (auto g : generics) _struct->generics.push_back(g);
         return _struct;
     } else if (this->_currentTokenIs(TokenType::AtTheRate)) {
         auto _deco = this->_parseDeco(); // [@] -> [Decorator Statement]
         if (_deco->type() == AST::NodeType::FunctionStatement) {
             auto deco = _deco->castToFunctionStatement();
-            deco->generic = generics;
+            for (auto g : generics) deco->generic.push_back(g);
             return deco;
         } else if (_deco->type() == AST::NodeType::StructStatement) {
             auto deco = _deco->castToStructStatement();
-            deco->generics = generics;
+            for (auto g : generics) deco->generics.push_back(g);
             return deco;
         }
     }
@@ -711,7 +709,7 @@ AST::Statement* Parser::_parseVariableDeclaration(AST::Expression* identifier, i
         LOG_TOK()
         type = this->_parseType(); // [Type] remains unchanged
         if (type->name->type() == AST::NodeType::IdentifierLiteral && type->name->castToIdentifierLiteral()->value == "auto") {
-            delete type;
+            AST::ASTUniquePtr<AST::Type> temp(type);
             type = nullptr;
         }
     }

@@ -6,12 +6,12 @@ using namespace compiler;
 
 void Compiler::addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool strictTypeCheck) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, llvm_name, this->llvm_module.get());
-    this->env->parent->addRecord(new RecordFunction(name, func, funcType, params, returnType, strictTypeCheck));
+    this->env->parent->addRecord(std::make_unique<RecordFunction>(name, func, funcType, params, returnType, strictTypeCheck));
 }
 
 void Compiler::addFunc2Mod(RecordModule* module, const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool strictTypeCheck) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, llvm_name, this->llvm_module.get());
-    module->addRecord(new RecordFunction(name, func, funcType, params, returnType, strictTypeCheck));
+    module->addRecord(std::make_unique<RecordFunction>(name, func, funcType, params, returnType, strictTypeCheck));
 }
 
 void Compiler::_initilizeCSTDLib() {
@@ -42,82 +42,82 @@ void Compiler::_initilizeCSTDLib() {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "putchar", this->llvm_module.get());
 
     params = {std::make_tuple("char", this->gc_int32, false, false)};
-    this->env->parent->addRecord(new RecordFunction("putchar", func, funcType, params, this->gc_int32, false));
+    this->env->parent->addRecord(std::make_unique<RecordFunction>("putchar", func, funcType, params, this->gc_int32, false));
 
     params = {std::make_tuple("char", this->gc_char, false, false)};
-    this->env->parent->addRecord(new RecordFunction("putchar", func, funcType, params, this->gc_int32, false));
+    this->env->parent->addRecord(std::make_unique<RecordFunction>("putchar", func, funcType, params, this->gc_int32, false));
 
     // math.h
-    auto math_module = new enviornment::RecordModule("math");
+    auto math_module = std::make_unique<enviornment::RecordModule>("math");
 
     params = {std::make_tuple("x", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "sin", "sin", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "cos", "cos", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "tan", "tan", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "asin", "asin", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "acos", "acos", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "atan", "atan", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "sin", "sin", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "cos", "cos", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "tan", "tan", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "asin", "asin", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "acos", "acos", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "atan", "atan", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("y", this->gc_float, false, false), std::make_tuple("x", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "atan2", "atan2", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "atan2", "atan2", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "sinh", "sinh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "cosh", "cosh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "tanh", "tanh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "asinh", "asinh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "acosh", "acosh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "atanh", "atanh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "exp", "exp", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "exp2", "exp2", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "expm1", "expm1", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "log", "log", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "log10", "log10", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "log2", "log2", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "log1p", "log1p", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "sqrt", "sqrt", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "cbrt", "cbrt", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "sinh", "sinh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "cosh", "cosh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "tanh", "tanh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "asinh", "asinh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "acosh", "acosh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "atanh", "atanh", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "exp", "exp", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "exp2", "exp2", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "expm1", "expm1", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "log", "log", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "log10", "log10", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "log2", "log2", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "log1p", "log1p", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "sqrt", "sqrt", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "cbrt", "cbrt", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false), std::make_tuple("y", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "hypot", "hypot", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "hypot", "hypot", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "ceil", "ceil", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "floor", "floor", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "round", "round", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "trunc", "trunc", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "ceil", "ceil", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "floor", "floor", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "round", "round", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "trunc", "trunc", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("numer", this->gc_float, false, false), std::make_tuple("denom", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "fmod", "fmod", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "remainder", "remainder", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "remquo", "remquo", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "fmod", "fmod", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "remainder", "remainder", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "remquo", "remquo", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false), std::make_tuple("y", this->gc_float, false, false), std::make_tuple("z", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "fma", "fma", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "fma", "fma", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false), std::make_tuple("y", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "fdim", "fdim", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "fdim", "fdim", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "fabs", "fabs", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "fabs", "fabs", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false), std::make_tuple("y", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "fmax", "fmax", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "fmin", "fmin", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "copysign", "copysign", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "fmax", "fmax", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "fmin", "fmin", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "copysign", "copysign", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("tagp", this->gc_str, false, false)};
-    addFunc2Mod(math_module, "nan", "nan", llvm::FunctionType::get(this->ll_float, {this->ll_str}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "nan", "nan", llvm::FunctionType::get(this->ll_float, {this->ll_str}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false), std::make_tuple("y", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "nextafter", "nextafter", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "nexttoward", "nexttoward", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "nextafter", "nextafter", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "nexttoward", "nexttoward", llvm::FunctionType::get(this->ll_float, {this->ll_float, this->ll_float}, false), params, this->gc_float, false);
 
     params = {std::make_tuple("x", this->gc_float, false, false)};
-    addFunc2Mod(math_module, "erf", "erf", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "erfc", "erfc", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "tgamma", "tgamma", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
-    addFunc2Mod(math_module, "lgamma", "lgamma", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "erf", "erf", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "erfc", "erfc", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "tgamma", "tgamma", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
+    addFunc2Mod(math_module.get(), "lgamma", "lgamma", llvm::FunctionType::get(this->ll_float, {this->ll_float}, false), params, this->gc_float, false);
 
-    this->env->parent->addRecord(math_module);
+    this->env->parent->addRecord(std::move(math_module));
 }
