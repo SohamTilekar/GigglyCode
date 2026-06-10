@@ -258,9 +258,9 @@ void Compiler::_visitBreakStatement(AST::BreakStatement* node) {
         errors::raiseCompletionError(this->file_path,
                                      this->source,
                                      node->meta_data.st_line_no,
-                                     node->extra_info.int_map["idx_stcol_no"],
+                                     node->idx_stcol_no,
                                      node->meta_data.end_line_no,
-                                     node->extra_info.int_map["idx_endcol_no"],
+                                     node->idx_endcol_no,
                                      "Loop index " + std::to_string(node->loopIdx) + " is out of range. Maximum allowed index is " + std::to_string(this->env->loop_ifbreak_block.size() - 1) + ".",
                                      "Ensure that the loop index is within the valid range. Remember: "
                                      "LoopIdx starts with `0`.");
@@ -294,9 +294,9 @@ void Compiler::_visitContinueStatement(AST::ContinueStatement* node) {
         errors::raiseCompletionError(this->file_path,
                                      this->source,
                                      node->meta_data.st_line_no,
-                                     node->extra_info.int_map["idx_stcol_no"],
+                                     node->idx_stcol_no,
                                      node->meta_data.end_line_no,
-                                     node->extra_info.int_map["idx_endcol_no"],
+                                     node->idx_endcol_no,
                                      "Loop Index is out of range",
                                      "Remember: LoopIdx start with `0`");
     }
@@ -481,7 +481,9 @@ Compiler::_CallGfunc(const vector<RecordGenericFunction*>& gfuncs, AST::CallExpr
         for (const auto& [idx, arg] : llvm::enumerate(func->args())) { arg.setName(param_names[idx]); }
 
         // Create a record for the new function
-        auto func_record_owner = std::make_unique<RecordFunction>(name, func, func_type, std::vector<std::tuple<Str, RecordStructType*, bool, bool>>{}, return_type, gfunc->func->extra_info, gfunc->func->return_const);
+        auto func_record_owner = std::make_unique<RecordFunction>(name, func, func_type, std::vector<std::tuple<Str, RecordStructType*, bool, bool>>{}, return_type);
+        func_record_owner->autocast = gfunc->func->autocast;
+        func_record_owner->is_const_return = gfunc->func->return_const;
         auto func_record = func_record_owner.get();
 
         if (body) {
@@ -640,7 +642,9 @@ void Compiler::_createFunctionRecord(AST::FunctionStatement* function_declaratio
     size_t idx = 0;
     for (auto& arg : func->args()) { arg.setName(param_names[idx++]); }
 
-    auto func_record_owner = std::make_unique<RecordFunction>(name, func, func_type, arguments, return_type, function_declaration_statement->extra_info, function_declaration_statement->return_const);
+    auto func_record_owner = std::make_unique<RecordFunction>(name, func, func_type, arguments, return_type);
+    func_record_owner->autocast = function_declaration_statement->autocast;
+    func_record_owner->is_const_return = function_declaration_statement->return_const;
     func_record_owner->ll_name = func->getName().str();
     auto func_record = func_record_owner.get();
 
@@ -1376,7 +1380,10 @@ void Compiler::_visitEnumStatement(AST::EnumStatement* enum_statement) {
 
     if (saved_block) { llvm_ir_builder.SetInsertPoint(saved_block); }
 
-    enum_struct->addMethod("getName", std::make_unique<RecordFunction>("getName", func, func_type, std::vector<std::tuple<Str, RecordStructType*, bool, bool>>{}, gc_str, true, true));
+    auto get_name_method = std::make_unique<RecordFunction>("getName", func, func_type, std::vector<std::tuple<Str, RecordStructType*, bool, bool>>{}, gc_str);
+    get_name_method->autocast = true;
+    get_name_method->is_const_return = true;
+    enum_struct->addMethod("getName", std::move(get_name_method));
     this->env->addRecord(std::move(enum_struct));
 }
 
@@ -1740,7 +1747,7 @@ bool Compiler::canConvertType(RecordStructType* from, RecordStructType* to) {
     for (const auto& [fromType, toType] : convertibleTypes) {
         if (from->name == fromType && to->name == toType) { return true; }
     }
-    if (from->struct_type && from->is_method("", {from}, std::unordered_map<std::string, bool>{{"autocast", true}}, to, true)) { return true; }
+    if (from->struct_type && from->is_method("", {from}, true, to, true)) { return true; }
     return false;
 };
 

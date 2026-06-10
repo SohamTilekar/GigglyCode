@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <optional>
 
 #include "../../parser/AST/ast.hpp"
 
@@ -69,7 +70,7 @@ class Record {
     RecordType type;          ///< The type of the record.
     Str name;                 ///< The name of the record.
     AST::MetaData meta_data;  ///< Metadata associated with the record.
-    AST::MoreData extra_info; ///< Additional information associated with the record.
+    bool autocast = false; ///< Additional information associated with the record.
 
     /**
      * @brief Sets the metadata for the record.
@@ -91,13 +92,13 @@ class Record {
      * @param name The name of the record.
      * @param extraInfo Optional extra information for the record.
      */
-    Record(const RecordType& type, const Str& name, const AST::MoreData& extraInfo = {}) : type(type), name(name), extra_info(extraInfo) {}
+    Record(const RecordType& type, const Str& name) : type(type), name(name) {}
 
     /**
      * @brief Copy constructor for Record.
      * @param other The Record object to copy from.
      */
-    Record(const Record& other) : type(other.type), name(other.name), meta_data(other.meta_data), extra_info(other.extra_info) {}
+    Record(const Record& other) : type(other.type), name(other.name), meta_data(other.meta_data), autocast(other.autocast) {}
 
     virtual ~Record() = default;
 }; // class Record
@@ -139,34 +140,19 @@ class RecordFunction : public Record {
      * @param functionType Pointer to the LLVM FunctionType.
      * @param arguments Vector of arguments.
      * @param returnInst Pointer to the struct type of the return value.
-     * @param extraInfo Optional extra information.
+     * @param return_type Pointer to the struct type of the return value.
+     * @param autocast Whether to allow autocast.
+     * @param return_const Whether the return type is const.
      */
     RecordFunction(const Str& name,
                    llvm::Function* function,
                    llvm::FunctionType* functionType,
                    std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
-                   RecordStructType* returnInst,
-                   const AST::MoreData& extraInfo = {},
-                   bool is_const_return = false)
-        : Record(RecordType::Function, name, extraInfo), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_const_return(is_const_return) {}
+                   RecordStructType* return_type = nullptr)
+        : Record(RecordType::Function, name),
+          function(function), function_type(functionType), arguments(arguments), return_type(return_type) {}
 
-    /**
-     * @brief Constructs a RecordFunction with variable arguments support.
-     * @param name The name of the function.
-     * @param function Pointer to the LLVM Function.
-     * @param functionType Pointer to the LLVM FunctionType.
-     * @param arguments Vector of arguments.
-     * @param returnInst Pointer to the struct type of the return value.
-     * @param isVarArg Indicates if the function accepts variable arguments.
-     */
-    RecordFunction(const Str& name,
-                   llvm::Function* function,
-                   llvm::FunctionType* functionType,
-                   std::vector<std::tuple<Str, RecordStructType*, bool, bool>> arguments,
-                   RecordStructType* returnInst,
-                   bool isVarArg,
-                   bool is_const_return = false)
-        : Record(RecordType::Function, name), function(function), function_type(functionType), arguments(arguments), return_type(returnInst), is_var_arg(isVarArg), is_const_return(is_const_return) {}
+    // Removed ambiguous VarArg constructor
 
     /**
      * @brief Copy constructor for RecordFunction.
@@ -393,7 +379,7 @@ class RecordStructType : public Record {
      * @param exact If true, performs an exact match.
      * @return True if the method exists, false otherwise.
      */
-    bool is_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
+    bool is_method(const Str& name, const std::vector<RecordStructType*>& params_types, std::optional<bool> autocast = std::nullopt, RecordStructType* return_type = nullptr, bool exact = false);
 
     bool isVal(std::string name);
 
@@ -406,7 +392,7 @@ class RecordStructType : public Record {
      * @param exact If true, performs an exact match.
      * @return Pointer to the FunctionRecord if found, nullptr otherwise.
      */
-    RecordFunction* get_method(const Str& name, const std::vector<RecordStructType*>& params_types, const AST::MoreData& ex_info = {}, RecordStructType* return_type = nullptr, bool exact = false);
+    RecordFunction* get_method(const Str& name, const std::vector<RecordStructType*>& params_types, std::optional<bool> autocast = std::nullopt, RecordStructType* return_type = nullptr, bool exact = false);
 
     uint32_t getVal(std::string name);
 

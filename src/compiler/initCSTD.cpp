@@ -6,12 +6,16 @@ using namespace compiler;
 
 void Compiler::addFunc(const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool strictTypeCheck) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, llvm_name, this->llvm_module.get());
-    this->env->parent->addRecord(std::make_unique<RecordFunction>(name, func, funcType, params, returnType, strictTypeCheck));
+    auto record = std::make_unique<RecordFunction>(name, func, funcType, params, returnType);
+    record->is_var_arg = strictTypeCheck;
+    this->env->parent->addRecord(std::move(record));
 }
 
 void Compiler::addFunc2Mod(RecordModule* module, const Str& name, const Str& llvm_name, llvm::FunctionType* funcType, vector<std::tuple<Str, RecordStructType*, bool, bool>>& params, RecordStructType* returnType, bool strictTypeCheck) {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, llvm_name, this->llvm_module.get());
-    module->addRecord(std::make_unique<RecordFunction>(name, func, funcType, params, returnType, strictTypeCheck));
+    auto record = std::make_unique<RecordFunction>(name, func, funcType, params, returnType);
+    record->is_var_arg = strictTypeCheck;
+    module->addRecord(std::move(record));
 }
 
 void Compiler::_initilizeCSTDLib() {
@@ -42,10 +46,14 @@ void Compiler::_initilizeCSTDLib() {
     auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "putchar", this->llvm_module.get());
 
     params = {std::make_tuple("char", this->gc_int32, false, false)};
-    this->env->parent->addRecord(std::make_unique<RecordFunction>("putchar", func, funcType, params, this->gc_int32, false));
+    auto putchar_record = std::make_unique<RecordFunction>("putchar", func, funcType, params, this->gc_int32);
+    putchar_record->is_var_arg = false;
+    this->env->parent->addRecord(std::move(putchar_record));
 
     params = {std::make_tuple("char", this->gc_char, false, false)};
-    this->env->parent->addRecord(std::make_unique<RecordFunction>("putchar", func, funcType, params, this->gc_int32, false));
+    auto putchar_module_record = std::make_unique<RecordFunction>("putchar", func, funcType, params, this->gc_int32);
+    putchar_module_record->is_var_arg = false;
+    this->env->parent->addRecord(std::move(putchar_module_record));
 
     // math.h
     auto math_module = std::make_unique<enviornment::RecordModule>("math");
