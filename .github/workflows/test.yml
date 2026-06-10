@@ -2,48 +2,48 @@ name: Test GigglyCode Compiler
 
 on:
   push:
-    branches: [ "main", "fix" ]
+    branches: ["main", "development"]
   pull_request:
-    branches: [ "main", "fix" ]
+    branches: ["main", "development"]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential wget lsb-release software-properties-common gnupg libyaml-cpp-dev
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential wget lsb-release software-properties-common gnupg libyaml-cpp-dev
 
-    - name: Install LLVM 18 & Clang 18
-      run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 18
-        sudo apt-get install -y llvm-18-dev libclang-18-dev clang-18
+      - name: Install LLVM 18 & Clang 18
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          sudo apt-get install -y llvm-18-dev libclang-18-dev clang-18
 
-    - name: Symlink Clang 18 to default clang
-      run: |
-        sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
-        sudo ln -sf /usr/bin/clang++-18 /usr/bin/clang++
-        clang --version
+      - name: Symlink Clang 18 to default clang
+        run: |
+          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+          sudo ln -sf /usr/bin/clang++-18 /usr/bin/clang++
+          clang --version
 
-    - name: Configure CMake
-      run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/usr/lib/llvm-18
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/usr/lib/llvm-18
 
-    - name: Build
-      run: |
-        cmake --build build -j$(nproc)
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
 
-    - name: Run Test Suite
-      run: |
-        python3 test/run_tests.py --cross-targets aarch64-unknown-linux-gnu wasm32-unknown-wasi x86_64-unknown-linux-gnu s390x-unknown-linux-gnu
+      - name: Run Test Suite
+        run: |
+          python3 test/run_tests.py --cross-targets aarch64-unknown-linux-gnu wasm32-unknown-wasi x86_64-unknown-linux-gnu s390x-unknown-linux-gnu
